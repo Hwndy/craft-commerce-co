@@ -29,46 +29,46 @@ export const ProductsSection = () => {
   ];
 
   return (
-    <section id="shop" className="py-20 bg-background">
-      <div className="container mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-foreground mb-4">
+    <section id="shop" className="py-12 sm:py-16 md:py-20 bg-background">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-3 sm:mb-4">
             Our Exclusive Collection
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-4">
             Discover our range of handcrafted belts made from upcycled tire materials, 
             designed for durability and style.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-12">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 mb-8 sm:mb-12">
           {products.map((product) => (
             <Card key={product.id} className="group overflow-hidden bg-card border-border card-shadow transition-smooth hover:scale-105">
               <div className="relative overflow-hidden">
                 <img 
                   src={product.image} 
                   alt={product.name}
-                  className="w-full h-64 object-cover transition-smooth group-hover:scale-110"
+                  className="w-full h-48 sm:h-56 md:h-64 object-cover transition-smooth group-hover:scale-110"
                 />
-                <Badge className="absolute top-4 left-4 bg-brand text-brand-foreground">
+                <Badge className="absolute top-3 left-3 sm:top-4 sm:left-4 bg-brand text-brand-foreground text-xs">
                   {product.badge}
                 </Badge>
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-smooth">
-                  <Button size="icon" variant="secondary" className="h-8 w-8">
-                    <Heart className="h-4 w-4" />
+                <div className="absolute top-3 right-3 sm:top-4 sm:right-4 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-smooth">
+                  <Button size="icon" variant="secondary" className="h-7 w-7 sm:h-8 sm:w-8">
+                    <Heart className="h-3 w-3 sm:h-4 sm:w-4" />
                   </Button>
                 </div>
               </div>
               
-              <div className="p-6">
-                <h3 className="text-xl font-semibold text-foreground mb-2">
+              <div className="p-4 sm:p-6">
+                <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-2">
                   {product.name}
                 </h3>
-                <p className="text-2xl font-bold text-brand mb-4">
+                <p className="text-xl sm:text-2xl font-bold text-brand mb-3 sm:mb-4">
                   {product.price}
                 </p>
-                <Button className="w-full bg-brand text-brand-foreground hover:bg-brand/90">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
+                <Button className="w-full bg-brand text-brand-foreground hover:bg-brand/90 text-sm sm:text-base py-2 sm:py-3 h-auto">
+                  <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                   Add to Cart
                 </Button>
               </div>
