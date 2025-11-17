@@ -1,21 +1,44 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const LandingVideo = () => {
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (video) {
+      // Attempt to play the video
+      const playPromise = video.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch((error) => {
+          console.log("Autoplay prevented:", error);
+          // Video autoplay was prevented, but we'll keep showing it
+        });
+      }
+    }
+  }, []);
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-black">
       {/* Video Background */}
       <video
+        ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
         className="absolute inset-0 w-full h-full object-cover"
         aria-label="ALL LIFE brand introduction video"
+        onLoadedData={(e) => {
+          const video = e.currentTarget;
+          video.play().catch((error) => {
+            console.log("Play on load prevented:", error);
+          });
+        }}
       >
         <source src="/videos/all_life_1.mp4" type="video/mp4" />
       </video>
