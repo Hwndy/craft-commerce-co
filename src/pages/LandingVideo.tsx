@@ -48,25 +48,26 @@ const LandingVideo = () => {
 
       {/* Content */}
       <div
-        className="relative z-10 flex flex-col items-center justify-center h-full gap-12"
+        className="relative z-10 flex flex-col items-center justify-center h-full gap-8 sm:gap-12 px-4"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
         {/* ALL LIFE Logo/Text */}
         <div className="text-center">
-          <h1 className="text-8xl md:text-9xl font-bold text-white tracking-wider">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-bold text-white tracking-wider">
             ALL LIFE
           </h1>
         </div>
 
-        {/* Explore Button - appears on hover */}
+        {/* Explore Button - always visible on mobile, hover effect on desktop */}
         <Button
           onClick={() => navigate("/home")}
           className={`
             transition-all duration-500 ease-out
-            bg-primary text-black font-semibold text-lg px-12 py-6 h-auto
+            bg-primary text-black font-semibold text-base sm:text-lg px-8 sm:px-12 py-4 sm:py-6 h-auto
             hover:scale-110 hover:shadow-[0_0_40px_rgba(250,204,21,0.6)]
-            ${isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+            md:${isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
+            opacity-100 translate-y-0
           `}
         >
           Explore

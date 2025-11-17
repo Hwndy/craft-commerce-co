@@ -22,39 +22,39 @@ export const TestimonialsSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-background">
-      <div className="container mx-auto px-6">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold text-foreground mb-4">
+    <section className="py-12 sm:py-16 md:py-20 bg-background">
+      <div className="container mx-auto px-4 sm:px-6">
+        <div className="text-center mb-8 sm:mb-12 md:mb-16">
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-3 sm:mb-4">
             What Our Clients Say About Us
           </h2>
-          <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+          <p className="text-muted-foreground text-sm sm:text-base md:text-lg max-w-2xl mx-auto px-4">
             Hear from our satisfied customers who are making a difference with sustainable fashion choices.
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-6 sm:gap-8 max-w-4xl mx-auto">
           {testimonials.map((testimonial) => (
-            <Card key={testimonial.id} className="p-8 bg-card border-border card-shadow">
-              <div className="flex items-center mb-6">
+            <Card key={testimonial.id} className="p-6 sm:p-8 bg-card border-border card-shadow">
+              <div className="flex items-center mb-4 sm:mb-6">
                 <img 
                   src={testimonial.avatar} 
                   alt={testimonial.name}
-                  className="w-12 h-12 rounded-full mr-4"
+                  className="w-10 h-10 sm:w-12 sm:h-12 rounded-full mr-3 sm:mr-4"
                 />
                 <div>
-                  <h4 className="font-semibold text-foreground">{testimonial.name}</h4>
-                  <p className="text-muted-foreground text-sm">{testimonial.role}</p>
+                  <h4 className="font-semibold text-foreground text-sm sm:text-base">{testimonial.name}</h4>
+                  <p className="text-muted-foreground text-xs sm:text-sm">{testimonial.role}</p>
                 </div>
               </div>
               
-              <div className="flex items-center mb-4">
+              <div className="flex items-center mb-3 sm:mb-4">
                 {[...Array(testimonial.rating)].map((_, i) => (
-                  <Star key={i} className="h-5 w-5 text-brand fill-current" />
+                  <Star key={i} className="h-4 w-4 sm:h-5 sm:w-5 text-brand fill-current" />
                 ))}
               </div>
               
-              <blockquote className="text-muted-foreground text-lg italic leading-relaxed">
+              <blockquote className="text-muted-foreground text-sm sm:text-base md:text-lg italic leading-relaxed">
                 "{testimonial.comment}"
               </blockquote>
             </Card>
