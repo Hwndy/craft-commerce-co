@@ -59,9 +59,9 @@ const LandingVideo = () => {
 
       {/* Invisible clickable overlay + subtle hint on mobile */}
       <div className="absolute inset-0 flex items-end justify-center pb-16 pointer-events-none">
-        <p className="text-white/50 text-sm tracking-widest font-light animate-pulse md:hidden">
+        {/* <p className="text-white/50 text-sm tracking-widest font-light animate-pulse md:hidden">
           TAP TO ENTER
-        </p>
+        </p> */}
       </div>
     </div>
   );
