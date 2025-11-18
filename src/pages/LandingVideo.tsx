@@ -1,77 +1,67 @@
 import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { useState, useRef, useEffect } from "react";
+import { useRef, useEffect } from "react";
 
 const LandingVideo = () => {
   const navigate = useNavigate();
-  const [isHovered, setIsHovered] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Maximum autoplay reliability (iOS, Android, desktop)
   useEffect(() => {
     const video = videoRef.current;
-    if (video) {
-      // Attempt to play the video
-      const playPromise = video.play();
-      
-      if (playPromise !== undefined) {
-        playPromise.catch((error) => {
-          console.log("Autoplay prevented:", error);
-          // Video autoplay was prevented, but we'll keep showing it
-        });
-      }
-    }
+    if (!video) return;
+
+    const play = () => video.play().catch(() => {});
+    play();
+    video.addEventListener("loadeddata", play);
+    video.addEventListener("canplay", play);
+
+    return () => {
+      video.removeEventListener("loadeddata", play);
+      video.removeEventListener("canplay", play);
+    };
   }, []);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black">
-      {/* Video Background */}
+    <div
+      className="relative w-screen h-screen overflow-hidden bg-black cursor-pointer"
+      onClick={() => navigate("/home")}
+      role="button"
+      tabIndex={0}
+      aria-label="Enter ALL LIFE"
+    >
+      {/* Perfect full-screen video – never cropped, always centered */}
       <video
         ref={videoRef}
         autoPlay
         loop
         muted
         playsInline
-        className="absolute inset-0 w-full h-full object-cover"
-        aria-label="ALL LIFE brand introduction video"
-        onLoadedData={(e) => {
-          const video = e.currentTarget;
-          video.play().catch((error) => {
-            console.log("Play on load prevented:", error);
-          });
+        preload="auto"
+        poster="/videos/all_life_poster.jpg"
+        className="fixed inset-0 w-full h-full object-contain object-center bg-black"
+        style={{
+          maxWidth: "100vw",
+          maxHeight: "100vh",
+          width: "auto",
+          height: "auto",
+          minWidth: "100vw",
+          minHeight: "100vh",
         }}
+        aria-hidden="true"
       >
+        <source src="/videos/all_life_1.webm" type="video/webm" />
         <source src="/videos/all_life_1.mp4" type="video/mp4" />
+        Your browser does not support video.
       </video>
 
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/30" />
+      {/* Very subtle overlay for depth (optional – remove if you want pure video) */}
+      <div className="absolute inset-0 bg-black/10 pointer-events-none" />
 
-      {/* Content */}
-      <div
-        className="relative z-10 flex flex-col items-center justify-center h-full gap-8 sm:gap-12 px-4"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
-        {/* ALL LIFE Logo/Text */}
-        <div className="text-center">
-          <h1 className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl font-bold text-white tracking-wider">
-            ALL LIFE
-          </h1>
-        </div>
-
-        {/* Explore Button - always visible on mobile, hover effect on desktop */}
-        <Button
-          onClick={() => navigate("/home")}
-          className={`
-            transition-all duration-500 ease-out
-            bg-primary text-black font-semibold text-base sm:text-lg px-8 sm:px-12 py-4 sm:py-6 h-auto
-            hover:scale-110 hover:shadow-[0_0_40px_rgba(250,204,21,0.6)]
-            md:${isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}
-            opacity-100 translate-y-0
-          `}
-        >
-          Explore
-        </Button>
+      {/* Invisible clickable overlay + subtle hint on mobile */}
+      <div className="absolute inset-0 flex items-end justify-center pb-16 pointer-events-none">
+        <p className="text-white/50 text-sm tracking-widest font-light animate-pulse md:hidden">
+          TAP TO ENTER
+        </p>
       </div>
     </div>
   );
