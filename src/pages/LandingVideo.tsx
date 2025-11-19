@@ -24,7 +24,7 @@ const LandingVideo = () => {
   return (
     <div
       className="relative w-screen h-screen overflow-hidden bg-black cursor-pointer"
-      onClick={() => navigate("/home")}
+      // onClick={() => navigate("/home")}
       role="button"
       tabIndex={0}
       aria-label="Enter ALL LIFE"
