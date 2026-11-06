@@ -10,6 +10,8 @@ export default tseslint.config(
       "dist",
       "assets/hls-output",
       "assets/source",
+      "assets/test-hls-output",
+      "assets/test-source",
       "test-results",
       "playwright-report",
       "supabase/.temp",

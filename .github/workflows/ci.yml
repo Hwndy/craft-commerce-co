@@ -9,11 +9,6 @@ jobs:
   build-and-test:
     runs-on: ubuntu-latest
     env:
-      # Safe placeholders — src/lib/env.ts validates shape at build/test time
-      # but nothing in the build or test suite makes a real Supabase call.
-      # Real values live in Vercel's project env vars, not here.
-      VITE_SUPABASE_URL: https://placeholder.supabase.co
-      VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-only
       VITE_FILM_AUTOSTART: "true"
     steps:
       - uses: actions/checkout@v4
@@ -25,16 +20,60 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run typecheck
+      - name: Typecheck, lint, unit test
+        env:
+          # Safe placeholders — src/lib/env.ts validates shape at this stage
+          # but nothing in typecheck/lint/unit-test makes a real Supabase
+          # call. Real production values live in Vercel's project env vars.
+          VITE_SUPABASE_URL: https://placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-only
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
 
-      - run: npm run lint
+      # The e2e specs (entry sequence, first-watch gate, /gallery axe,
+      # orientation) need a real published film to render anything
+      # meaningful, so the build below targets a local Supabase stack
+      # seeded with a short synthetic test film — never the real staging
+      # project (docs/decisions.md D-25/D-26).
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
-      - run: npm run test
+      - name: Start local Supabase stack
+        run: supabase start
 
-      - run: npm run build
+      - name: Record local Supabase connection details
+        # `-o env` prints KEY="value" lines (plus the occasional stray
+        # status line) — GITHUB_ENV needs bare KEY=value, one per line, so
+        # strip the quotes and drop anything that isn't a KEY="..." line.
+        run: |
+          supabase status -o env | grep -E '^[A-Z_]+="' | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
+
+      - name: Generate and encode a short synthetic test film
+        run: |
+          scripts/generate-test-film.sh assets/test-source/test-film.mp4 20
+          scripts/encode-hls.sh assets/test-source/test-film.mp4 assets/test-hls-output
+
+      - name: Upload the test film to the local Supabase stack
+        env:
+          SUPABASE_URL: ${{ env.API_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/upload-film.ts assets/test-hls-output "ALL LIFE Test Film"
+
+      - name: Build (against the local Supabase stack)
+        env:
+          VITE_SUPABASE_URL: ${{ env.API_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+        run: npm run build
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium webkit
 
-      - name: Playwright smoke
+      - name: Playwright e2e
         run: npx playwright test --project=chromium --project=webkit
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop

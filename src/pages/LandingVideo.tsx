@@ -109,7 +109,6 @@ const LandingVideo = () => {
       >
         <source src="/videos/all_life_1.webm" type="video/webm" />
         <source src="/videos/all_life_1.mp4" type="video/mp4" />
-        Your browser does not support video.
       </video>
 
       {/* Very subtle overlay for depth (optional – remove if you want pure video) */}

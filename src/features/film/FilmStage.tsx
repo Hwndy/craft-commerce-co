@@ -314,7 +314,16 @@ export function FilmStage() {
         </div>
       )}
 
-      {isRevealed && fatalError != null && (
+      {/*
+       * Excludes hasEnded && isUnlocked: once a viewer has genuinely
+       * watched through and unlocked the gate, a fatal hls.js error from
+       * this point on (e.g. a late buffering/network blip) must not trap
+       * them behind an error overlay that sits on top of — and blocks
+       * clicks on — the Replay/Continue screen below. Replaying re-attaches
+       * HLS from scratch (via retryToken) and can surface a fresh error
+       * then if it recurs.
+       */}
+      {isRevealed && fatalError != null && !(hasEnded && isUnlocked) && (
         <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }} role="alert">
           <p>Playback failed.</p>
           <button
