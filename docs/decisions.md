@@ -52,6 +52,16 @@ Verified directly via the same API: both tables exist with `relrowsecurity = tru
 Alternatives considered: asking to widen this environment's network policy to allow raw TCP to the pooler host — not pursued, since the environment's proxy is HTTPS-only by design and this would likely need a different kind of change than a host allowlist entry; the Management API route needed no environment changes at all.
 Consequences: future Supabase migrations (0002 onward) in later phases hit the same limitation in this sandbox and should use the same Management-API-plus-tracking-row approach, or be applied from an environment/machine with direct Postgres egress. If anyone ever runs `supabase db push --remote` for this project from a machine with normal network access, it will correctly skip 0001 as already applied.
 
+### D-22: Node's fetch needs NODE_USE_ENV_PROXY in this sandbox (2026-11-06)
+Context: `scripts/upload-film.ts` (via `@supabase/supabase-js`, which uses Node's built-in `fetch`) silently bypassed the session's HTTPS proxy and its injected service-role credential — requests reached Supabase directly with a literal placeholder key, failing with "signature verification failed" rather than a proxy error. `curl` worked fine for the same host.
+Decision: run Node scripts that need a proxy-injected credential with `NODE_USE_ENV_PROXY=1` (Node ≥ 22.21) in this environment. Documented in `scripts/README.md`. Not relevant outside a Claude Code cloud session.
+Consequences: none for the owner; purely a note for future sessions/scripts in this kind of environment.
+
+### D-23: Real film used in place of a short test film for T4 (2026-11-06)
+Context: the brief's T4 default is a generated 20–30 s placeholder test film. The owner supplied the real film directly (`KIT_PROJECT_FINAL_COMP.mp4` via WeTransfer, 341 MB, 1920×1080, H.264/AAC, 8:42) during this session.
+Decision: encoded and uploaded the real film instead of a placeholder — `media` row `1590e888-765c-4fb8-93a2-b5b2203793fc`, `gallery_film` row `a6c65c4d-a2d6-4362-9d03-7ee0849bd477` (published, version 1) on the staging project. Verified `master.m3u8` and the variant playlists are publicly reachable from Storage and the film row is readable per RLS.
+Consequences: a **separate short synthetic test film** (ffmpeg `testsrc2`, ~20–30 s, per `docs/05-testing-and-quality.md` §2) is still needed for T9/T10/T13 — testing a 95%-watched first-watch gate against an 8:42 film in CI isn't practical. Not generated yet; flagged for whichever task first needs fast Playwright gate tests. Not yet verified in an actual browser/device (desktop Safari, Chrome via hls.js, iPhone) — only that the playlists are structurally valid and reachable; real playback needs a manual check per AGENTS.md rule 7 before this phase is called done.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
