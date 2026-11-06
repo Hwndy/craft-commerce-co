@@ -25,13 +25,21 @@ Defaults are used unless the owner overrides them. When you take a new decision,
 | D-17 | Animation library | One of `framer-motion` or `gsap`; choose in Phase 1 and record here. |
 | D-18 | Prerender mechanism | Chosen in Phase 5. |
 
+## Decisions taken
+
+### D-04: How the seal is built (2026-11-06)
+Context: Phase 1 T1 audit (`docs/landing-audit.md`) needed to know what `SealController` has to wrap.
+Decision: The seal is a pre-rendered video loop (`public/videos/all_life_1.{mp4,webm}`), not CSS, an image sequence, canvas or three.js. `SealController`'s video implementation controls it via `playbackRate` and source/overlay swaps only; no shader or frame-stepping API is available. No separate "finer luminous form" asset exists, so T6 builds that state as a CSS cross-fade/blur/`mix-blend-mode: screen` treatment unless the owner supplies a dedicated asset.
+Alternatives considered: none — this is a factual finding from inspecting `LandingVideo.tsx`, not a choice.
+Consequences: If `playbackRate` ramping on the looping render looks stepped rather than smooth, that needs a visual check during T6 and may require a different treatment (e.g. a slow-motion re-render supplied by the owner) — flagged, not yet resolved.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
 
 | Date | Question | Answer |
 |---|---|---|
-| | What is the seal built with (3D model, video, image sequence, CSS) and where are the source files? | |
+| 2026-11-06 | What is the seal built with (3D model, video, image sequence, CSS) and where are the source files? | Answered by inspection, no owner input needed: a pre-rendered video loop at `public/videos/all_life_1.mp4`/`.webm` (see D-04). |
 | | Which address is production: alllifeworks.com or the Vercel preview address? | |
 | | Is the "finer luminous" seal form a supplied asset, or should it be created with light effects? | |
 
