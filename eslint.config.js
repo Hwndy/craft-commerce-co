@@ -5,10 +5,21 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist"] },
+  {
+    ignores: [
+      "dist",
+      "assets/hls-output",
+      "assets/source",
+      "test-results",
+      "playwright-report",
+      "supabase/.temp",
+      "supabase/.branches",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
+    ignores: ["scripts/**"],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
@@ -23,6 +34,17 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      "@typescript-eslint/no-unused-vars": "off",
+    },
+  },
+  {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
+    files: ["scripts/**/*.ts"],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.node,
+    },
+    rules: {
       "@typescript-eslint/no-unused-vars": "off",
     },
   }

@@ -8,5 +8,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/canvas", "src/features", "src/lib"]
+  "include": ["src/canvas", "src/features", "src/lib", "scripts"]
 }
