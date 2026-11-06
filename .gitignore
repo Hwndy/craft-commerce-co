@@ -17,6 +17,9 @@ test-results
 playwright-report
 .vitest-cache
 
+# Large source media (encoded/uploaded by scripts/, never committed)
+assets/source/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
