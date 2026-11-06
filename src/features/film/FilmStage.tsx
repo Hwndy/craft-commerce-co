@@ -4,6 +4,7 @@ import { siteMediaUrl } from "@/lib/storage";
 
 import { FilmControls } from "./components/FilmControls";
 import { useFilmControllerStore } from "./filmControllerStore";
+import { useGateStore } from "./gateStore";
 import { attachHls } from "./lib/hls";
 import { useFilm } from "./lib/useFilm";
 
@@ -60,10 +61,65 @@ export function FilmStage() {
   const spriteUrl = film?.media.spritePath ? siteMediaUrl(film.media.spritePath) : null;
   const spriteMeta = film?.media.spriteMeta ?? null;
 
+  const gateInitFor = useGateStore((s) => s.initFor);
+  const gateSetDuration = useGateStore((s) => s.setDuration);
+  const gateRecordTimeUpdate = useGateStore((s) => s.recordTimeUpdate);
+  const gatePercent = useGateStore((s) => s.percent);
+  const isUnlocked = useGateStore((s) => s.isUnlocked);
+  const [hasEnded, setHasEnded] = useState(false);
+
   useEffect(() => {
     registerVideoElement(videoRef.current);
     return () => registerVideoElement(null);
   }, [registerVideoElement]);
+
+  useEffect(() => {
+    if (film?.version != null) gateInitFor(film.version);
+  }, [film?.version, gateInitFor]);
+
+  // Locked until 95% watched (D-07: persisted per film version). Disables
+  // page scroll while locked; there's no board pan or exit control to
+  // disable yet (Phase 2 / T11), so this is the part of T10's lock that
+  // applies today.
+  const isLocked = isRevealed && film != null && !isUnlocked;
+  useEffect(() => {
+    if (!isLocked) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isLocked]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onTimeUpdate = () => {
+      gateRecordTimeUpdate(video.currentTime, video.playbackRate, !video.paused);
+    };
+    const onDurationChange = () => {
+      if (Number.isFinite(video.duration)) gateSetDuration(video.duration);
+    };
+    const onEnded = () => {
+      // One final flush in case the last fractional second missed a
+      // timeupdate — still subject to the same anti-cheat rules.
+      gateRecordTimeUpdate(video.currentTime, video.playbackRate, true);
+      setHasEnded(true);
+    };
+    const onPlay = () => setHasEnded(false);
+
+    video.addEventListener("timeupdate", onTimeUpdate);
+    video.addEventListener("durationchange", onDurationChange);
+    video.addEventListener("ended", onEnded);
+    video.addEventListener("play", onPlay);
+    return () => {
+      video.removeEventListener("timeupdate", onTimeUpdate);
+      video.removeEventListener("durationchange", onDurationChange);
+      video.removeEventListener("ended", onEnded);
+      video.removeEventListener("play", onPlay);
+    };
+  }, [gateRecordTimeUpdate, gateSetDuration]);
 
   const [fatalError, setFatalError] = useState<unknown>(null);
   const [retryToken, setRetryToken] = useState(0);
@@ -182,6 +238,62 @@ export function FilmStage() {
 
       {isRevealed && !fatalError && (fallback === "autoplay" || fallback === "muted") && (
         <FilmControls video={videoElement} spriteUrl={spriteUrl} spriteMeta={spriteMeta} />
+      )}
+
+      {isLocked && !hasEnded && (fallback === "autoplay" || fallback === "muted") && (
+        <div
+          aria-live="polite"
+          style={{
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            color: "rgba(255,255,255,0.7)",
+            fontSize: 12,
+            letterSpacing: 1,
+            textTransform: "uppercase",
+            pointerEvents: "none",
+          }}
+        >
+          Watch to continue · {Math.round(gatePercent * 100)}%
+        </div>
+      )}
+
+      {isRevealed && hasEnded && isUnlocked && (
+        <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }}>
+          <button
+            type="button"
+            onClick={() => {
+              const video = videoRef.current;
+              if (!video) return;
+              video.currentTime = 0;
+              setHasEnded(false);
+              void video.play();
+            }}
+            style={{
+              color: "#fff",
+              border: "1px solid rgba(255,255,255,0.5)",
+              borderRadius: 999,
+              padding: "10px 24px",
+            }}
+          >
+            Replay
+          </button>
+          <button
+            type="button"
+            onClick={() => useFilmControllerStore.getState().hide()}
+            style={{
+              color: "#000",
+              background: "#fff",
+              border: "none",
+              borderRadius: 999,
+              padding: "10px 24px",
+              fontWeight: 600,
+            }}
+          >
+            Continue
+          </button>
+        </div>
       )}
 
       {isRevealed && fatalError != null && (
