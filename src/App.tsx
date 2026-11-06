@@ -8,6 +8,10 @@ import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
 
+// src/features/entry/preload.ts prefetches this chunk during the entry
+// sequence (the "Gallery chunk" T6's brief calls for).
+const Gallery = lazy(() => import("./pages/Gallery"));
+
 // Dev-only routes are lazy so their dependencies (hls.js, the canvas
 // engine) never enter the initial bundle real visitors download — they
 // wouldn't be reachable in production anyway (see the DEV guard below),
@@ -38,6 +42,14 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingVideo />} />
           <Route path="/home" element={<Home />} />
+          <Route
+            path="/gallery"
+            element={
+              <Suspense fallback={null}>
+                <Gallery />
+              </Suspense>
+            }
+          />
           {import.meta.env.DEV && (
             <>
               <Route
