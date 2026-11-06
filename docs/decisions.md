@@ -22,7 +22,7 @@ Defaults are used unless the owner overrides them. When you take a new decision,
 | D-14 | Board centre | The mind map arrangement from the concept board: ALL LIFE in the middle, regions around it. |
 | D-15 | Photo renditions | Created before upload (script in Phase 2, in-browser in Phase 4); no paid image transformations. |
 | D-16 | Package manager | npm. |
-| D-17 | Animation library | One of `framer-motion` or `gsap`; choose in Phase 1 and record here. |
+| D-17 | Animation library | **framer-motion** (chosen in Phase 1 T6 — see the dated entry below). |
 | D-18 | Prerender mechanism | Chosen in Phase 5. |
 
 ## Decisions taken
@@ -61,6 +61,17 @@ Consequences: none for the owner; purely a note for future sessions/scripts in t
 Context: the brief's T4 default is a generated 20–30 s placeholder test film. The owner supplied the real film directly (`KIT_PROJECT_FINAL_COMP.mp4` via WeTransfer, 341 MB, 1920×1080, H.264/AAC, 8:42) during this session.
 Decision: encoded and uploaded the real film instead of a placeholder — `media` row `1590e888-765c-4fb8-93a2-b5b2203793fc`, `gallery_film` row `a6c65c4d-a2d6-4362-9d03-7ee0849bd477` (published, version 1) on the staging project. Verified `master.m3u8` and the variant playlists are publicly reachable from Storage and the film row is readable per RLS.
 Consequences: a **separate short synthetic test film** (ffmpeg `testsrc2`, ~20–30 s, per `docs/05-testing-and-quality.md` §2) is still needed for T9/T10/T13 — testing a 95%-watched first-watch gate against an 8:42 film in CI isn't practical. Not generated yet; flagged for whichever task first needs fast Playwright gate tests. Not yet verified in an actual browser/device (desktop Safari, Chrome via hls.js, iPhone) — only that the playlists are structurally valid and reachable; real playback needs a manual check per AGENTS.md rule 7 before this phase is called done.
+
+### D-17: Animation library — framer-motion (2026-11-06)
+Context: T6 needs to pick one of `framer-motion`/`gsap` (AGENTS.md's approved-dependency list) before building the entry sequence's UI transitions (Click-to-enter fade, Skip control, the flood-to-reveal cross-fade) and, later, Phase 2's camera-adjacent UI chrome (minimap, overlays, toasts).
+Decision: `framer-motion`. It's declarative and integrates directly with React state/props (matching the Zustand-driven architecture already in `src/canvas`), and is the conventional pairing for a shadcn/ui + Tailwind stack like this repo's.
+Alternatives considered: `gsap` — its imperative timeline API is arguably a closer fit for the entry sequence's exact-timing choreography, but framer-motion covers the same linear/eased tweens for this phase's actual needs (opacity/transform fades) without a second animation paradigm alongside React state. The entry sequence's own precise timing (rays, flood, seal) is driven by `EntryOrchestrator`'s pure time→state function, not by whichever library plays the simple UI fades, so this choice doesn't block revisiting gsap later if a feature genuinely needs its timeline features.
+Consequences: Phase 2 onward should default to framer-motion for new UI animation unless a specific feature needs gsap's timeline/stagger tools, in which case record that exception here.
+
+### D-24: T6 forward notes — film priming, bundle size, poster frame (2026-11-06)
+- **Film priming (T8 dependency):** `LandingVideo.tsx`'s click handler (`handleEnter`) has a comment marking where `FilmController.prime()` needs to be added once T8 builds it — the gallery film's autoplay-unlock must share this same click's user gesture, so it has to be called from inside this handler, not later when `/gallery` mounts. Not implemented yet since T8 doesn't exist; flagged so it isn't missed.
+- **Bundle size:** gzip JS went from 113.93 KB to 188.69 KB in this step, mostly `@supabase/supabase-js` (via the new film-prefetch query) actually entering the bundle for the first time. Still well under the Phase 1 "Initial JS before lazy chunks: 250 KB" budget, but code-splitting (dynamic `import()` per feature) is explicitly Phase 5 T2's job — tracking this now so the trend doesn't surprise anyone later.
+- **Poster frame:** `scripts/encode-hls.sh`'s 10%-duration poster (see T4) lands during the entry sequence's bright flood moment and reads as mostly white — fine as a background-video poster (rarely seen, since the video usually loads fast), but worth a different timestamp if it's ever used as a static thumbnail elsewhere.
 
 ## Owner questions that block work
 
