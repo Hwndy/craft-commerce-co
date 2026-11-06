@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { siteMediaUrl } from "@/lib/storage";
 
+import { FilmControls } from "./components/FilmControls";
 import { useFilmControllerStore } from "./filmControllerStore";
 import { attachHls } from "./lib/hls";
 import { useFilm } from "./lib/useFilm";
@@ -46,6 +47,7 @@ const centeredOverlayStyle: CSSProperties = {
 export function FilmStage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const registerVideoElement = useFilmControllerStore((s) => s.registerVideoElement);
+  const videoElement = useFilmControllerStore((s) => s.videoElement);
   const isRevealed = useFilmControllerStore((s) => s.isRevealed);
   const isPrimed = useFilmControllerStore((s) => s.isPrimed);
   const fallback = useFilmControllerStore((s) => s.fallback);
@@ -55,6 +57,8 @@ export function FilmStage() {
   const masterUrl = film?.media.hlsMaster ? siteMediaUrl(film.media.hlsMaster) : null;
   const posterUrl = film?.media.posterPath ? siteMediaUrl(film.media.posterPath) : undefined;
   const captionsUrl = film?.captionsPath ? siteMediaUrl(film.captionsPath) : null;
+  const spriteUrl = film?.media.spritePath ? siteMediaUrl(film.media.spritePath) : null;
+  const spriteMeta = film?.media.spriteMeta ?? null;
 
   useEffect(() => {
     registerVideoElement(videoRef.current);
@@ -174,6 +178,10 @@ export function FilmStage() {
             ▶
           </button>
         </div>
+      )}
+
+      {isRevealed && !fatalError && (fallback === "autoplay" || fallback === "muted") && (
+        <FilmControls video={videoElement} spriteUrl={spriteUrl} spriteMeta={spriteMeta} />
       )}
 
       {isRevealed && fatalError != null && (

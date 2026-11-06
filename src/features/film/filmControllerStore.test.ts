@@ -18,19 +18,42 @@ beforeEach(() => {
 });
 
 describe("prime", () => {
-  it("calls play() then pause() on the registered element, marking it primed", async () => {
+  it("calls play() then pause() synchronously (no await) on the registered element, marking it primed", () => {
     const play = vi.fn().mockResolvedValue(undefined);
     const pause = vi.fn();
     const video = createMockVideo({ play, pause });
     useFilmControllerStore.getState().registerVideoElement(video);
 
     useFilmControllerStore.getState().prime();
-    expect(play).toHaveBeenCalledTimes(1);
-    expect(useFilmControllerStore.getState().isPrimed).toBe(true);
 
-    await Promise.resolve();
-    await Promise.resolve();
+    // pause() must happen in the same synchronous tick as play() — not
+    // chained onto the play() promise — or it can race with and clobber a
+    // start() call that lands shortly after (reduced-motion collapses that
+    // gap to ~400ms). See the comment in filmControllerStore.ts.
+    expect(play).toHaveBeenCalledTimes(1);
     expect(pause).toHaveBeenCalledTimes(1);
+    expect(useFilmControllerStore.getState().isPrimed).toBe(true);
+  });
+
+  it("does not let a later start() call race with its own pause()", async () => {
+    const callOrder: string[] = [];
+    const play = vi.fn().mockImplementation(() => {
+      callOrder.push("play");
+      return Promise.resolve().then(() => callOrder.push("play-resolved"));
+    });
+    const pause = vi.fn().mockImplementation(() => callOrder.push("pause"));
+    const video = createMockVideo({ play, pause });
+    useFilmControllerStore.getState().registerVideoElement(video);
+
+    useFilmControllerStore.getState().prime();
+    await useFilmControllerStore.getState().start();
+
+    // pause (from prime) must come immediately after the first play call,
+    // never after the second (start's) play call resolves.
+    const pauseIndex = callOrder.indexOf("pause");
+    const secondPlayIndex = callOrder.indexOf("play", callOrder.indexOf("play") + 1);
+    expect(pauseIndex).toBeGreaterThanOrEqual(0);
+    expect(pauseIndex).toBeLessThan(secondPlayIndex);
   });
 
   it("is a no-op if there is no registered element", () => {

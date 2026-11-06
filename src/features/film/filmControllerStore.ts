@@ -48,13 +48,18 @@ export const useFilmControllerStore = create<FilmControllerState>((set, get) => 
     videoElement.playsInline = true;
     set({ isPrimed: true });
     const attempt = videoElement.play();
-    if (attempt && typeof attempt.then === "function") {
-      attempt.then(() => videoElement.pause()).catch(() => {
+    // pause() runs synchronously, in the same tick as play() — not chained
+    // onto the play() promise. Reduced-motion collapses the gap between
+    // prime() and start() to ~400ms (vs ~7s for the full entry sequence);
+    // if pause() instead waited for the promise to resolve, it could race
+    // with and clobber a start() call that landed in between, silently
+    // pausing a video that had already begun playing for real.
+    videoElement.pause();
+    if (attempt && typeof attempt.catch === "function") {
+      attempt.catch(() => {
         // Even the priming attempt was blocked; start() still runs its own
         // muted / play-button fallback chain regardless.
       });
-    } else {
-      videoElement.pause();
     }
   },
 

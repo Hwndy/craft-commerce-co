@@ -2,6 +2,15 @@ import { supabase } from "@/lib/supabase";
 
 export const FILM_QUERY_KEY = ["film"] as const;
 
+/** Matches scripts/encode-hls.sh's sprite.json (docs/02-canvas-spec.md). */
+export interface SpriteMeta {
+  cols: number;
+  rows: number;
+  w: number;
+  h: number;
+  interval: number;
+}
+
 export interface PublishedFilm {
   id: string;
   title: string;
@@ -12,7 +21,7 @@ export interface PublishedFilm {
     hlsMaster: string | null;
     posterPath: string | null;
     spritePath: string | null;
-    spriteMeta: Record<string, number> | null;
+    spriteMeta: SpriteMeta | null;
     durationS: number | null;
   };
 }
@@ -52,7 +61,7 @@ export async function fetchPublishedFilm(): Promise<PublishedFilm | null> {
       hlsMaster: media.hls_master,
       posterPath: media.poster_path,
       spritePath: media.sprite_path,
-      spriteMeta: media.sprite_meta as Record<string, number> | null,
+      spriteMeta: media.sprite_meta as unknown as SpriteMeta | null,
       durationS: media.duration_s,
     },
   };
