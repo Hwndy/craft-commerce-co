@@ -1,0 +1,5 @@
+-- Local/staging seed data. No secrets, no real content — placeholders only.
+-- Phase 1: the film row itself is inserted by scripts/upload-film.ts once the
+-- test film is encoded and uploaded (T4), not seeded here, since it needs a
+-- real Storage path. This file is a placeholder for later phases' seed data
+-- (photos, products) to extend.
