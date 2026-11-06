@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
+import DevCanvas from "./pages/DevCanvas";
 
 const queryClient = new QueryClient();
 
@@ -18,6 +19,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingVideo />} />
           <Route path="/home" element={<Home />} />
+          {import.meta.env.DEV && (
+            <Route path="/dev/canvas" element={<DevCanvas />} />
+          )}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

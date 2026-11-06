@@ -50,10 +50,10 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 - **Done when:** the playlist URL from Supabase Storage plays in desktop Safari, Chrome (via hls.js) and on an iPhone. ⚠️ Verified `master.m3u8`/variant playlists are publicly reachable and structurally valid; actual browser/device playback not yet checked (no GUI/device in this session) — manual check still needed per AGENTS.md rule 7.
 
 ### T5. Canvas shell (minimum)
-- [ ] `src/canvas/types.ts`, `math.ts` (screen/world conversion, fit-to-rect, flight interpolation), `store.ts` (Zustand camera store), `Board.tsx` (viewport and world with a single transform), `Region.tsx`, `viewpoints.ts` (a registry with `landing` and `gallery` for now), `flyTo()` with reduced-motion handling.
-- [ ] No pan/zoom gestures yet, but the API must allow them to be added in Phase 2 without changes to callers.
-- [ ] Unit tests for every function in `math.ts`.
-- **Done when:** a dev-only route can fly the camera between two test regions at 60 fps.
+- [x] `src/canvas/types.ts`, `math.ts` (screen/world conversion, fit-to-rect, flight interpolation), `store.ts` (Zustand camera store), `Board.tsx` (viewport and world with a single transform), `Region.tsx`, `viewpoints.ts` (a registry with `landing` and `gallery` for now), `flyTo()` with reduced-motion handling.
+- [x] No pan/zoom gestures yet, but the API must allow them to be added in Phase 2 without changes to callers. *(`Board`/`store` expose nothing gesture-specific; Phase 2 adds `@use-gesture/react` handlers that call the same `flyTo`/`setCamera`.)*
+- [x] Unit tests for every function in `math.ts`. *(23 tests, including round-trips, monotonicity and boundary cases.)*
+- **Done when:** a dev-only route can fly the camera between two test regions at 60 fps. ✅ Verified at `/dev/canvas` (dev-only, `import.meta.env.DEV`-gated): the world transform animates smoothly from 0px to -2000px over the flight, not an instant jump (checked via Playwright against the real dev server). Frame-rate itself needs a real-device trace later (T13/T2 budget measurement), not verifiable headlessly in this sandbox.
 
 ### T6. Entry sequence (FR-1)
 - [ ] `src/features/entry/`: an `EntryOrchestrator` with a state machine `idle -> accelerating -> burst -> flood -> reveal -> done`, driven by one timeline that follows the timings table in `docs/04-design-and-motion.md`.
