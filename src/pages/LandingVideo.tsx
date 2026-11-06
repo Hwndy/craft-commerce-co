@@ -8,6 +8,7 @@ import { VideoSealController } from "@/features/entry/SealController";
 import { preloadFilmAssets } from "@/features/entry/preload";
 import { useEntryOrchestrator } from "@/features/entry/useEntryOrchestrator";
 import type { SealController } from "@/features/entry/types";
+import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 
 const LandingVideo = () => {
   const navigate = useNavigate();
@@ -17,6 +18,9 @@ const LandingVideo = () => {
   const hasStartedRef = useRef(false);
 
   const handleDone = useCallback(() => {
+    const { start, reveal } = useFilmControllerStore.getState();
+    void start();
+    reveal();
     navigate("/gallery");
   }, [navigate]);
 
@@ -55,8 +59,11 @@ const LandingVideo = () => {
     hasStartedRef.current = true;
     entry.start();
     void preloadFilmAssets(queryClient);
-    // T8 also calls FilmController.prime() here, inside this same click
-    // handler, so the gallery film's autoplay unlock shares this gesture.
+    // Primes the gallery film's <video> element synchronously within this
+    // click gesture, so the later programmatic play() in handleDone still
+    // counts as gesture-unlocked even though the entry sequence takes
+    // several seconds.
+    useFilmControllerStore.getState().prime();
   }, [entry, queryClient]);
 
   const handleKeyDown = useCallback(

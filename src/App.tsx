@@ -15,6 +15,15 @@ import NotFound from "./pages/NotFound";
 const DevCanvas = lazy(() => import("./pages/DevCanvas"));
 const DevFilm = lazy(() => import("./pages/DevFilm"));
 
+// FilmStage (src/features/entry/preload.ts prefetches this chunk during
+// the entry sequence) holds the single persistent <video> element the
+// gallery film plays in — mounted unconditionally, outside the router, so
+// route changes never recreate it (T8 priming, T11 no-remount-on-rotate).
+// Lazy because it pulls in hls.js.
+const FilmStage = lazy(() =>
+  import("@/features/film/FilmStage").then((m) => ({ default: m.FilmStage }))
+);
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -23,6 +32,9 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Suspense fallback={null}>
+          <FilmStage />
+        </Suspense>
         <Routes>
           <Route path="/" element={<LandingVideo />} />
           <Route path="/home" element={<Home />} />

@@ -8,6 +8,13 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      # Safe placeholders — src/lib/env.ts validates shape at build/test time
+      # but nothing in the build or test suite makes a real Supabase call.
+      # Real values live in Vercel's project env vars, not here.
+      VITE_SUPABASE_URL: https://placeholder.supabase.co
+      VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-only
+      VITE_FILM_AUTOSTART: "true"
     steps:
       - uses: actions/checkout@v4
 

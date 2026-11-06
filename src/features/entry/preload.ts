@@ -5,12 +5,16 @@ import { FILM_QUERY_KEY, fetchPublishedFilm } from "@/features/film/lib/queries"
 
 /**
  * Fired once at the start of the entry sequence so the film is ready by the
- * reveal: prefetches the ['film'] query, then warms the poster image and
- * the master playlist in the HTTP cache. Best-effort — a failure here
- * should never block the entry sequence, since T7/T8's own fallback chain
- * handles a film that isn't ready yet.
+ * reveal: dynamic-imports the FilmStage chunk (the "Gallery chunk" T6's
+ * brief calls for — FilmStage is what actually plays the film), prefetches
+ * the ['film'] query, then warms the poster image and the master playlist
+ * in the HTTP cache. Best-effort — a failure here should never block the
+ * entry sequence, since T8's own fallback chain handles a film that isn't
+ * ready yet.
  */
 export async function preloadFilmAssets(queryClient: QueryClient): Promise<void> {
+  void import("@/features/film/FilmStage");
+
   try {
     const film = await queryClient.fetchQuery({
       queryKey: FILM_QUERY_KEY,
