@@ -1,11 +1,11 @@
----
-description: Start a build phase. Reads the brief, audits the repo and proposes a plan.
-argument-hint: [phase-number]
----
+@AGENTS.md
 
-Start phase $ARGUMENTS of the ALL LIFE build.
+# Claude Code notes
 
-1. Read `AGENTS.md`, `docs/decisions.md`, then the file matching `phases/PHASE-$ARGUMENTS-*.md` and every document that brief lists under "Read first".
-2. Check the repository state: current branch, uncommitted changes, whether earlier phases' acceptance criteria are marked done, and whether the owner inputs listed in the brief are available. List anything missing.
-3. Produce a numbered plan that follows the brief's task order, with the files you expect to create or change and the tests you will write. Flag risks and any question that needs the owner.
-4. Stop and wait for approval. Do not edit files yet.
+- Start every phase with `/start-phase N`. Use plan mode for the plan, and wait for the owner's approval before editing code.
+- Keep a running checklist in the phase brief file (tick tasks as they are completed) so a new session can resume from the file alone.
+- Prefer many small, verifiable steps. Run the relevant tests after each step, not only at the end.
+- When you create or change a database object, write a migration and a pgTAP test in the same change.
+- When a task depends on real-device behaviour (iOS autoplay, gestures, fullscreen), say so explicitly and list the manual checks for the owner.
+- Never print or commit secrets. If a command needs a key, tell the owner which environment variable to set.
+- Folder-level `CLAUDE.md` files in `src/canvas/`, `src/features/film/` and `supabase/` add rules for those areas.
