@@ -30,3 +30,4 @@ assets/source/
 *.njsproj
 *.sln
 *.sw?
+.vercel
