@@ -66,9 +66,10 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 - **Done when:** the sequence runs in about 7 seconds with no loading gap, can be skipped, and degrades under reduced motion. ✅ Verified against the real dev server (Playwright): full-motion path completes and navigates at ~7.3s, Skip navigates immediately, reduced-motion path completes at ~400ms; no console/page errors on any path. `/gallery` doesn't exist until T12, so navigation there 404s for now — expected, not a bug (see D-24).
 
 ### T7. Film player core (FR-2.6, FR-2.7)
-- [ ] `src/features/film/FilmPlayer.tsx` and `lib/hls.ts`: `hls.js` when supported, native HLS on Safari and iOS, `destroy()` on unmount, fatal-error recovery with a visible retry, buffering ring, branded poster, captions track when present.
-- [ ] `useFilm()` query: reads the published `gallery_film` joined with its ready `media` row via supabase-js; no service key.
-- **Done when:** the test film plays on desktop Chrome, desktop Safari and iPhone Safari, and recovers after a network drop.
+- [x] `src/features/film/FilmPlayer.tsx` and `lib/hls.ts`: `hls.js` when supported, native HLS on Safari and iOS, `destroy()` on unmount, fatal-error recovery with a visible retry, buffering ring, branded poster, captions track when present. Lazy-loaded behind the `/dev/film` route (see note below) so `hls.js` never enters the initial bundle.
+- [x] `useFilm()` query: reads the published `gallery_film` joined with its ready `media` row via supabase-js; no service key.
+- **Done when:** the test film plays on desktop Chrome, desktop Safari and iPhone Safari, and recovers after a network drop. ✅ Chrome: verified against a local Supabase stack (real staging host can't be browser-tested from this sandbox — see D-25) — `hls.js` loads the ladder, picks a rendition, `currentTime` advances, zero errors, real decoded frames confirmed. ⚠️ Desktop Safari/WebKit can't run in this sandbox at all (missing system libs, same limitation as T2); iPhone Safari needs a real device. Both need a manual check before this phase is called done (AGENTS.md rule 7). Network-drop recovery is implemented (`attachHls`'s NETWORK_ERROR/MEDIA_ERROR auto-retry, then a visible Retry button) but not exercised under a real throttled/dropped connection yet.
+- **Added a dev-only `/dev/film` route** (same pattern as T5's `/dev/canvas`, lazy-loaded) to verify the player before T12 builds the real Gallery route.
 
 ### T8. Autoplay and priming (FR-2.1)
 - [ ] `FilmController.prime()` runs inside the "Click to enter" handler: create or reuse the single `<video>`, set `playsInline`, call `play()` and immediately `pause()` so the element is unlocked by the gesture. After the reveal call `start()`.

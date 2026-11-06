@@ -1,3 +1,4 @@
+import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,7 +7,13 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
-import DevCanvas from "./pages/DevCanvas";
+
+// Dev-only routes are lazy so their dependencies (hls.js, the canvas
+// engine) never enter the initial bundle real visitors download — they
+// wouldn't be reachable in production anyway (see the DEV guard below),
+// but a static import still gets bundled unless it's code-split like this.
+const DevCanvas = lazy(() => import("./pages/DevCanvas"));
+const DevFilm = lazy(() => import("./pages/DevFilm"));
 
 const queryClient = new QueryClient();
 
@@ -20,7 +27,24 @@ const App = () => (
           <Route path="/" element={<LandingVideo />} />
           <Route path="/home" element={<Home />} />
           {import.meta.env.DEV && (
-            <Route path="/dev/canvas" element={<DevCanvas />} />
+            <>
+              <Route
+                path="/dev/canvas"
+                element={
+                  <Suspense fallback={null}>
+                    <DevCanvas />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/dev/film"
+                element={
+                  <Suspense fallback={null}>
+                    <DevFilm />
+                  </Suspense>
+                }
+              />
+            </>
           )}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

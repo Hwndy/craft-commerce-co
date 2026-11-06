@@ -165,4 +165,26 @@
   .transition-smooth {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
+
+  /* Film player buffering ring (docs/04-design-and-motion.md §5) */
+  .buffering-ring {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 255, 255, 0.25);
+    border-top-color: #fff;
+    animation: buffering-spin 0.9s linear infinite;
+  }
+
+  @keyframes buffering-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .buffering-ring {
+      animation: none;
+    }
+  }
 }
