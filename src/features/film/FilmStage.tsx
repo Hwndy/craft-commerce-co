@@ -5,6 +5,7 @@ import { siteMediaUrl } from "@/lib/storage";
 import { FilmControls } from "./components/FilmControls";
 import { useFilmControllerStore } from "./filmControllerStore";
 import { useGateStore } from "./gateStore";
+import { exitFullscreenIfActive, requestFullscreen } from "./lib/fullscreen";
 import { attachHls } from "./lib/hls";
 import { useFilm } from "./lib/useFilm";
 
@@ -46,6 +47,7 @@ const centeredOverlayStyle: CSSProperties = {
  * for free. Invisible and inert until `isRevealed`.
  */
 export function FilmStage() {
+  const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const registerVideoElement = useFilmControllerStore((s) => s.registerVideoElement);
   const videoElement = useFilmControllerStore((s) => s.videoElement);
@@ -161,13 +163,29 @@ export function FilmStage() {
     }
   }, [isRevealed, masterUrl, start]);
 
+  // Fullscreen API on desktop/Android; naturally a no-op on iPhone, where
+  // document.fullscreenEnabled is false — the fixed/100dvh layer already
+  // looks full-screen there without handing control to iOS's native video
+  // player chrome (T11).
+  useEffect(() => {
+    if (isRevealed) {
+      if (stageRef.current) void requestFullscreen(stageRef.current);
+    } else {
+      void exitFullscreenIfActive();
+    }
+  }, [isRevealed]);
+
   return (
-    <div style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} aria-hidden={!isRevealed}>
+    <div
+      ref={stageRef}
+      style={isRevealed ? revealedLayerStyle : hiddenLayerStyle}
+      aria-hidden={!isRevealed}
+    >
       <video
         ref={videoRef}
         playsInline
         poster={posterUrl}
-        style={{ width: "100%", height: "100%", display: "block" }}
+        style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }}
         tabIndex={isRevealed ? 0 : -1}
         aria-label={film?.title}
       >
@@ -193,7 +211,7 @@ export function FilmStage() {
           }}
           style={{
             position: "absolute",
-            bottom: 24,
+            bottom: "calc(24px + env(safe-area-inset-bottom))",
             left: "50%",
             transform: "translateX(-50%)",
             color: "#fff",
@@ -245,7 +263,7 @@ export function FilmStage() {
           aria-live="polite"
           style={{
             position: "absolute",
-            bottom: 16,
+            bottom: "calc(16px + env(safe-area-inset-bottom))",
             left: "50%",
             transform: "translateX(-50%)",
             color: "rgba(255,255,255,0.7)",
