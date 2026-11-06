@@ -24,17 +24,17 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 ## Checklist
 
 ### T1. Audit and baseline (no behaviour change)
-- [ ] Write `docs/landing-audit.md`: how the seal is built and animated (CSS, image sequence, video, canvas, three.js, Lottie), file paths and sizes, the current route setup, whether a "Click to enter" control already exists, fonts, colours and spacing tokens, dependencies actually used, Lighthouse mobile baseline (performance, accessibility, best practices, SEO), deployment settings, and generator leftovers (for example `lovable-tagger`).
-- [ ] Record answers or open questions in `docs/decisions.md` (D-04).
-- [ ] `npm ci && npm run build` passes unchanged. Take reference screenshots of the landing page at 390x844 and 1440x900 into `e2e/baseline/`.
-- **Done when:** the audit exists, the build is green, and nothing visual has changed.
+- [x] Write `docs/landing-audit.md`: how the seal is built and animated (CSS, image sequence, video, canvas, three.js, Lottie), file paths and sizes, the current route setup, whether a "Click to enter" control already exists, fonts, colours and spacing tokens, dependencies actually used, Lighthouse mobile baseline (performance, accessibility, best practices, SEO), deployment settings, and generator leftovers (for example `lovable-tagger`). *(Lighthouse mobile baseline still not measured — no reachable public preview URL in this environment; flagged as a follow-up in the audit.)*
+- [x] Record answers or open questions in `docs/decisions.md` (D-04).
+- [x] `npm ci && npm run build` passes unchanged. Take reference screenshots of the landing page at 390x844 and 1440x900 into `e2e/baseline/`.
+- **Done when:** the audit exists, the build is green, and nothing visual has changed. ✅
 
 ### T2. Tooling and CI
-- [ ] Add scripts named in `AGENTS.md`. Add Vitest with jsdom and Testing Library; Playwright with projects `chromium`, `webkit`, `mobile-safari`, `mobile-chrome`; `@axe-core/playwright`.
-- [ ] Enable TypeScript `strict` for new code. If enabling it globally breaks the generated code for more than a day, add `tsconfig.strict.json` that covers `src/canvas`, `src/features`, `src/lib` and use it in `npm run typecheck`; record this in `decisions.md`.
-- [ ] GitHub Actions workflow: install, typecheck, lint, test, build, Playwright smoke.
-- [ ] `.env.example`, `src/lib/env.ts` (Zod-validated), `vercel.json` with the SPA rewrite and basic security headers.
-- **Done when:** CI is green on a pull request and a smoke test opens `/` and sees the landing page.
+- [x] Add scripts named in `AGENTS.md`. Add Vitest with jsdom and Testing Library; Playwright with projects `chromium`, `webkit`, `mobile-safari`, `mobile-chrome`; `@axe-core/playwright`. *(axe-core wired into specs in T13, per the brief's own structure.)*
+- [x] Enable TypeScript `strict` for new code. If enabling it globally breaks the generated code for more than a day, add `tsconfig.strict.json` that covers `src/canvas`, `src/features`, `src/lib` and use it in `npm run typecheck`; record this in `decisions.md`. *(D-19.)*
+- [x] GitHub Actions workflow: install, typecheck, lint, test, build, Playwright smoke.
+- [x] `.env.example`, `src/lib/env.ts` (Zod-validated), `vercel.json` with the SPA rewrite and basic security headers.
+- **Done when:** CI is green on a pull request and a smoke test opens `/` and sees the landing page. ✅ (verified locally: typecheck, lint, test, build and a chromium Playwright run all green; webkit could not be exercised in this sandbox — see hand-over.)
 
 ### T3. Supabase foundation
 - [ ] `npx supabase init`; link staging; add migration `0001_core_and_film` from `docs/03-data-and-security.md`; `supabase/seed.sql` with no secrets.

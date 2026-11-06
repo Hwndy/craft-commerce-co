@@ -33,6 +33,18 @@ Decision: The seal is a pre-rendered video loop (`public/videos/all_life_1.{mp4,
 Alternatives considered: none — this is a factual finding from inspecting `LandingVideo.tsx`, not a choice.
 Consequences: If `playbackRate` ramping on the looping render looks stepped rather than smooth, that needs a visual check during T6 and may require a different treatment (e.g. a slow-motion re-render supplied by the owner) — flagged, not yet resolved.
 
+### D-19: TypeScript strict mode scoping (2026-11-06)
+Context: Phase 1 T2 — the existing Lovable-generated code (`src/components/ui/*`, `Home.tsx` sections) was written with `strict: false`. Flipping `strict: true` globally surfaced the kind of widespread, unrelated type errors across generated files that the brief says to avoid absorbing in one sitting.
+Decision: `tsconfig.app.json`/`tsconfig.node.json` keep their existing relaxed settings for the pre-existing app. A new `tsconfig.strict.json` (extends `tsconfig.app.json`, `strict: true` plus the related flags, scoped to `src/canvas`, `src/features`, `src/lib`) is added, and `npm run typecheck` runs all three project files. All new ALL LIFE code under those three directories is strict from day one; generated/legacy code is untouched.
+Alternatives considered: global `strict: true` with inline `// @ts-expect-error` suppressions across generated files — rejected as noisy and not worth the time for code that's largely superseded by Phase 2–3 features.
+Consequences: when `src/app/` (routes/providers) is introduced later, add it to `tsconfig.strict.json`'s `include` too.
+
+### D-20: Pre-existing lint errors fixed in T2 (2026-11-06)
+Context: `npm run lint` didn't exist as a CI gate before T2. Running it for the first time surfaced 3 pre-existing errors in generated code (two empty `interface X extends Y {}` declarations in `command.tsx`/`textarea.tsx`, and a `require()`-style import in `tailwind.config.ts`), which would fail "CI is green" otherwise.
+Decision: fixed all three minimally (interface → type alias; `require` → ESM import) with no behaviour change, so CI can be green from T2 onward. Pre-existing `react-refresh/only-export-components` warnings in shadcn files are left as warnings (non-blocking, out of scope).
+Alternatives considered: exclude these files from lint — rejected, hides real issues from future phases instead of fixing them.
+Consequences: none; purely a lint/type-level change.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
