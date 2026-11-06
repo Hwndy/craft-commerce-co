@@ -45,6 +45,13 @@ Decision: fixed all three minimally (interface → type alias; `require` → ESM
 Alternatives considered: exclude these files from lint — rejected, hides real issues from future phases instead of fixing them.
 Consequences: none; purely a lint/type-level change.
 
+### D-21: Remote migrations applied via the Management API, not `supabase db push` (2026-11-06)
+Context: Phase 1 T3 — `npx supabase db push --remote` needs a direct Postgres connection to `aws-0-eu-west-2.pooler.supabase.com:5432`. From this cloud dev session that connection is refused outright (`ECONNREFUSED`) — this sandbox's network only routes outbound HTTPS (443) through its proxy; raw Postgres (5432) isn't reachable at all, independent of credentials or password.
+Decision: applied migration 0001_core_and_film to the staging project (`xuengnzfnywlbvcjmwie`) over HTTPS instead, via the Supabase Management API's `POST /v1/projects/{ref}/database/query` endpoint (same access-token credential, routes through the normal HTTPS proxy). Since that endpoint doesn't update the CLI's own bookkeeping, also bootstrapped `supabase_migrations.schema_migrations` (schema + the standard `version text primary key, statements text[], name text` shape the CLI itself creates) and inserted a `('0001', 'core_and_film', ...)` tracking row, so a later `supabase db push --remote` — from a machine that *can* reach the Postgres port — sees migration 0001 as already applied and doesn't try to replay it.
+Verified directly via the same API: both tables exist with `relrowsecurity = true`, all 4 policies are present, both storage buckets (`site-media` public, `originals` private) exist, and the tracking row is there. (`supabase migration list --remote` itself can't run from here for the same network reason — not used as the verification method.)
+Alternatives considered: asking to widen this environment's network policy to allow raw TCP to the pooler host — not pursued, since the environment's proxy is HTTPS-only by design and this would likely need a different kind of change than a host allowlist entry; the Management API route needed no environment changes at all.
+Consequences: future Supabase migrations (0002 onward) in later phases hit the same limitation in this sandbox and should use the same Management-API-plus-tracking-row approach, or be applied from an environment/machine with direct Postgres egress. If anyone ever runs `supabase db push --remote` for this project from a machine with normal network access, it will correctly skip 0001 as already applied.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.

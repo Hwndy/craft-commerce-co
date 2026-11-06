@@ -37,10 +37,10 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 - **Done when:** CI is green on a pull request and a smoke test opens `/` and sees the landing page. ✅ (verified locally: typecheck, lint, test, build and a chromium Playwright run all green; webkit could not be exercised in this sandbox — see hand-over.)
 
 ### T3. Supabase foundation
-- [ ] `npx supabase init`; link staging; add migration `0001_core_and_film` from `docs/03-data-and-security.md`; `supabase/seed.sql` with no secrets.
-- [ ] Generate `src/lib/database.types.ts`; create `src/lib/supabase.ts` with the typed client.
-- [ ] pgTAP tests in `supabase/tests/0001_core_and_film.test.sql` for anonymous, authenticated non-admin and admin.
-- **Done when:** `npx supabase db reset` and `npx supabase test db` pass locally, and the migration is applied to staging.
+- [x] `npx supabase init`; link staging; add migration `0001_core_and_film` from `docs/03-data-and-security.md`; `supabase/seed.sql` with no secrets.
+- [x] Generate `src/lib/database.types.ts`; create `src/lib/supabase.ts` with the typed client.
+- [x] pgTAP tests in `supabase/tests/0001_core_and_film.test.sql` for anonymous, authenticated non-admin and admin.
+- **Done when:** `npx supabase db reset` and `npx supabase test db` pass locally, and the migration is applied to staging. ✅ (15/15 pgTAP assertions pass locally; migration applied to staging `xuengnzfnywlbvcjmwie` via the Management API rather than `db push` — see D-21 for why and how it's kept consistent with the CLI's own bookkeeping.)
 
 ### T4. Film asset pipeline
 - [ ] `scripts/encode-hls.sh <input.mp4> <outdir>`: for each rung of the ladder (360p about 800 kbps, 720p about 2.8 Mbps, 1080p about 5 Mbps) encode H.264 and AAC into 6-second HLS segments with `-hls_playlist_type vod`, force keyframes every 6 seconds (`-force_key_frames "expr:gte(t,n_forced*6)"`), write a `master.m3u8` listing each rendition with `BANDWIDTH` and `RESOLUTION`, a poster JPEG at 10% of the duration, and a tiled sprite of thumbnails every 5 seconds (for example with the `fps` and `tile` filters) plus `sprite.json` (`cols`, `rows`, `w`, `h`, `interval`).
