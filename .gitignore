@@ -21,6 +21,8 @@ playwright-report
 assets/source/
 assets/hls-output/
 assets/hls-output-fixed/
+assets/hls-output-fixed2/
+assets/hls-output-fixed3/
 assets/test-source/
 assets/test-hls-output/
 assets/photos/
