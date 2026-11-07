@@ -58,6 +58,9 @@ jobs:
         run: |
           supabase status -o env | grep -E '^[A-Z_]+="' | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Generate and encode a short synthetic test film
         run: |
           scripts/generate-test-film.sh assets/test-source/test-film.mp4 20
