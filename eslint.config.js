@@ -8,10 +8,13 @@ export default tseslint.config(
   {
     ignores: [
       "dist",
-      "assets/hls-output",
-      "assets/source",
-      "assets/test-hls-output",
-      "assets/test-source",
+      // Nothing under assets/ is ever committed (scripts/encode-hls.sh and
+      // scripts/seed-photos.ts write all of it locally — see .gitignore) —
+      // ignore the whole tree rather than naming each output directory,
+      // since a one-off directory name (e.g. a local re-encode attempt)
+      // previously wasn't covered and its .ts segment files, parsed as
+      // TypeScript, could crash ESLint with an out-of-memory error.
+      "assets/**",
       "test-results",
       "playwright-report",
       "supabase/.temp",

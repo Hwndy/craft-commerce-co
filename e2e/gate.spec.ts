@@ -100,6 +100,24 @@ test.describe("first-watch gate", () => {
 
     await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
+
+    // T10: Continue hands the visitor off to the collage, not wherever
+    // Explore-mode panning happened to leave the camera.
+    const collageViewpoint = { x: 2000, y: 1200 };
+    await expect
+      .poll(async () => {
+        const camera = page.locator("[data-camera-x]").first();
+        return {
+          x: Number(await camera.getAttribute("data-camera-x")),
+          y: Number(await camera.getAttribute("data-camera-y")),
+        };
+      })
+      .toEqual(collageViewpoint);
+
+    // CanvasChrome only appears once the film is out of the way (T10) —
+    // showing it earlier would let a visitor navigate off before the gate
+    // can ever lock them in.
+    await expect(page.getByRole("button", { name: "Home" })).toBeVisible();
   });
 
   test("a returning visitor who already unlocked is not re-locked", async ({ page, browserName }) => {
@@ -131,5 +149,47 @@ test.describe("first-watch gate", () => {
     await page.reload();
 
     await expect(page.getByText(/Watch to continue/)).not.toBeVisible();
+  });
+
+  test("a direct /gallery/photo/:id deep link requires the gate first, then opens automatically once unlocked (T10, D-07)", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await page.goto("/gallery");
+    const video = page.locator("video").last();
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
+
+    // Grab a real seeded photo id to deep-link to (data-photo-id is a plain
+    // DOM read, not a click, so it's fine that the full-screen film layer
+    // visually covers the collage underneath right now).
+    const photoId = await page.locator("[data-photo-id]").first().getAttribute("data-photo-id");
+    expect(photoId).toBeTruthy();
+
+    await page.goto(`/gallery/photo/${photoId}`);
+    await expect(video).toBeVisible();
+    await expect(page.getByText(/Watch to continue/)).toBeVisible();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    // CanvasChrome mustn't be reachable either while locked.
+    await expect(page.getByRole("button", { name: "Home" })).toHaveCount(0);
+
+    await video.evaluate((el: HTMLVideoElement) => {
+      const duration = el.duration;
+      el.currentTime = 0;
+      el.dispatchEvent(new Event("timeupdate"));
+      for (let t = 0.5; t <= duration; t += 0.5) {
+        el.currentTime = t;
+        el.dispatchEvent(new Event("timeupdate"));
+      }
+      el.currentTime = duration;
+      el.pause();
+      el.dispatchEvent(new Event("ended"));
+    });
+
+    // The deep link's destination opens on its own, with no further
+    // navigation — the URL never changed, only isUnlocked did.
+    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByLabel("Close")).toBeVisible();
   });
 });

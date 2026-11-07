@@ -33,6 +33,7 @@ export function PhotoThumbnail({ photo, lod, onOpen }: PhotoThumbnailProps) {
       type="button"
       onClick={onOpen}
       aria-label={label}
+      data-photo-id={photo.id}
       style={{
         width: "100%",
         height: "100%",

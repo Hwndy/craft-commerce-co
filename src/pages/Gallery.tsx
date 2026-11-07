@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Board } from "@/canvas/Board";
+import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
@@ -9,6 +10,7 @@ import { Collage } from "@/features/collage/Collage";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
+import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
 import { siteMediaUrl } from "@/lib/storage";
 
@@ -40,7 +42,17 @@ export default function Gallery() {
   const posterUrl = film?.media.posterPath ? siteMediaUrl(film.media.posterPath) : undefined;
   const navigate = useNavigate();
   const params = useParams();
-  const openPhotoId = photoIdFromSplat(params["*"]);
+  const requestedPhotoId = photoIdFromSplat(params["*"]);
+  const isUnlocked = useGateStore((s) => s.isUnlocked);
+  const isFilmRevealed = useFilmControllerStore((s) => s.isRevealed);
+  // T10 (D-07): a direct /gallery/photo/:id visit still has to earn the
+  // unlock first if there's a film to gate on this device — reveal() below
+  // always shows the film regardless, so the viewer only needs to stay
+  // closed until isUnlocked catches up. The URL (and therefore which photo
+  // is requested) is left alone, so the moment the gate opens — either now
+  // or from actually watching — the viewer opens on exactly the photo the
+  // link pointed at, with no redirect needed.
+  const openPhotoId = !film || isUnlocked ? requestedPhotoId : null;
 
   useEffect(() => {
     useCameraStore.getState().setCamera(getViewpoint("gallery"));
@@ -58,6 +70,19 @@ export default function Gallery() {
 
   return (
     <Board>
+      {/*
+       * T10: CanvasChrome (minimap, Home, List view, Guided/Explore +
+       * Next/Previous) was deliberately left unwired by T5 specifically
+       * because it would overlay FilmStage's full-screen film (its own
+       * z-index 60 sits above FilmStage's revealed-layer z-index 50) and
+       * let a visitor navigate away before ever earning the unlock — the
+       * exact bypass the gate exists to prevent. isFilmRevealed is true
+       * for the film's entire time on screen, locked or not (it only drops
+       * once Continue calls hide()), so gating on it alone — rather than
+       * re-deriving isLocked here too — is both correct and simpler.
+       */}
+      {!isFilmRevealed && <CanvasChrome />}
+
       <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
         <button
           type="button"

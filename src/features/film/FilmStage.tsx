@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
+import { useCameraStore } from "@/canvas/store";
+import { getViewpoint } from "@/canvas/viewpoints";
 import { siteMediaUrl } from "@/lib/storage";
 
 import { FilmControls } from "./components/FilmControls";
@@ -299,7 +301,17 @@ export function FilmStage() {
           </button>
           <button
             type="button"
-            onClick={() => useFilmControllerStore.getState().hide()}
+            onClick={() => {
+              // T10: once unlocked, Continue hands the visitor straight to
+              // the collage rather than leaving them wherever Explore-mode
+              // panning happened to be — flyTo (not setCamera) so this reads
+              // as a deliberate hand-off, same as Guided mode's Next/
+              // Previous, and respects prefers-reduced-motion the same way.
+              const reducedMotion =
+                window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+              void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
+              useFilmControllerStore.getState().hide();
+            }}
             style={{
               color: "#000",
               background: "#fff",
