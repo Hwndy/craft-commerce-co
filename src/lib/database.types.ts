@@ -23,6 +23,58 @@ export type Database = {
   };
   public: {
     Tables: {
+      canvas_nodes: {
+        Row: {
+          height: number;
+          id: string;
+          layer: number;
+          node_type: string;
+          published: boolean;
+          ref_id: string | null;
+          ref_table: string | null;
+          region: string;
+          rotation: number;
+          width: number;
+          x: number;
+          y: number;
+          zoom_max: number;
+          zoom_min: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          height: number;
+          id?: string;
+          layer?: number;
+          node_type: string;
+          published?: boolean;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          region: string;
+          rotation?: number;
+          width: number;
+          x: number;
+          y: number;
+          zoom_max?: number;
+          zoom_min?: number;
+        };
+        Update: {
+          height?: number;
+          id?: string;
+          layer?: number;
+          node_type?: string;
+          published?: boolean;
+          ref_id?: string | null;
+          ref_table?: string | null;
+          region?: string;
+          rotation?: number;
+          width?: number;
+          x?: number;
+          y?: number;
+          zoom_max?: number;
+          zoom_min?: number;
+        };
+        Relationships: [];
+      };
       gallery_film: {
         Row: {
           captions_path: string | null;
@@ -117,6 +169,108 @@ export type Database = {
           status?: Database["public"]["Enums"]["media_status"];
           storage_path?: string;
           width?: number | null;
+        };
+        Relationships: [];
+      };
+      photo_sets: {
+        Row: {
+          id: string;
+          location: string | null;
+          published: boolean;
+          shoot_date: string | null;
+          sort_order: number;
+          title: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          location?: string | null;
+          published?: boolean;
+          shoot_date?: string | null;
+          sort_order?: number;
+          title: string;
+        };
+        Update: {
+          id?: string;
+          location?: string | null;
+          published?: boolean;
+          shoot_date?: string | null;
+          sort_order?: number;
+          title?: string;
+        };
+        Relationships: [];
+      };
+      photos: {
+        Row: {
+          id: string;
+          media_id: string;
+          set_id: string;
+          sort_order: number;
+          taken_on: string | null;
+          title: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          media_id: string;
+          set_id: string;
+          sort_order?: number;
+          taken_on?: string | null;
+          title: string;
+        };
+        Update: {
+          id?: string;
+          media_id?: string;
+          set_id?: string;
+          sort_order?: number;
+          taken_on?: string | null;
+          title?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "photos_media_id_fkey";
+            columns: ["media_id"];
+            isOneToOne: false;
+            referencedRelation: "media";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "photos_set_id_fkey";
+            columns: ["set_id"];
+            isOneToOne: false;
+            referencedRelation: "photo_sets";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      viewpoints: {
+        Row: {
+          in_guided_path: boolean;
+          key: string;
+          label: string;
+          sort_order: number;
+          x: number;
+          y: number;
+          zoom: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          in_guided_path?: boolean;
+          key: string;
+          label: string;
+          sort_order?: number;
+          x: number;
+          y: number;
+          zoom: number;
+        };
+        Update: {
+          in_guided_path?: boolean;
+          key?: string;
+          label?: string;
+          sort_order?: number;
+          x?: number;
+          y?: number;
+          zoom?: number;
         };
         Relationships: [];
       };

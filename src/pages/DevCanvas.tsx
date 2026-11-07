@@ -1,12 +1,16 @@
 import { Board } from "@/canvas/Board";
+import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
 
 /**
- * Dev-only route (not linked from the app) to verify T5's "done when":
- * the camera can fly between two test regions. Not part of the public
- * site — Phase 2 replaces ad hoc regions like these with real ones.
+ * Dev-only route (not linked from the app, and — per docs/decisions.md
+ * D-30-adjacent T2 finding — unreachable from any `vite build` output,
+ * only `vite dev`) for manually sanity-checking the canvas engine,
+ * including T5's minimap/guided-mode/Home chrome. CanvasChrome isn't
+ * wired into the real Gallery page yet — see its own doc comment for why
+ * (that lands with T10's gate integration).
  */
 export default function DevCanvas() {
   const flyTo = useCameraStore((state) => state.flyTo);
@@ -62,7 +66,8 @@ export default function DevCanvas() {
           </div>
         </Region>
       </Board>
-      <div style={{ position: "fixed", top: 16, left: 16, zIndex: 10, display: "flex", gap: 8 }}>
+      <CanvasChrome />
+      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 10, display: "flex", gap: 8 }}>
         <button
           type="button"
           disabled={isFlying}

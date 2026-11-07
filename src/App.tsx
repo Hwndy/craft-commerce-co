@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
 import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
@@ -30,12 +31,22 @@ const FilmStage = lazy(() =>
 
 const queryClient = new QueryClient();
 
+// Keeps src/canvas/viewpoints.ts's getViewpoint()/listViewpoints() cache
+// fresh from the real `viewpoints` table as soon as the app mounts, same
+// spirit as FilmStage being mounted unconditionally at the root. Renders
+// nothing — it only needs QueryClientProvider's context.
+function ViewpointsBootstrap() {
+  useViewpointsQuery();
+  return null;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <ViewpointsBootstrap />
         <Suspense fallback={null}>
           <FilmStage />
         </Suspense>

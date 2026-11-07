@@ -1,11 +1,18 @@
 import type { Viewpoint } from "./types";
 
 /**
- * Static registry for Phase 1. Phase 2 replaces this with the `viewpoints`
- * table (migration 0002); callers should keep using `getViewpoint` /
- * `listViewpoints` so that swap doesn't touch call sites.
+ * Static fallback registry — used until `useViewpointsQuery()` (lib/
+ * useViewpoints.ts) loads the real `viewpoints` table (migration 0002)
+ * and calls `setViewpointsCache`, and again if that query ever fails
+ * (offline, etc.). Keeps `landing`/`gallery` at the exact positions Phase
+ * 1's entry sequence and gate flow were verified against, so this can
+ * never silently move the camera somewhere those tests don't expect.
+ *
+ * `getViewpoint`/`listViewpoints` stay synchronous so every existing call
+ * site (event handlers, non-component code like useBoardKeyboard.ts) keeps
+ * working unchanged — only the data source behind them changes.
  */
-const viewpoints: Record<string, Viewpoint> = {
+const fallbackViewpoints: Record<string, Viewpoint> = {
   landing: {
     key: "landing",
     label: "Landing",
@@ -26,8 +33,24 @@ const viewpoints: Record<string, Viewpoint> = {
   },
 };
 
+let cachedViewpoints: Record<string, Viewpoint> | null = null;
+
+/** Called by useViewpointsQuery() once the real table has loaded. */
+export function setViewpointsCache(viewpoints: Viewpoint[]): void {
+  cachedViewpoints = Object.fromEntries(viewpoints.map((v) => [v.key, v]));
+}
+
+/** Test-only: clears the cache so a test can exercise the fallback path. */
+export function clearViewpointsCache(): void {
+  cachedViewpoints = null;
+}
+
+function activeViewpoints(): Record<string, Viewpoint> {
+  return cachedViewpoints ?? fallbackViewpoints;
+}
+
 export function getViewpoint(key: string): Viewpoint {
-  const viewpoint = viewpoints[key];
+  const viewpoint = activeViewpoints()[key];
   if (!viewpoint) {
     throw new Error(`Unknown viewpoint: ${key}`);
   }
@@ -35,5 +58,5 @@ export function getViewpoint(key: string): Viewpoint {
 }
 
 export function listViewpoints(): Viewpoint[] {
-  return Object.values(viewpoints).sort((a, b) => a.sortOrder - b.sortOrder);
+  return Object.values(activeViewpoints()).sort((a, b) => a.sortOrder - b.sortOrder);
 }
