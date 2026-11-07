@@ -130,4 +130,47 @@ test.describe("canvas gestures", () => {
     await node.focus();
     await expect.poll(async () => (await getCamera(page))?.x, { timeout: 10000 }).toBeLessThan(panned!.x);
   });
+
+  // T11: "deep link opens at the right camera" (B4) — the gallery
+  // viewpoint itself, not just the photo deep link T9/T10 already cover.
+  test("/gallery opens at the real gallery viewpoint", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await page.goto("/gallery");
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 0, zoom: 1 });
+  });
+
+  test("guided mode: Explore/Guided switch keeps position, and Next/Previous cycle gallery and collage at the right camera", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await revealBoard(page); // Continue's own flyTo (T10) leaves the camera at collage.
+    // T10 wired CanvasChrome into Gallery.tsx for the first time — this is
+    // its first real-page exercise of Guided mode, not just CanvasChrome's
+    // own isolated component tests. Landing (the only other guided-path
+    // viewpoint, docs/02-canvas-spec.md §6) isn't a Board page at all, so
+    // cycling past gallery into it has nothing meaningful to assert here —
+    // out of scope until a later phase gives it somewhere real to go.
+    const modeButton = page.getByRole("button", { name: /^(Guided|Explore)$/ });
+    await expect(modeButton).toHaveText("Guided");
+
+    // currentIndex starts at 0 on every fresh page load regardless of
+    // where Continue's own flyTo left the camera, so it doesn't yet agree
+    // with "collage" — B3's "switch without losing position" is exactly
+    // the mechanism that resolves this: switching Explore -> Guided flies
+    // to the nearest path viewpoint to wherever the camera actually is
+    // (useGuidedModeStore.ts), which is collage here.
+    await modeButton.click(); // Guided -> Explore: keeps the camera at collage.
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+    await modeButton.click(); // Explore -> Guided: resyncs currentIndex to collage.
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+
+    await page.getByRole("button", { name: "Previous" }).click();
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 0, zoom: 1 });
+    await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
+
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+    await expect(page.locator("[data-photo-id]").first()).toBeVisible();
+  });
 });
