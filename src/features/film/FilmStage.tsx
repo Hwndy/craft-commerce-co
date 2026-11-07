@@ -6,7 +6,7 @@ import { FilmControls } from "./components/FilmControls";
 import { useFilmControllerStore } from "./filmControllerStore";
 import { useGateStore } from "./gateStore";
 import { exitFullscreenIfActive, requestFullscreen } from "./lib/fullscreen";
-import { attachHls } from "./lib/hls";
+import { attachHls, type FatalPlaybackError } from "./lib/hls";
 import { useFilm } from "./lib/useFilm";
 
 const hiddenLayerStyle: CSSProperties = {
@@ -123,7 +123,7 @@ export function FilmStage() {
     };
   }, [gateRecordTimeUpdate, gateSetDuration]);
 
-  const [fatalError, setFatalError] = useState<unknown>(null);
+  const [fatalError, setFatalError] = useState<FatalPlaybackError | null>(null);
   const [retryToken, setRetryToken] = useState(0);
   const [isBuffering, setIsBuffering] = useState(false);
 
@@ -326,6 +326,17 @@ export function FilmStage() {
       {isRevealed && fatalError != null && !(hasEnded && isUnlocked) && (
         <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }} role="alert">
           <p>Playback failed.</p>
+          {/*
+           * Small, low-contrast diagnostic detail — not alarming copy for a
+           * regular visitor, but real signal if this is ever screenshotted
+           * and reported (which is all we had for D-38/D-39's incidents —
+           * the full detail is also always console.error'd, see hls.ts).
+           */}
+          {fatalError.detail && (
+            <p style={{ fontSize: 11, opacity: 0.5, maxWidth: 320 }}>
+              {fatalError.reason} · {fatalError.detail}
+            </p>
+          )}
           <button
             type="button"
             onClick={() => setRetryToken((t) => t + 1)}
