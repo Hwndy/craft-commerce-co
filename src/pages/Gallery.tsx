@@ -69,7 +69,39 @@ export default function Gallery() {
   }, []);
 
   return (
-    <Board>
+    <>
+      <Board>
+        <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
+          <button
+            type="button"
+            onClick={() => useFilmControllerStore.getState().reveal()}
+            aria-label={film ? `Play ${film.title}` : "Film"}
+            style={{
+              width: "100%",
+              height: "100%",
+              border: "none",
+              cursor: "pointer",
+              background: posterUrl
+                ? `#000 url(${posterUrl}) center / cover no-repeat`
+                : "#111",
+            }}
+          />
+        </Region>
+
+        <Collage
+          centerX={getViewpoint("collage").x}
+          centerY={getViewpoint("collage").y}
+          onOpenPhoto={(id) => navigate(`/gallery/photo/${id}`)}
+        />
+
+        <PhotoViewer
+          photos={photos ?? []}
+          openId={openPhotoId}
+          onClose={() => navigate("/gallery", { replace: true })}
+          onNavigate={(id) => navigate(`/gallery/photo/${id}`, { replace: true })}
+        />
+      </Board>
+
       {/*
        * T10: CanvasChrome (minimap, Home, List view, Guided/Explore +
        * Next/Previous) was deliberately left unwired by T5 specifically
@@ -80,39 +112,18 @@ export default function Gallery() {
        * for the film's entire time on screen, locked or not (it only drops
        * once Continue calls hide()), so gating on it alone — rather than
        * re-deriving isLocked here too — is both correct and simpler.
+       *
+       * Rendered as a SIBLING of <Board>, not a child: CanvasChrome's own
+       * `position: fixed` chrome needs the real viewport as its containing
+       * block. Board's own world div carries a `transform` (its rAF camera
+       * loop) and `will-change: transform`, either of which redefines the
+       * containing block for any `position: fixed` descendant — nesting
+       * CanvasChrome inside <Board>'s children would silently move it
+       * with the camera instead of keeping it screen-anchored. DevCanvas.tsx
+       * already established this exact sibling placement; this just
+       * follows it.
        */}
       {!isFilmRevealed && <CanvasChrome />}
-
-      <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
-        <button
-          type="button"
-          onClick={() => useFilmControllerStore.getState().reveal()}
-          aria-label={film ? `Play ${film.title}` : "Film"}
-          style={{
-            width: "100%",
-            height: "100%",
-            border: "none",
-            cursor: "pointer",
-            background: posterUrl
-              ? `#000 url(${posterUrl}) center / cover no-repeat`
-              : "#111",
-          }}
-        />
-
-      </Region>
-
-      <Collage
-        centerX={getViewpoint("collage").x}
-        centerY={getViewpoint("collage").y}
-        onOpenPhoto={(id) => navigate(`/gallery/photo/${id}`)}
-      />
-
-      <PhotoViewer
-        photos={photos ?? []}
-        openId={openPhotoId}
-        onClose={() => navigate("/gallery", { replace: true })}
-        onNavigate={(id) => navigate(`/gallery/photo/${id}`, { replace: true })}
-      />
-    </Board>
+    </>
   );
 }
