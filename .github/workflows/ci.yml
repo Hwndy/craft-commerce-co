@@ -58,8 +58,8 @@ jobs:
         run: |
           supabase status -o env | grep -E '^[A-Z_]+="' | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg and ImageMagick
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
 
       - name: Generate and encode a short synthetic test film
         run: |
@@ -71,6 +71,18 @@ jobs:
           SUPABASE_URL: ${{ env.API_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
         run: npx tsx scripts/upload-film.ts assets/test-hls-output "ALL LIFE Test Film"
+
+      # The collage specs (T8) need real published photos to render
+      # anything meaningful, same reasoning as the test film above — a
+      # small set of synthetic placeholder photos, never the real staging
+      # project.
+      - name: Generate and seed placeholder photos
+        env:
+          SUPABASE_URL: ${{ env.API_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: |
+          scripts/generate-placeholder-photos.sh assets/test-photos 8
+          npx tsx scripts/seed-photos.ts assets/test-photos "ALL LIFE Test Shoot"
 
       - name: Build (against the local Supabase stack)
         env:

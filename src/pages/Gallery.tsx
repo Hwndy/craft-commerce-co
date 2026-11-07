@@ -4,20 +4,23 @@ import { Board } from "@/canvas/Board";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
+import { Collage } from "@/features/collage/Collage";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useFilm } from "@/features/film/lib/useFilm";
 import { siteMediaUrl } from "@/lib/storage";
 
 /**
- * The Gallery region, with the film as a node. The film itself renders via
- * FilmStage's globally-mounted full-screen layer (T8), not inside this
- * component — reveal()/hide() here just toggle that layer on/off, so the
- * single <video> element is never recreated by route changes and the
- * first-watch gate (T10) can never be bypassed by navigating away and back:
- * its state lives in gateStore/localStorage, independent of this route's
- * mount lifecycle. Semantic zoom, real node data and the photo collage are
- * Phase 2 (docs/02-canvas-spec.md §5; the placeholder below is explicitly
- * out of scope for v1 beyond a marker).
+ * The Gallery region (the film) plus the Collage region (T8), both on the
+ * same persistent Board so Explore-mode panning and Guided-mode Next/
+ * Previous move between them without a route change — "gallery" and
+ * "collage" are two distinct viewpoints (supabase/seed.sql) within the
+ * one product-brief "Gallery" area (film + photo collage). The film itself
+ * renders via FilmStage's globally-mounted full-screen layer (T8 of
+ * Phase 1), not inside this component — reveal()/hide() here just toggle
+ * that layer on/off, so the single <video> element is never recreated by
+ * route changes and the first-watch gate can never be bypassed by
+ * navigating away and back: its state lives in gateStore/localStorage,
+ * independent of this route's mount lifecycle.
  */
 export default function Gallery() {
   const { data: film } = useFilm();
@@ -55,21 +58,9 @@ export default function Gallery() {
           }}
         />
 
-        {import.meta.env.DEV && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: -32,
-              left: 0,
-              fontFamily: "sans-serif",
-              fontSize: 12,
-              color: "#888",
-            }}
-          >
-            Collage placeholder — Phase 2
-          </div>
-        )}
       </Region>
+
+      <Collage centerX={getViewpoint("collage").x} centerY={getViewpoint("collage").y} />
     </Board>
   );
 }

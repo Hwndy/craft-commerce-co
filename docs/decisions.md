@@ -140,6 +140,11 @@ Context: checking the real GitHub Actions result for T7's push (run [#23](https:
 Decision: added `retries: process.env.CI ? 2 : 0` to `playwright.config.ts` — retries only in CI, never masking a failure locally where a repeat failure should be investigated immediately. This doesn't skip, weaken, or remove any assertion; it only tolerates the kind of transient runner-load flakiness this file's own comments already describe and accept as a known class of issue, not a correctness bug.
 Consequences: if this same spec starts failing on *every* CI attempt (not just intermittently) after this change, that's a real regression, not more flakiness, and must be investigated as one — retries exist to absorb occasional CI-runner contention, not to paper over an actually-broken feature.
 
+### D-36: Collage renders as plain DOM nodes, not PixiJS (2026-11-07)
+Context: docs/02-canvas-spec.md §10 sets the threshold explicitly — "DOM nodes are fine up to about 300 images. Above that, or if panning drops below 50 fps on the test device, move the collage thumbnails to a PixiJS layer... Record the decision." T8 has no real photo-shoot images yet (only the handful of placeholder photos T7's seed pipeline generates for development/CI), nowhere near that count, and this sandbox has no real device to measure fps against anyway (same honest limitation recorded throughout this build).
+Decision: `src/features/collage/Collage.tsx` renders every photo as a plain absolutely-positioned DOM node through T3's existing `NodeLayer` (culling + level-of-detail reused as-is, no new rendering path). `pixi.js` is not added as a dependency.
+Consequences: this must be re-checked once the owner supplies a real photo shoot — if a set nears ~300 images, or panning is ever measured below 50fps on a real mid-range device, move the collage's thumbnail layer to PixiJS (instanced sprites from a texture atlas) while keeping the full-screen viewer (T9) in the DOM, exactly as the spec describes. Nothing about this decision is structural or hard to change later: `Collage.tsx` only consumes `CollageNodeLayout[]` from `lib/layout.ts`, which is rendering-agnostic.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.

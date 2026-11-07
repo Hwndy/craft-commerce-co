@@ -25,10 +25,16 @@ test.describe("list view", () => {
     await expect(page.getByRole("link", { name: "Watch the film" })).toHaveAttribute("href", "/gallery");
   });
 
-  test("/list/shop shows a placeholder region-label node and no crash", async ({ page }) => {
+  test("/list/shop shows the empty-state message and no crash (region-label nodes are internal, never shown)", async ({
+    page,
+  }) => {
+    // T8: ListRegion filters out 'region-label' nodes entirely — they're
+    // supabase/seed.sql's internal "nothing published here yet" filler,
+    // never real content a list visitor should see (docs/decisions.md).
     await page.goto("/list/shop");
     await expect(page.getByRole("heading", { level: 1, name: "Shop" })).toBeVisible();
-    await expect(page.getByText("region-label")).toBeVisible();
+    await expect(page.getByText("Nothing published here yet.")).toBeVisible();
+    await expect(page.getByText("region-label")).toHaveCount(0);
   });
 
   test("navigating from the index to a region and back works", async ({ page }) => {

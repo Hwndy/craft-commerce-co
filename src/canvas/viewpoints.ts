@@ -7,6 +7,9 @@ import type { Viewpoint } from "./types";
  * (offline, etc.). Keeps `landing`/`gallery` at the exact positions Phase
  * 1's entry sequence and gate flow were verified against, so this can
  * never silently move the camera somewhere those tests don't expect.
+ * `collage` is included too (matching supabase/seed.sql exactly) because
+ * Gallery.tsx's Collage region (T8) reads its centre synchronously at
+ * mount — before the real query can possibly have resolved yet.
  *
  * `getViewpoint`/`listViewpoints` stay synchronous so every existing call
  * site (event handlers, non-component code like useBoardKeyboard.ts) keeps
@@ -29,6 +32,15 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
     y: 0,
     zoom: 1,
     sortOrder: 1,
+    inGuidedPath: true,
+  },
+  collage: {
+    key: "collage",
+    label: "Collage",
+    x: 2000,
+    y: 1200,
+    zoom: 1,
+    sortOrder: 2,
     inGuidedPath: true,
   },
 };
