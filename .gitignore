@@ -20,6 +20,7 @@ playwright-report
 # Large source media (encoded/uploaded by scripts/, never committed)
 assets/source/
 assets/hls-output/
+assets/hls-output-fixed/
 assets/test-source/
 assets/test-hls-output/
 assets/photos/
