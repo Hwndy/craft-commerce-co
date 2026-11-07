@@ -34,7 +34,7 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 - [x] Enable TypeScript `strict` for new code. If enabling it globally breaks the generated code for more than a day, add `tsconfig.strict.json` that covers `src/canvas`, `src/features`, `src/lib` and use it in `npm run typecheck`; record this in `decisions.md`. *(D-19.)*
 - [x] GitHub Actions workflow: install, typecheck, lint, test, build, Playwright smoke.
 - [x] `.env.example`, `src/lib/env.ts` (Zod-validated), `vercel.json` with the SPA rewrite and basic security headers.
-- **Done when:** CI is green on a pull request and a smoke test opens `/` and sees the landing page. ✅ (verified locally: typecheck, lint, test, build and a chromium Playwright run all green; webkit could not be exercised in this sandbox — see hand-over.)
+- **Done when:** CI is green on a pull request and a smoke test opens `/` and sees the landing page. ⚠️ Verified locally at the time (typecheck, lint, test, build and a chromium Playwright run all green) — but the real GitHub Actions workflow was actually red on every run from here through T13, never checked until T14. Root cause and fix: D-30 (Node 20 vs. jsdom's dependency tree).
 
 ### T3. Supabase foundation
 - [x] `npx supabase init`; link staging; add migration `0001_core_and_film` from `docs/03-data-and-security.md`; `supabase/seed.sql` with no secrets.

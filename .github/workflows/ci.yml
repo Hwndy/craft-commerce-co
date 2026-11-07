@@ -15,7 +15,14 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # jsdom (vitest's test environment) depends on undici ^8, which
+          # needs zlib/decompression APIs Node 20.x doesn't have — `npm run
+          # test` crashed on every single CI run since T6 with "Cannot read
+          # properties of undefined (reading 'bind')" in undici's decompress
+          # interceptor, never caught because this was only ever verified
+          # locally (Node 22) and never checked against real CI results. See
+          # docs/decisions.md D-30.
+          node-version: 22
           cache: npm
 
       - run: npm ci
