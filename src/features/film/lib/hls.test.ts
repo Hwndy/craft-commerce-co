@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Regression tests for two real production incidents:
+ * Regression tests for three real production incidents, in order:
  *
  * D-38: attachHls()'s fatal-error recovery counter never used to reset, so
  * two unrelated, individually-recoverable network blips minutes apart (not
@@ -11,23 +11,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *
  * D-39: the fix for D-38 alone didn't fully resolve a second real report.
  * Hardened further: a higher retry budget, a short backoff before retrying
- * a network error (hls.js's own internal fragLoadingMaxRetry already tries
- * 6 times over up to 64s before ever escalating to fatal, so hammering
- * immediately rarely helps), and real diagnostic detail (reason/detail)
- * passed to onFatalError instead of an opaque `unknown`, since a
- * screenshot of the resulting UI alone carries no diagnostic value.
+ * a network error, and real diagnostic detail (reason/detail) passed to
+ * onFatalError instead of an opaque `unknown`.
+ *
+ * D-40: the real root cause, found only once a third report came with an
+ * actual browser-console error (`PipelineStatus::DEMUXER_ERROR_COULD_NOT_PARSE`
+ * — a Chromium-internal native-pipeline error, not anything hls.js
+ * produces): attachHls() checked native HLS support *before* hls.js
+ * support, so a non-Safari Chromium build whose `canPlayType` happened to
+ * report partial native HLS support took the fragile native `video.src =`
+ * path and skipped hls.js — and every retry/backoff fix in D-38/D-39 was
+ * dead code for that browser, since it never ran the hls.js branch at
+ * all. Fixed by checking `Hls.isSupported()` first, matching hls.js's own
+ * documented integration order; native is now only a fallback for when
+ * hls.js genuinely isn't supported (in practice, real Safari/iOS).
  *
  * Mocks hls.js entirely — this only needs to exercise attachHls()'s own
- * event-wiring/counter/timer logic, not real MSE/video playback (matching
- * how upload-film.ts/encode-hls.sh are verified by running them rather
- * than unit tested, for the same reason: nothing here is meaningfully
- * testable without a real browser).
+ * branching/event-wiring/counter/timer logic, not real MSE/video playback
+ * (matching how upload-film.ts/encode-hls.sh are verified by running them
+ * rather than unit tested, for the same reason: nothing here is
+ * meaningfully testable without a real browser).
  */
-const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, FakeHls } = vi.hoisted(() => {
+const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, isSupportedSpy, FakeHls } = vi.hoisted(() => {
   const instances: FakeHls[] = [];
   const startLoadSpy = vi.fn();
   const recoverMediaErrorSpy = vi.fn();
   const destroySpy = vi.fn();
+  const isSupportedSpy = vi.fn(() => true);
 
   class FakeHls {
     listeners = new Map<string, Array<(...args: unknown[]) => void>>();
@@ -38,7 +48,7 @@ const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, FakeHls } = v
     destroy = destroySpy;
 
     static isSupported() {
-      return true;
+      return isSupportedSpy();
     }
     static Events = { ERROR: "hlsError", FRAG_BUFFERED: "hlsFragBuffered" };
     static ErrorTypes = { NETWORK_ERROR: "networkError", MEDIA_ERROR: "mediaError", OTHER_ERROR: "otherError" };
@@ -58,15 +68,21 @@ const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, FakeHls } = v
     }
   }
 
-  return { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, FakeHls };
+  return { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, isSupportedSpy, FakeHls };
 });
 
 vi.mock("hls.js", () => ({ default: FakeHls, Hls: FakeHls }));
 
-// isNativeHlsSupported() checks video.canPlayType(...) !== "" — jsdom's
-// default returns "", so these tests naturally exercise the hls.js path.
-function fakeVideo(): HTMLVideoElement {
-  return { canPlayType: () => "" } as unknown as HTMLVideoElement;
+// A real jsdom <video> element (so .src/.load()/addEventListener/
+// dispatchEvent all genuinely work, unlike a plain object stub), with
+// canPlayType overridden — "" means no native support, which is what
+// most of these tests want, relying on isSupportedSpy (default true) to
+// exercise the hls.js path. The D-40 tests below override both
+// independently.
+function fakeVideo(canPlayType = ""): HTMLVideoElement {
+  const video = document.createElement("video");
+  video.canPlayType = () => canPlayType as CanPlayTypeResult;
+  return video;
 }
 
 describe("attachHls", () => {
@@ -75,6 +91,7 @@ describe("attachHls", () => {
     startLoadSpy.mockClear();
     recoverMediaErrorSpy.mockClear();
     destroySpy.mockClear();
+    isSupportedSpy.mockReset().mockReturnValue(true);
     vi.useFakeTimers();
   });
 
@@ -174,5 +191,59 @@ describe("attachHls", () => {
     await vi.advanceTimersByTimeAsync(2000);
     expect(startLoadSpy).not.toHaveBeenCalled();
     expect(destroySpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe("D-40: hls.js is preferred over native HLS", () => {
+    it("uses hls.js even when the browser also claims native HLS support", async () => {
+      const { attachHls } = await import("./hls");
+      const video = fakeVideo("probably"); // a non-Safari browser reporting partial native support
+      attachHls(video, "master.m3u8", {});
+
+      expect(instances).toHaveLength(1);
+      expect(instances[0].loadSource).toHaveBeenCalledWith("master.m3u8");
+      expect(instances[0].attachMedia).toHaveBeenCalledWith(video);
+      expect(video.getAttribute("src")).toBeNull();
+    });
+
+    it("falls back to native HTML5 video only when hls.js genuinely isn't supported", async () => {
+      isSupportedSpy.mockReturnValue(false);
+      const { attachHls } = await import("./hls");
+      const video = fakeVideo("probably");
+      attachHls(video, "master.m3u8", {});
+
+      expect(instances).toHaveLength(0);
+      expect(video.getAttribute("src")).toBe("master.m3u8");
+    });
+
+    it("surfaces an error when neither hls.js nor native HLS is supported", async () => {
+      isSupportedSpy.mockReturnValue(false);
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      attachHls(fakeVideo(""), "master.m3u8", { onFatalError });
+
+      expect(instances).toHaveLength(0);
+      expect(onFatalError).toHaveBeenCalledWith({
+        reason: "other",
+        detail: "HLS playback is not supported in this browser",
+      });
+    });
+
+    it("maps a native MediaError to a FatalPlaybackError with the real detail text", async () => {
+      isSupportedSpy.mockReturnValue(false);
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo("probably");
+      attachHls(video, "master.m3u8", { onFatalError });
+
+      Object.defineProperty(video, "error", {
+        value: { code: 3, message: "PipelineStatus::DEMUXER_ERROR_COULD_NOT_PARSE" },
+      });
+      video.dispatchEvent(new Event("error"));
+
+      expect(onFatalError).toHaveBeenCalledWith({
+        reason: "media",
+        detail: "PipelineStatus::DEMUXER_ERROR_COULD_NOT_PARSE",
+      });
+    });
   });
 });

@@ -45,22 +45,40 @@ const MAX_RECOVERY_ATTEMPTS = 4;
 const NETWORK_RETRY_DELAY_MS = 2000;
 
 /**
- * Attaches an HLS source to a <video> element: hls.js where MSE-based HLS
- * is supported, the browser's own native HLS otherwise (Safari/iOS).
+ * Attaches an HLS source to a <video> element: hls.js (MSE-based) wherever
+ * it's supported, the browser's own native HLS only as a fallback where
+ * it genuinely isn't — in practice, real Safari/iOS. This order matters
+ * and is deliberate (docs/decisions.md D-40): checking native support
+ * *first* — this code's original order — is backwards from hls.js's own
+ * documented integration pattern, and caused a real production incident.
+ * `canPlayType('application/vnd.apple.mpegurl')` can return a non-empty
+ * ("maybe"/"probably") answer on some non-Safari Chromium builds (observed
+ * via a real browser-console capture: `PipelineStatus::
+ * DEMUXER_ERROR_COULD_NOT_PARSE`, a Chromium-internal native-pipeline
+ * error, not anything hls.js produces) whose native demuxer then can't
+ * actually parse this stream partway through — silently skipping hls.js's
+ * much more robust, actively-recovering MSE player entirely. hls.js is
+ * tried first now regardless of what `canPlayType` claims, so this class
+ * of browser can no longer take the fragile native path at all.
+ *
  * Recovers automatically from fatal network/media errors a few times
  * (hls.js's documented pattern, plus a progress-based reset and a short
  * backoff — see docs/decisions.md D-38/D-39); anything else — or repeated
  * failures — calls onFatalError so the UI can offer a retry. Always logs
  * the real error to the console, since a screenshot of the resulting UI
- * alone (what a real incident report has so far looked like) carries no
- * diagnostic detail.
+ * alone (what the first two incident reports looked like) carries no
+ * diagnostic detail on its own.
  */
 export function attachHls(
   video: HTMLVideoElement,
   src: string,
   options: HlsAttachOptions = {}
 ): HlsController {
-  if (isNativeHlsSupported(video)) {
+  if (!Hls.isSupported()) {
+    if (!isNativeHlsSupported(video)) {
+      options.onFatalError?.({ reason: "other", detail: "HLS playback is not supported in this browser" });
+      return { destroy() {} };
+    }
     const onError = () => {
       const fatal = reasonForNativeMediaError(video.error);
       console.error("[film] fatal playback error (native HLS)", video.error);
@@ -75,11 +93,6 @@ export function attachHls(
         video.load();
       },
     };
-  }
-
-  if (!Hls.isSupported()) {
-    options.onFatalError?.({ reason: "other", detail: "HLS playback is not supported in this browser" });
-    return { destroy() {} };
   }
 
   const hls = new Hls({ enableWorker: true });
