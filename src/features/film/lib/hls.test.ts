@@ -1,45 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Regression tests for three real production incidents, in order:
+ * Regression tests for a chain of real production incidents around film
+ * playback, in order — see docs/decisions.md D-38 through D-42 for the
+ * full narrative:
  *
- * D-38: attachHls()'s fatal-error recovery counter never used to reset, so
- * two unrelated, individually-recoverable network blips minutes apart (not
- * unusual over this film's real ~9-minute runtime) would exhaust
- * MAX_RECOVERY_ATTEMPTS and surface as an unrecoverable "Playback failed",
- * even though each recovery genuinely worked.
+ * D-38/D-39/D-41: three rounds of increasingly elaborate custom recovery
+ * logic (progress-based resets, backoff, a sliding time window) layered
+ * onto hls.js's fatal-error handling, none of which actually fixed the
+ * real symptom. A 4th incident report showed why: every repeated segment
+ * request in the browser's Network tab was a `304` (succeeding, served
+ * from cache) — meaning hls.js may never have raised the `fatal` errors
+ * any of that logic was reacting to in the first place.
  *
- * D-39: the fix for D-38 alone didn't fully resolve a second real report.
- * Hardened further: a higher retry budget, a short backoff before retrying
- * a network error, and real diagnostic detail (reason/detail) passed to
- * onFatalError instead of an opaque `unknown`.
+ * D-40: a real root cause that *was* confirmed (a browser-console capture
+ * showing a native-pipeline error) — attachHls() checked native HLS
+ * support before hls.js support, backwards from hls.js's own documented
+ * order. This fix stays; it's unrelated to the retry-logic saga.
  *
- * D-40: the real root cause, found only once a third report came with an
- * actual browser-console error (`PipelineStatus::DEMUXER_ERROR_COULD_NOT_PARSE`
- * — a Chromium-internal native-pipeline error, not anything hls.js
- * produces): attachHls() checked native HLS support *before* hls.js
- * support, so a non-Safari Chromium build whose `canPlayType` happened to
- * report partial native HLS support took the fragile native `video.src =`
- * path and skipped hls.js — and every retry/backoff fix in D-38/D-39 was
- * dead code for that browser, since it never ran the hls.js branch at
- * all. Fixed by checking `Hls.isSupported()` first, matching hls.js's own
- * documented integration order; native is now only a fallback for when
- * hls.js genuinely isn't supported (in practice, real Safari/iOS).
- *
- * D-41: D-40 routed the reporting browser through hls.js for the first
- * time, which surfaced a latent bug in D-38's own fix: resetting the
- * recovery budget on *any* `FRAG_BUFFERED` event can never terminate
- * against a rapidly, repeatedly recurring media error that buffers one
- * fragment successfully between each recovery — the budget resets every
- * time, looping forever instead of ever reaching `giveUp()`. A fourth
- * real report showed exactly this: no crash, just an endless silent
- * stall, the same recent segments re-fetched (cheap 304s) on every
- * recovery cycle. Replaced the unconditional reset with a time-bounded
- * sliding window: errors more than RECOVERY_WINDOW_MS apart still get a
- * fresh budget (isolated, well-spaced blips — D-38's original intent),
- * but anything recurring faster than that is guaranteed to exhaust
- * MAX_RECOVERY_ATTEMPTS and surface as a real, retryable error instead of
- * an invisible infinite stall.
+ * D-42: reverted the custom recovery logic back to Phase 1's original,
+ * simple policy (2 attempts, no reset, no backoff, no window) — piling
+ * more sophistication onto a code path that might not even be the one
+ * running helped nothing and only added risk. Added a genuinely new,
+ * hls.js-error-taxonomy-independent stall watchdog instead: it directly
+ * polls `video.currentTime` and treats "hasn't advanced in 20s while it
+ * should be playing" as a fatal error regardless of what hls.js does or
+ * doesn't report — targeting what the viewer actually experiences rather
+ * than trying to interpret hls.js's internal classification, which four
+ * iterations showed to be an unreliable signal for this exact symptom.
  *
  * Mocks hls.js entirely — this only needs to exercise attachHls()'s own
  * branching/event-wiring/counter/timer logic, not real MSE/video playback
@@ -65,7 +53,7 @@ const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, isSupportedSp
     static isSupported() {
       return isSupportedSpy();
     }
-    static Events = { ERROR: "hlsError", FRAG_BUFFERED: "hlsFragBuffered" };
+    static Events = { ERROR: "hlsError" };
     static ErrorTypes = { NETWORK_ERROR: "networkError", MEDIA_ERROR: "mediaError", OTHER_ERROR: "otherError" };
 
     constructor() {
@@ -88,16 +76,23 @@ const { instances, startLoadSpy, recoverMediaErrorSpy, destroySpy, isSupportedSp
 
 vi.mock("hls.js", () => ({ default: FakeHls, Hls: FakeHls }));
 
-// A real jsdom <video> element (so .src/.load()/addEventListener/
-// dispatchEvent all genuinely work, unlike a plain object stub), with
-// canPlayType overridden — "" means no native support, which is what
-// most of these tests want, relying on isSupportedSpy (default true) to
-// exercise the hls.js path. The D-40 tests below override both
-// independently.
+// A real jsdom <video> element (so addEventListener/dispatchEvent/.load()
+// all genuinely work, unlike a plain object stub), with canPlayType and
+// (for the stall-watchdog tests) paused/ended overridden via
+// defineProperty, since those are normally read-only reflections of real
+// playback state jsdom doesn't simulate.
 function fakeVideo(canPlayType = ""): HTMLVideoElement {
   const video = document.createElement("video");
   video.canPlayType = () => canPlayType as CanPlayTypeResult;
   return video;
+}
+
+function setPaused(video: HTMLVideoElement, paused: boolean) {
+  Object.defineProperty(video, "paused", { value: paused, configurable: true });
+}
+
+function setCurrentTime(video: HTMLVideoElement, time: number) {
+  Object.defineProperty(video, "currentTime", { value: time, configurable: true });
 }
 
 describe("attachHls", () => {
@@ -114,125 +109,137 @@ describe("attachHls", () => {
     vi.useRealTimers();
   });
 
-  it("retries a fatal network error after a short delay, not immediately", async () => {
-    const { attachHls } = await import("./hls");
-    attachHls(fakeVideo(), "master.m3u8", {});
+  describe("fatal hls.js errors (Phase 1's original, simple policy)", () => {
+    it("recovers from a fatal network error by calling startLoad", async () => {
+      const { attachHls } = await import("./hls");
+      attachHls(fakeVideo(), "master.m3u8", {});
 
-    const hls = instances[0];
-    hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-    expect(startLoadSpy).not.toHaveBeenCalled();
-
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(startLoadSpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("gives a fresh budget to errors that are far enough apart to be unrelated incidents", async () => {
-    const { attachHls } = await import("./hls");
-    const onFatalError = vi.fn();
-    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
-
-    const hls = instances[0];
-
-    // Five blips total — more than MAX_RECOVERY_ATTEMPTS (4) — but each
-    // one more than RECOVERY_WINDOW_MS apart, so none of them should ever
-    // exhaust a shared budget; each lands in its own fresh window.
-    for (let i = 0; i < 5; i++) {
+      const hls = instances[0];
       hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-      await vi.advanceTimersByTimeAsync(2000); // the retry itself
-      await vi.advanceTimersByTimeAsync(60_000); // longer than RECOVERY_WINDOW_MS
-    }
+      expect(startLoadSpy).toHaveBeenCalledTimes(1);
+    });
 
-    expect(startLoadSpy).toHaveBeenCalledTimes(5);
-    expect(onFatalError).not.toHaveBeenCalled();
-  });
+    it("recovers from a fatal media error by calling recoverMediaError", async () => {
+      const { attachHls } = await import("./hls");
+      attachHls(fakeVideo(), "master.m3u8", {});
 
-  it("D-41: never loops forever — a rapidly recurring media error still terminates within the bounded window, even though hls.js genuinely recovers each time", async () => {
-    // This reproduces the real incident directly: D-38's original fix
-    // reset the budget on *any* FRAG_BUFFERED event, so a media error
-    // that recovers (buffers a fragment) and then recurs almost
-    // immediately — exactly what a real stuck-film report looked like —
-    // never ran out of budget and never called onFatalError. There's no
-    // FRAG_BUFFERED listener left to even emit against; the fix is that
-    // attempts within one window are bounded regardless of what happens
-    // between them.
-    const { attachHls } = await import("./hls");
-    const onFatalError = vi.fn();
-    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
-
-    const hls = instances[0];
-
-    // MAX_RECOVERY_ATTEMPTS (4) recoveries, each only a second apart —
-    // well within RECOVERY_WINDOW_MS, simulating the rapid recurrence.
-    for (let i = 0; i < 4; i++) {
+      const hls = instances[0];
       hls.emit("hlsError", {}, { fatal: true, type: "mediaError" });
-      await vi.advanceTimersByTimeAsync(1000);
-    }
-    expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(4);
-    expect(onFatalError).not.toHaveBeenCalled();
+      expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(1);
+    });
 
-    // The 5th recurrence within the same window must terminate the loop.
-    hls.emit("hlsError", {}, { fatal: true, type: "mediaError", details: "bufferStalledError" });
-    expect(onFatalError).toHaveBeenCalledWith({ reason: "media", detail: "bufferStalledError" });
-    // No 5th recovery attempt — it gave up instead of looping again.
-    expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(4);
-  });
+    it("gives up after 2 consecutive fatal errors", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      attachHls(fakeVideo(), "master.m3u8", { onFatalError });
 
-  it("still gives up after MAX_RECOVERY_ATTEMPTS consecutive errors within one window", async () => {
-    const { attachHls } = await import("./hls");
-    const onFatalError = vi.fn();
-    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
-
-    const hls = instances[0];
-
-    for (let i = 0; i < 4; i++) {
+      const hls = instances[0];
       hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-      await vi.advanceTimersByTimeAsync(2000);
-    }
-    expect(onFatalError).not.toHaveBeenCalled();
+      hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
+      expect(onFatalError).not.toHaveBeenCalled();
 
-    // 5th error within the same window — budget exhausted.
-    hls.emit("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadTimeOut" });
-    expect(onFatalError).toHaveBeenCalledWith({ reason: "network", detail: "fragLoadTimeOut" });
+      hls.emit("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadTimeOut" });
+      expect(onFatalError).toHaveBeenCalledWith({ reason: "network", detail: "fragLoadTimeOut" });
+    });
+
+    it("calls onFatalError immediately for a fatal error type it doesn't know how to recover from", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      attachHls(fakeVideo(), "master.m3u8", { onFatalError });
+
+      const hls = instances[0];
+      const otherError = { fatal: true, type: "otherError", details: "internalException" };
+      hls.emit("hlsError", {}, otherError);
+
+      expect(onFatalError).toHaveBeenCalledWith({ reason: "other", detail: "internalException" });
+      expect(startLoadSpy).not.toHaveBeenCalled();
+      expect(recoverMediaErrorSpy).not.toHaveBeenCalled();
+    });
+
+    it("ignores non-fatal errors entirely", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      attachHls(fakeVideo(), "master.m3u8", { onFatalError });
+
+      const hls = instances[0];
+      hls.emit("hlsError", {}, { fatal: false, type: "networkError" });
+
+      expect(onFatalError).not.toHaveBeenCalled();
+      expect(startLoadSpy).not.toHaveBeenCalled();
+    });
   });
 
-  it("maps media errors to reason 'media' and other fatal types to 'other', recovering media errors first", async () => {
-    const { attachHls } = await import("./hls");
-    const onFatalError = vi.fn();
-    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
+  describe("D-42: stall watchdog, independent of hls.js's own error reporting", () => {
+    it("reports a stall when currentTime hasn't advanced for the timeout, with no hls.js error involved at all", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo();
+      setPaused(video, false);
+      setCurrentTime(video, 294);
+      attachHls(video, "master.m3u8", { onFatalError });
 
-    const hls = instances[0];
-    hls.emit("hlsError", {}, { fatal: true, type: "mediaError", details: "bufferAppendError" });
-    expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(1);
-    expect(onFatalError).not.toHaveBeenCalled();
+      // Checks run every 2s; currentTime never changes.
+      await vi.advanceTimersByTimeAsync(18_000);
+      expect(onFatalError).not.toHaveBeenCalled();
 
-    const otherError = { fatal: true, type: "otherError", details: "internalException" };
-    hls.emit("hlsError", {}, otherError);
-    expect(onFatalError).toHaveBeenCalledWith({ reason: "other", detail: "internalException" });
-  });
+      await vi.advanceTimersByTimeAsync(4_000); // crosses the 20s timeout
+      expect(onFatalError).toHaveBeenCalledWith({ reason: "stalled", detail: "no progress for 20s" });
+    });
 
-  it("ignores non-fatal errors entirely", async () => {
-    const { attachHls } = await import("./hls");
-    const onFatalError = vi.fn();
-    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
+    it("does not report a stall while currentTime keeps advancing", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo();
+      setPaused(video, false);
+      setCurrentTime(video, 100);
+      attachHls(video, "master.m3u8", { onFatalError });
 
-    const hls = instances[0];
-    hls.emit("hlsError", {}, { fatal: false, type: "networkError" });
+      for (let i = 0; i < 20; i++) {
+        setCurrentTime(video, 100 + i);
+        await vi.advanceTimersByTimeAsync(2_000);
+      }
+      expect(onFatalError).not.toHaveBeenCalled();
+    });
 
-    expect(onFatalError).not.toHaveBeenCalled();
-    expect(startLoadSpy).not.toHaveBeenCalled();
-  });
+    it("does not report a stall while the video is legitimately paused", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo();
+      setPaused(video, true);
+      setCurrentTime(video, 294);
+      attachHls(video, "master.m3u8", { onFatalError });
 
-  it("cancels a pending retry when destroyed, so it never calls startLoad on an already-torn-down instance", async () => {
-    const { attachHls } = await import("./hls");
-    const controller = attachHls(fakeVideo(), "master.m3u8", {});
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(onFatalError).not.toHaveBeenCalled();
+    });
 
-    const hls = instances[0];
-    hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-    controller.destroy();
+    it("stops checking once destroyed, so it can't fire after the player has already been torn down", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo();
+      setPaused(video, false);
+      setCurrentTime(video, 294);
+      const controller = attachHls(video, "master.m3u8", { onFatalError });
 
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(startLoadSpy).not.toHaveBeenCalled();
-    expect(destroySpy).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(10_000);
+      controller.destroy();
+      await vi.advanceTimersByTimeAsync(30_000);
+
+      expect(onFatalError).not.toHaveBeenCalled();
+      expect(destroySpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("only reports once, not on every check thereafter", async () => {
+      const { attachHls } = await import("./hls");
+      const onFatalError = vi.fn();
+      const video = fakeVideo();
+      setPaused(video, false);
+      setCurrentTime(video, 294);
+      attachHls(video, "master.m3u8", { onFatalError });
+
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(onFatalError).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("D-40: hls.js is preferred over native HLS", () => {

@@ -2,7 +2,7 @@ import Hls, { type ErrorData } from "hls.js";
 
 /** A fatal playback error, with enough detail to log and to show the owner something more useful than "Playback failed." */
 export interface FatalPlaybackError {
-  reason: "network" | "media" | "other";
+  reason: "network" | "media" | "stalled" | "other";
   detail?: string;
 }
 
@@ -36,46 +36,47 @@ function reasonForNativeMediaError(error: MediaError | null): FatalPlaybackError
   }
 }
 
-const MAX_RECOVERY_ATTEMPTS = 4;
-// Errors more than this far apart are treated as unrelated incidents (a
-// fresh budget); errors within it share one bounded budget regardless of
-// any partial progress in between. Deliberately less than hls.js's own
-// internal fragLoadingMaxRetry window (6 attempts over up to 64s, which
-// already runs *before* it ever escalates an error to fatal) so two
-// genuinely separate incidents — each preceded by up to ~64s of hls.js's
-// own internal retrying — reliably land in different windows, while a
-// tight, rapidly-recurring failure stays bounded within one.
-const RECOVERY_WINDOW_MS = 45_000;
-// A short pause before retrying a network error avoids hammering a
-// connection that hasn't had a moment to recover yet.
-const NETWORK_RETRY_DELAY_MS = 2000;
+// Deliberately back to Phase 1's original, simple policy (2 attempts, no
+// reset, no backoff, no sliding window) — see docs/decisions.md D-42. Three
+// rounds of increasingly elaborate retry logic (D-38/D-39/D-41) never
+// actually fixed the real production symptom, and a 4th report showed why:
+// every repeated segment request was a 304 (succeeding, served from
+// cache), meaning hls.js may never have been raising the `fatal` errors
+// this logic reacts to in the first place. Piling more retry sophistication
+// onto a code path that might not even be the one running helps nothing
+// and only adds risk — simplest-that-matches-hls.js's-own-documented-
+// pattern is the right baseline until there's real evidence pointing
+// at something more specific.
+const MAX_RECOVERY_ATTEMPTS = 2;
+
+// What actually matters to a viewer is whether the video is advancing —
+// not how hls.js internally classifies whatever is or isn't happening.
+// This watchdog is deliberately independent of hls.js's error events:
+// it directly polls `video.currentTime` and, if playback should be
+// progressing but hasn't moved in STALL_TIMEOUT_MS, treats that as a
+// fatal error regardless of whether hls.js ever reported one. See
+// docs/decisions.md D-42.
+const STALL_TIMEOUT_MS = 20_000;
+const STALL_CHECK_INTERVAL_MS = 2_000;
 
 /**
  * Attaches an HLS source to a <video> element: hls.js (MSE-based) wherever
  * it's supported, the browser's own native HLS only as a fallback where
  * it genuinely isn't — in practice, real Safari/iOS. This order matters
  * and is deliberate (docs/decisions.md D-40): checking native support
- * *first* — this code's original order — is backwards from hls.js's own
- * documented integration pattern, and caused a real production incident.
- * `canPlayType('application/vnd.apple.mpegurl')` can return a non-empty
- * ("maybe"/"probably") answer on some non-Safari Chromium builds (observed
- * via a real browser-console capture: `PipelineStatus::
- * DEMUXER_ERROR_COULD_NOT_PARSE`, a Chromium-internal native-pipeline
- * error, not anything hls.js produces) whose native demuxer then can't
- * actually parse this stream partway through — silently skipping hls.js's
- * much more robust, actively-recovering MSE player entirely. hls.js is
- * tried first now regardless of what `canPlayType` claims, so this class
- * of browser can no longer take the fragile native path at all.
+ * *first* is backwards from hls.js's own documented integration pattern,
+ * and caused a real production incident (`canPlayType` can return a
+ * non-empty answer on some non-Safari Chromium builds whose native
+ * demuxer then can't actually parse this stream).
  *
- * Recovers automatically from fatal network/media errors a bounded number
- * of times within a sliding time window, plus a short backoff before
- * retrying a network error (see docs/decisions.md D-38/D-39/D-41 — D-41
- * replaced D-38's unconditional "any progress resets the budget" logic,
- * which could loop forever against a rapidly-recurring error); anything
- * else, or the budget running out, calls onFatalError so the UI can offer
- * a retry. Always logs the real error to the console, since a screenshot
- * of the resulting UI alone (what every incident report so far started
- * as) carries no diagnostic detail on its own.
+ * Recovers automatically from a couple of fatal network/media errors
+ * (hls.js's own documented minimal pattern); anything else, or repeated
+ * failures, calls onFatalError. A separate, hls.js-error-agnostic stall
+ * watchdog (above) catches the case where playback simply stops
+ * advancing without hls.js ever raising a fatal error for it. Always logs
+ * the real error to the console, since a screenshot of the resulting UI
+ * alone (what every incident report so far started as) carries no
+ * diagnostic detail on its own.
  */
 export function attachHls(
   video: HTMLVideoElement,
@@ -105,79 +106,68 @@ export function attachHls(
 
   const hls = new Hls({ enableWorker: true });
   let recoveryAttempts = 0;
-  let recoveryWindowStartedAt = 0;
-  let retryTimeout: ReturnType<typeof setTimeout> | null = null;
+  let stopped = false;
 
-  function giveUp(data: ErrorData) {
-    console.error("[film] fatal HLS error, giving up", { type: data.type, details: data.details, reason: data.error });
-    const reason: FatalPlaybackError["reason"] =
-      data.type === Hls.ErrorTypes.NETWORK_ERROR
-        ? "network"
-        : data.type === Hls.ErrorTypes.MEDIA_ERROR
-          ? "media"
-          : "other";
-    options.onFatalError?.({ reason, detail: data.details });
-  }
-
-  /**
-   * Buckets this fatal error into the current recovery window (starting a
-   * fresh one, and a fresh budget, if the last error was long enough ago
-   * to be unrelated), and returns whether there's still budget left to
-   * attempt a recovery.
-   *
-   * This used to reset the attempt count on every `FRAG_BUFFERED` event
-   * instead (any successful buffer = past errors are stale) — but that
-   * can never terminate: a *rapidly, repeatedly recurring* media error
-   * that buffers one fragment successfully between each recovery attempt
-   * resets the budget every single time, looping forever instead of ever
-   * reaching `giveUp()` — a real production incident this caused (D-41):
-   * the film silently stalled indefinitely, re-fetching the same recent
-   * segments on every recovery cycle, with no error ever shown. A
-   * time-bounded window still gives isolated, well-spaced blips a fresh
-   * budget (hls.js's own events D-38 was written for), while guaranteeing
-   * any tight, rapidly-recurring failure still terminates within
-   * MAX_RECOVERY_ATTEMPTS and surfaces as a real, retryable error instead
-   * of an invisible stall.
-   */
-  function attemptRecovery(): boolean {
-    const now = Date.now();
-    if (now - recoveryWindowStartedAt > RECOVERY_WINDOW_MS) {
-      recoveryWindowStartedAt = now;
-      recoveryAttempts = 0;
-    }
-    recoveryAttempts += 1;
-    return recoveryAttempts <= MAX_RECOVERY_ATTEMPTS;
+  function giveUp(error: FatalPlaybackError) {
+    stopped = true;
+    console.error("[film] fatal playback error, giving up", error);
+    options.onFatalError?.(error);
   }
 
   hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
     if (!data.fatal) return;
     console.warn("[film] HLS error", { fatal: data.fatal, type: data.type, details: data.details });
+    if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
+      const reason: FatalPlaybackError["reason"] =
+        data.type === Hls.ErrorTypes.NETWORK_ERROR
+          ? "network"
+          : data.type === Hls.ErrorTypes.MEDIA_ERROR
+            ? "media"
+            : "other";
+      giveUp({ reason, detail: data.details });
+      return;
+    }
     switch (data.type) {
       case Hls.ErrorTypes.NETWORK_ERROR:
-        if (!attemptRecovery()) {
-          giveUp(data);
-          return;
-        }
-        retryTimeout = setTimeout(() => hls.startLoad(), NETWORK_RETRY_DELAY_MS);
+        recoveryAttempts += 1;
+        hls.startLoad();
         break;
       case Hls.ErrorTypes.MEDIA_ERROR:
-        if (!attemptRecovery()) {
-          giveUp(data);
-          return;
-        }
+        recoveryAttempts += 1;
         hls.recoverMediaError();
         break;
       default:
-        giveUp(data);
+        giveUp({ reason: "other", detail: data.details });
     }
   });
+
+  let lastCurrentTime = -1;
+  let lastProgressAt = Date.now();
+  const stallTimer = setInterval(() => {
+    if (stopped) return;
+    // Not expected to be advancing right now — not a stall.
+    if (video.paused || video.ended || video.seeking) {
+      lastProgressAt = Date.now();
+      lastCurrentTime = video.currentTime;
+      return;
+    }
+    if (video.currentTime !== lastCurrentTime) {
+      lastCurrentTime = video.currentTime;
+      lastProgressAt = Date.now();
+      return;
+    }
+    if (Date.now() - lastProgressAt >= STALL_TIMEOUT_MS) {
+      giveUp({ reason: "stalled", detail: `no progress for ${Math.round(STALL_TIMEOUT_MS / 1000)}s` });
+    }
+  }, STALL_CHECK_INTERVAL_MS);
 
   hls.loadSource(src);
   hls.attachMedia(video);
 
   return {
     destroy() {
-      if (retryTimeout != null) clearTimeout(retryTimeout);
+      stopped = true;
+      clearInterval(stallTimer);
       hls.destroy();
     },
   };
