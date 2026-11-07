@@ -25,29 +25,6 @@ async function revealBoard(page: Page) {
   await video.evaluate((el: HTMLVideoElement) => el.pause());
 }
 
-/** Same helper as e2e/collage.spec.ts — see its comment for the reasoning. */
-async function panToCollage(page: Page) {
-  const viewport = page.viewportSize();
-  const vw = viewport?.width ?? 1280;
-  const vh = viewport?.height ?? 720;
-
-  const cameraLocator = page.locator("[data-camera-zoom]").first();
-  await cameraLocator.focus();
-  for (let i = 0; i < 12; i++) await page.keyboard.press("-");
-
-  const camera = {
-    x: Number(await cameraLocator.getAttribute("data-camera-x")),
-    y: Number(await cameraLocator.getAttribute("data-camera-y")),
-    zoom: Number(await cameraLocator.getAttribute("data-camera-zoom")),
-  };
-  const panStepWorld = 80 / camera.zoom;
-  const stepsX = Math.round((2000 - vw / (2 * camera.zoom) - camera.x) / panStepWorld);
-  const stepsY = Math.round((1200 - vh / (2 * camera.zoom) - camera.y) / panStepWorld);
-
-  for (let i = 0; i < Math.abs(stepsX); i++) await page.keyboard.press(stepsX > 0 ? "ArrowRight" : "ArrowLeft");
-  for (let i = 0; i < Math.abs(stepsY); i++) await page.keyboard.press(stepsY > 0 ? "ArrowDown" : "ArrowUp");
-}
-
 function boxesOverlap(
   a: { x: number; y: number; width: number; height: number },
   b: { x: number; y: number; width: number; height: number }
@@ -58,18 +35,30 @@ function boxesOverlap(
 /**
  * Clicks a seeded photo thumbnail, skipping any that CanvasChrome's fixed
  * top-left corner (minimap/Home/Guided controls — correctly screen-
- * anchored since docs/decisions.md D-44) happens to sit on top of.
- * panToCollage()'s extreme zoom-out packs the whole phyllotaxis cluster
- * near screen centre, but exactly which seeded photo (random ids each
- * CI run) ends up nearest a given screen region isn't something `.first()`
- * can assume is always clickable.
+ * anchored since docs/decisions.md D-44) happens to sit on top of. Each
+ * photo's seeded id is random per CI run, so exactly which one the
+ * phyllotaxis layout places nearest that corner isn't something `.first()`
+ * can assume is always clickable — Continue's own flyTo (T10) already
+ * centres the camera on collage at zoom 1, so no extra panning/zooming is
+ * needed here just to reach a clickable photo.
  */
 async function clickAnUnobstructedPhoto(page: Page) {
   const chromeBox = await page.locator("[data-canvas-chrome]").boundingBox();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
   for (let i = 0; i < count; i++) {
-    const candidate = candidates.nth(i);
+    // Reads this candidate's stable id, then clicks through a locator
+    // scoped by that id — not the positional `nth(i)` locator itself.
+    // `nth(i)` re-resolves live on every action, so if NodeLayer's
+    // culling mounts/unmounts/reorders nodes between this boundingBox()
+    // read and the eventual click (a real race during T10's Continue
+    // flyTo, confirmed on real CI: Playwright's own actionability retry
+    // silently swapped in a *different* button mid-click, one that
+    // genuinely was obstructed), a positional locator can click whatever
+    // ends up at that index by then, not the one actually vetted here.
+    const id = await candidates.nth(i).getAttribute("data-photo-id");
+    if (!id) continue;
+    const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
     if (box && (!chromeBox || !boxesOverlap(box, chromeBox))) {
       await candidate.click();
@@ -86,7 +75,6 @@ test.describe("photo viewer", () => {
 
   test("clicking a photo opens a full-screen viewer with its title and date", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
 
     const thumbnail = await clickAnUnobstructedPhoto(page);
     const label = await thumbnail.getAttribute("aria-label");
@@ -99,7 +87,6 @@ test.describe("photo viewer", () => {
 
   test("Escape closes the viewer and returns to /gallery", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
@@ -110,7 +97,6 @@ test.describe("photo viewer", () => {
 
   test("browser Back closes the viewer", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
@@ -121,7 +107,6 @@ test.describe("photo viewer", () => {
 
   test("Next cycles forward and loops from the last photo to the first", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
@@ -140,7 +125,6 @@ test.describe("photo viewer", () => {
 
   test("ArrowLeft/ArrowRight keys also cycle", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
     const firstUrl = page.url();
@@ -156,7 +140,6 @@ test.describe("photo viewer", () => {
 
   test("tapping the image toggles the caption and nav arrows", async ({ page }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -165,10 +148,9 @@ test.describe("photo viewer", () => {
     // the accessibility tree role queries search — exactly the state this
     // test is checking. Scoped to the dialog: the collage thumbnails
     // behind it (PhotoThumbnail.tsx) also use `alt=""`, and with several
-    // of them culled into view at once (panToCollage's whole point), a
-    // bare page-wide `img[alt=""]` locator can resolve to more than one
-    // element — only the dialog's own full-size image is what this test
-    // means to click.
+    // of them culled into view at once, a bare page-wide `img[alt=""]`
+    // locator can resolve to more than one element — only the dialog's
+    // own full-size image is what this test means to click.
     const image = dialog.locator('img[alt=""]');
     const nextButton = dialog.locator('button[aria-label="Next photo"]');
     await expect(nextButton).toHaveAttribute("aria-hidden", "false");
@@ -184,7 +166,6 @@ test.describe("photo viewer", () => {
     page,
   }) => {
     await revealBoard(page);
-    await panToCollage(page);
     await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
     const photoUrl = page.url();
