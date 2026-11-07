@@ -26,6 +26,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * documented integration order; native is now only a fallback for when
  * hls.js genuinely isn't supported (in practice, real Safari/iOS).
  *
+ * D-41: D-40 routed the reporting browser through hls.js for the first
+ * time, which surfaced a latent bug in D-38's own fix: resetting the
+ * recovery budget on *any* `FRAG_BUFFERED` event can never terminate
+ * against a rapidly, repeatedly recurring media error that buffers one
+ * fragment successfully between each recovery — the budget resets every
+ * time, looping forever instead of ever reaching `giveUp()`. A fourth
+ * real report showed exactly this: no crash, just an endless silent
+ * stall, the same recent segments re-fetched (cheap 304s) on every
+ * recovery cycle. Replaced the unconditional reset with a time-bounded
+ * sliding window: errors more than RECOVERY_WINDOW_MS apart still get a
+ * fresh budget (isolated, well-spaced blips — D-38's original intent),
+ * but anything recurring faster than that is guaranteed to exhaust
+ * MAX_RECOVERY_ATTEMPTS and surface as a real, retryable error instead of
+ * an invisible infinite stall.
+ *
  * Mocks hls.js entirely — this only needs to exercise attachHls()'s own
  * branching/event-wiring/counter/timer logic, not real MSE/video playback
  * (matching how upload-film.ts/encode-hls.sh are verified by running them
@@ -111,31 +126,58 @@ describe("attachHls", () => {
     expect(startLoadSpy).toHaveBeenCalledTimes(1);
   });
 
-  it("resets the recovery budget after a fragment actually buffers, so two unrelated network blips don't exhaust it", async () => {
+  it("gives a fresh budget to errors that are far enough apart to be unrelated incidents", async () => {
     const { attachHls } = await import("./hls");
     const onFatalError = vi.fn();
     attachHls(fakeVideo(), "master.m3u8", { onFatalError });
 
     const hls = instances[0];
 
-    // First blip, recovered.
-    hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(startLoadSpy).toHaveBeenCalledTimes(1);
-    expect(onFatalError).not.toHaveBeenCalled();
+    // Five blips total — more than MAX_RECOVERY_ATTEMPTS (4) — but each
+    // one more than RECOVERY_WINDOW_MS apart, so none of them should ever
+    // exhaust a shared budget; each lands in its own fresh window.
+    for (let i = 0; i < 5; i++) {
+      hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
+      await vi.advanceTimersByTimeAsync(2000); // the retry itself
+      await vi.advanceTimersByTimeAsync(60_000); // longer than RECOVERY_WINDOW_MS
+    }
 
-    // Real progress — this is what should reset the budget.
-    hls.emit("hlsFragBuffered");
-
-    // A second, unrelated blip minutes later: should also recover, not
-    // immediately fail just because it's technically another error ever.
-    hls.emit("hlsError", {}, { fatal: true, type: "networkError" });
-    await vi.advanceTimersByTimeAsync(2000);
-    expect(startLoadSpy).toHaveBeenCalledTimes(2);
+    expect(startLoadSpy).toHaveBeenCalledTimes(5);
     expect(onFatalError).not.toHaveBeenCalled();
   });
 
-  it("still gives up after MAX_RECOVERY_ATTEMPTS consecutive errors with no progress between them", async () => {
+  it("D-41: never loops forever — a rapidly recurring media error still terminates within the bounded window, even though hls.js genuinely recovers each time", async () => {
+    // This reproduces the real incident directly: D-38's original fix
+    // reset the budget on *any* FRAG_BUFFERED event, so a media error
+    // that recovers (buffers a fragment) and then recurs almost
+    // immediately — exactly what a real stuck-film report looked like —
+    // never ran out of budget and never called onFatalError. There's no
+    // FRAG_BUFFERED listener left to even emit against; the fix is that
+    // attempts within one window are bounded regardless of what happens
+    // between them.
+    const { attachHls } = await import("./hls");
+    const onFatalError = vi.fn();
+    attachHls(fakeVideo(), "master.m3u8", { onFatalError });
+
+    const hls = instances[0];
+
+    // MAX_RECOVERY_ATTEMPTS (4) recoveries, each only a second apart —
+    // well within RECOVERY_WINDOW_MS, simulating the rapid recurrence.
+    for (let i = 0; i < 4; i++) {
+      hls.emit("hlsError", {}, { fatal: true, type: "mediaError" });
+      await vi.advanceTimersByTimeAsync(1000);
+    }
+    expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(4);
+    expect(onFatalError).not.toHaveBeenCalled();
+
+    // The 5th recurrence within the same window must terminate the loop.
+    hls.emit("hlsError", {}, { fatal: true, type: "mediaError", details: "bufferStalledError" });
+    expect(onFatalError).toHaveBeenCalledWith({ reason: "media", detail: "bufferStalledError" });
+    // No 5th recovery attempt — it gave up instead of looping again.
+    expect(recoverMediaErrorSpy).toHaveBeenCalledTimes(4);
+  });
+
+  it("still gives up after MAX_RECOVERY_ATTEMPTS consecutive errors within one window", async () => {
     const { attachHls } = await import("./hls");
     const onFatalError = vi.fn();
     attachHls(fakeVideo(), "master.m3u8", { onFatalError });
@@ -148,7 +190,7 @@ describe("attachHls", () => {
     }
     expect(onFatalError).not.toHaveBeenCalled();
 
-    // 5th consecutive error, no FRAG_BUFFERED in between — budget exhausted.
+    // 5th error within the same window — budget exhausted.
     hls.emit("hlsError", {}, { fatal: true, type: "networkError", details: "fragLoadTimeOut" });
     expect(onFatalError).toHaveBeenCalledWith({ reason: "network", detail: "fragLoadTimeOut" });
   });
