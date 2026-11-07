@@ -1,5 +1,36 @@
 # Film and media scripts
 
+## Seeding a photo shoot
+
+```bash
+# <folder> contains the source images and a photos.csv next to them:
+#   filename,title,taken_on
+#   seal-01.jpg,The first cast,2026-03-14
+#   seal-02.jpg,Finishing the buckle,       <- taken_on may be left blank
+
+npx tsx scripts/seed-photos.ts <folder> "Set title"
+```
+
+For each photo: generates WebP renditions at 256/640/1280/2048 px (`sharp`,
+a dev dependency used only by this local script — never shipped to the
+client bundle) and a tiny, heavily-blurred placeholder inlined as a
+`blur_data_url`, uploads everything to `site-media/photos/<set-id>/<media-id>/`,
+and inserts one `photo_sets` row (`published = true`) plus one `media` +
+`photos` row per photo, in the CSV's own order. Same `.env.local`/proxy
+notes as uploading the film, above.
+
+No real photo-shoot images yet? Generate a placeholder set first:
+
+```bash
+scripts/generate-placeholder-photos.sh <outdir> [count]   # default count: 8
+npx tsx scripts/seed-photos.ts <outdir> "Placeholder shoot"
+```
+
+Writes `<outdir>/placeholder-NN.jpg` (solid colour + a number, via
+ImageMagick's `convert`) and a matching `photos.csv`. Swap in the owner's
+real images and a real `photos.csv` later — nothing else about the pipeline
+changes.
+
 ## Encoding the film
 
 ```bash

@@ -22,6 +22,8 @@ assets/source/
 assets/hls-output/
 assets/test-source/
 assets/test-hls-output/
+assets/photos/
+assets/test-photos/
 
 # Editor directories and files
 .vscode/*
