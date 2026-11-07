@@ -95,6 +95,7 @@ export function CanvasChrome() {
 
   return (
     <div
+      data-canvas-chrome
       style={{
         position: "fixed",
         top: 12,

@@ -48,6 +48,37 @@ async function panToCollage(page: Page) {
   for (let i = 0; i < Math.abs(stepsY); i++) await page.keyboard.press(stepsY > 0 ? "ArrowDown" : "ArrowUp");
 }
 
+function boxesOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number }
+) {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/**
+ * Clicks a seeded photo thumbnail, skipping any that CanvasChrome's fixed
+ * top-left corner (minimap/Home/Guided controls — correctly screen-
+ * anchored since docs/decisions.md D-44) happens to sit on top of.
+ * panToCollage()'s extreme zoom-out packs the whole phyllotaxis cluster
+ * near screen centre, but exactly which seeded photo (random ids each
+ * CI run) ends up nearest a given screen region isn't something `.first()`
+ * can assume is always clickable.
+ */
+async function clickAnUnobstructedPhoto(page: Page) {
+  const chromeBox = await page.locator("[data-canvas-chrome]").boundingBox();
+  const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
+  const count = await candidates.count();
+  for (let i = 0; i < count; i++) {
+    const candidate = candidates.nth(i);
+    const box = await candidate.boundingBox();
+    if (box && (!chromeBox || !boxesOverlap(box, chromeBox))) {
+      await candidate.click();
+      return candidate;
+    }
+  }
+  throw new Error("every seeded photo thumbnail is obstructed by CanvasChrome — nothing clickable found");
+}
+
 test.describe("photo viewer", () => {
   test.beforeEach(({ browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
@@ -57,9 +88,8 @@ test.describe("photo viewer", () => {
     await revealBoard(page);
     await panToCollage(page);
 
-    const thumbnail = page.getByRole("button", { name: /^Placeholder photo \d+/ }).first();
+    const thumbnail = await clickAnUnobstructedPhoto(page);
     const label = await thumbnail.getAttribute("aria-label");
-    await thumbnail.click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
@@ -70,7 +100,7 @@ test.describe("photo viewer", () => {
   test("Escape closes the viewer and returns to /gallery", async ({ page }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
     await page.keyboard.press("Escape");
@@ -81,7 +111,7 @@ test.describe("photo viewer", () => {
   test("browser Back closes the viewer", async ({ page }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
     await page.goBack();
@@ -92,7 +122,7 @@ test.describe("photo viewer", () => {
   test("Next cycles forward and loops from the last photo to the first", async ({ page }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
 
     const urlsSeen = new Set<string>();
@@ -111,7 +141,7 @@ test.describe("photo viewer", () => {
   test("ArrowLeft/ArrowRight keys also cycle", async ({ page }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
     const firstUrl = page.url();
 
@@ -127,7 +157,7 @@ test.describe("photo viewer", () => {
   test("tapping the image toggles the caption and nav arrows", async ({ page }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
@@ -155,7 +185,7 @@ test.describe("photo viewer", () => {
   }) => {
     await revealBoard(page);
     await panToCollage(page);
-    await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
+    await clickAnUnobstructedPhoto(page);
     await expect(page.getByRole("dialog")).toBeVisible();
     const photoUrl = page.url();
 
