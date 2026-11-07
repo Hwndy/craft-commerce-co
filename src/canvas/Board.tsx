@@ -1,5 +1,6 @@
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
+import { DebugOverlay, isDebugOverlayEnabled } from "./DebugOverlay";
 import { useCameraStore } from "./store";
 import { useBoardGestures } from "./useBoardGestures";
 import { useBoardKeyboard } from "./useBoardKeyboard";
@@ -38,6 +39,9 @@ export function Board({ children, className }: BoardProps) {
   const setViewport = useCameraStore((state) => state.setViewport);
   const { handleDoubleClick } = useBoardGestures(viewportRef);
   useBoardKeyboard(viewportRef);
+  const [debugEnabled] = useState(() =>
+    typeof window !== "undefined" ? isDebugOverlayEnabled() : false
+  );
 
   // overscroll-behavior (pull-to-refresh / edge-swipe nav) and Safari's
   // gesturestart/change/end (its own pinch-zoom-the-page gesture) only
@@ -83,22 +87,27 @@ export function Board({ children, className }: BoardProps) {
 
   useEffect(() => {
     let frame: number;
+    let lastFrameTime: number | null = null;
 
-    function tick() {
+    function tick(now: number) {
       const world = worldRef.current;
       const viewport = viewportRef.current;
       if (world) {
         const { camera } = useCameraStore.getState();
         world.style.transform = `translate3d(${-camera.x * camera.zoom}px, ${-camera.y * camera.zoom}px, 0) scale(${camera.zoom})`;
-        // Exposes camera state on the DOM (cheap — string formatting already
-        // happens above) so e2e specs can read it without a window global;
-        // also useful for the T3 debug overlay.
+        // Exposes camera state (and now frame time) on the DOM — cheap,
+        // string formatting already happens above — so e2e specs can read
+        // it without a window global, and the T3 debug overlay can poll it.
         if (viewport) {
           viewport.dataset.cameraX = String(camera.x);
           viewport.dataset.cameraY = String(camera.y);
           viewport.dataset.cameraZoom = String(camera.zoom);
+          if (lastFrameTime != null) {
+            viewport.dataset.frameTimeMs = (now - lastFrameTime).toFixed(2);
+          }
         }
       }
+      lastFrameTime = now;
       frame = requestAnimationFrame(tick);
     }
 
@@ -117,6 +126,7 @@ export function Board({ children, className }: BoardProps) {
       <div ref={worldRef} style={worldStyle}>
         {children}
       </div>
+      {debugEnabled && <DebugOverlay />}
     </div>
   );
 }

@@ -103,11 +103,11 @@ test.describe("canvas gestures", () => {
     // attributes, which can lag under CPU contention from parallel specs.
     const before = await getCamera(page);
     await page.keyboard.press("ArrowRight");
-    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 10000 }).toBeGreaterThan(before!.x);
+    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 15000 }).toBeGreaterThan(before!.x);
 
     const panned = await getCamera(page);
     await page.keyboard.press("+");
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 10000 }).toBeGreaterThan(panned!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(panned!.zoom);
 
     await page.keyboard.press("0");
     // flyTo animates to the landing viewpoint (x=0, zoom=1) — poll until settled.
