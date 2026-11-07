@@ -17,6 +17,7 @@ export interface CollageProps {
   centerX: number;
   centerY: number;
   mode?: CollageLayoutMode;
+  onOpenPhoto?: (id: string) => void;
 }
 
 const EMPTY_REGION_SIZE = 800;
@@ -30,7 +31,7 @@ const REGION_PADDING = 200;
  * free. DOM nodes, not PixiJS — see docs/decisions.md for why (placeholder
  * photo counts are far under the spec's ~300-image/50fps threshold).
  */
-export function Collage({ centerX, centerY, mode }: CollageProps) {
+export function Collage({ centerX, centerY, mode, onOpenPhoto }: CollageProps) {
   const { data: photos } = useCollagePhotos();
 
   const { nodes, rect } = useMemo(() => {
@@ -96,7 +97,7 @@ export function Collage({ centerX, centerY, mode }: CollageProps) {
               transform: `rotate(${node.rotation}deg)`,
             }}
           >
-            <PhotoThumbnail photo={node.photo} lod={lod} />
+            <PhotoThumbnail photo={node.photo} lod={lod} onOpen={onOpenPhoto ? () => onOpenPhoto(node.photo.id) : undefined} />
           </div>
         )}
       />

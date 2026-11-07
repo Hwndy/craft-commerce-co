@@ -31,17 +31,43 @@ async function revealBoard(page: Page) {
 }
 
 /**
- * Pans the camera from the gallery viewpoint (2000, 0) down to the collage
- * viewpoint (2000, 1200) via the keyboard — no CanvasChrome/minimap wiring
- * exists yet (deferred to T10), and no internal store is exposed to tests,
- * so this is the same real-interaction approach the gesture specs already
- * use. ArrowDown pans by a fixed 80 screen-px / zoom per press regardless
- * of viewport size (useBoardKeyboard.ts), so exactly 15 presses moves
- * camera.y by exactly 1200 world units on every project/device.
+ * Flies the camera (via the keyboard — no CanvasChrome/minimap wiring
+ * exists yet, deferred to T10, and no internal store is exposed to tests)
+ * so the collage viewpoint (2000, 1200) is centred and the whole cluster
+ * fits on screen, regardless of the project/device's real viewport size.
+ *
+ * Zooms out to the camera's floor (DEFAULT_ZOOM_LIMITS.min, 0.15 — "-"
+ * enough times to clamp there from any starting zoom) first, so the
+ * collage's ~1100-world-unit spread (phyllotaxis, 8 placeholder photos —
+ * see docs/decisions.md on DEFAULT_RADIUS_STEP) is a small fraction of
+ * even the narrowest mobile viewport's visible world area. Then reads the
+ * real camera/zoom and viewport size off the DOM (data-camera-*, same
+ * attributes every other gesture spec reads) and computes the *exact*
+ * number of pan presses needed to centre (2000, 1200) — not a guessed
+ * count — since useBoardKeyboard.ts's pan step is a fixed 80 screen-px
+ * divided by the *current* zoom, which only this script's own zoom-out
+ * step has just changed.
  */
 async function panToCollage(page: Page) {
-  await page.locator("[data-camera-zoom]").first().focus();
-  for (let i = 0; i < 15; i++) await page.keyboard.press("ArrowDown");
+  const viewport = page.viewportSize();
+  const vw = viewport?.width ?? 1280;
+  const vh = viewport?.height ?? 720;
+
+  const cameraLocator = page.locator("[data-camera-zoom]").first();
+  await cameraLocator.focus();
+  for (let i = 0; i < 12; i++) await page.keyboard.press("-");
+
+  const camera = {
+    x: Number(await cameraLocator.getAttribute("data-camera-x")),
+    y: Number(await cameraLocator.getAttribute("data-camera-y")),
+    zoom: Number(await cameraLocator.getAttribute("data-camera-zoom")),
+  };
+  const panStepWorld = 80 / camera.zoom;
+  const stepsX = Math.round((2000 - vw / (2 * camera.zoom) - camera.x) / panStepWorld);
+  const stepsY = Math.round((1200 - vh / (2 * camera.zoom) - camera.y) / panStepWorld);
+
+  for (let i = 0; i < Math.abs(stepsX); i++) await page.keyboard.press(stepsX > 0 ? "ArrowRight" : "ArrowLeft");
+  for (let i = 0; i < Math.abs(stepsY); i++) await page.keyboard.press(stepsY > 0 ? "ArrowDown" : "ArrowUp");
 }
 
 function seriousOrCritical(violations: { impact?: string | null }[]) {

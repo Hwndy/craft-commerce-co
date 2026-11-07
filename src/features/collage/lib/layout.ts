@@ -14,7 +14,13 @@
 import type { Rect } from "@/canvas/types";
 
 export const GOLDEN_ANGLE_DEG = 137.50776;
-export const DEFAULT_RADIUS_STEP = 60;
+// Tuned so neighbouring photos (even at max size jitter, ~1.12 * baseSize)
+// don't overlap — the minimum pairwise distance between any two phyllotaxis
+// points turns out to be set by the first couple of indices and doesn't
+// shrink as more photos are added, so one constant works for any count.
+// radiusStep=200 keeps a comfortable ~30% gap over the worst-case diameter
+// at baseSize=220 (found by sampling candidate steps; see T8/T9's commit).
+export const DEFAULT_RADIUS_STEP = 200;
 export const DEFAULT_BASE_SIZE = 220;
 export const DEFAULT_TILT_RANGE_DEG = 8;
 export const DEFAULT_SIZE_JITTER = 0.12;
@@ -22,8 +28,9 @@ export const DEFAULT_SIZE_JITTER = 0.12;
 export const DEFAULT_ITEMS_PER_STRIP = 5;
 export const DEFAULT_STRIP_TILT_DEG = -6;
 export const DEFAULT_STRIP_TILT_JITTER_DEG = 3;
-export const DEFAULT_COL_SPACING = 240;
-export const DEFAULT_ROW_SPACING = 200;
+// Same non-overlap reasoning as DEFAULT_RADIUS_STEP above.
+export const DEFAULT_COL_SPACING = 300;
+export const DEFAULT_ROW_SPACING = 260;
 export const DEFAULT_ROW_OFFSET_X = 60;
 
 export type CollageLayoutMode = "circular" | "strips";

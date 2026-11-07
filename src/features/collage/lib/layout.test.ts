@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { rectsIntersect } from "@/canvas/culling";
+
 import {
   collageBoundingBox,
   DEFAULT_ITEMS_PER_STRIP,
@@ -65,6 +67,21 @@ describe("phyllotaxisLayout", () => {
     const layouts = phyllotaxisLayout(photos(8));
     const rotations = new Set(layouts.map((l) => l.rotation));
     expect(rotations.size).toBeGreaterThan(1);
+  });
+
+  it("keeps photos from visually overlapping, even across many ids' real size jitter", () => {
+    // Regression test: an earlier DEFAULT_RADIUS_STEP (60) packed the first
+    // few photos so close together near the spiral's centre that they
+    // visually overlapped and the rearmost ones became unclickable — found
+    // via a real e2e click failure (mobile-chrome), not by inspection.
+    // Sampling 40 real ids (not a forced worst case) exercises the actual
+    // deterministic jitter distribution.
+    const layouts = phyllotaxisLayout(photos(40));
+    for (let i = 0; i < layouts.length; i++) {
+      for (let j = i + 1; j < layouts.length; j++) {
+        expect(rectsIntersect(layouts[i], layouts[j])).toBe(false);
+      }
+    }
   });
 });
 

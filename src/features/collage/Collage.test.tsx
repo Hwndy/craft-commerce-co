@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCameraStore } from "@/canvas/store";
@@ -31,11 +31,11 @@ vi.mock("./lib/queries", () => ({
   fetchCollagePhotos: vi.fn().mockResolvedValue(photos),
 }));
 
-function renderCollage() {
+function renderCollage(onOpenPhoto?: (id: string) => void) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <Collage centerX={2000} centerY={1200} />
+      <Collage centerX={2000} centerY={1200} onOpenPhoto={onOpenPhoto} />
     </QueryClientProvider>
   );
 }
@@ -56,6 +56,15 @@ describe("Collage", () => {
       expect(screen.getByRole("button", { name: "The first cast, 2026-03-14" })).toBeInTheDocument();
     });
     expect(screen.getByRole("button", { name: "Finishing the buckle" })).toBeInTheDocument();
+  });
+
+  it("calls onOpenPhoto with the photo's id when a node is clicked", async () => {
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+    fireEvent.click(node);
+    expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
   });
 
   it("renders no photo nodes and doesn't crash when nothing is published yet", async () => {

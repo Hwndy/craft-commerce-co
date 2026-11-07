@@ -58,8 +58,18 @@ const App = () => (
         <Routes>
           <Route path="/" element={<LandingVideo />} />
           <Route path="/home" element={<Home />} />
+          {/*
+            A single splat route covers both /gallery and T9's
+            /gallery/photo/:id deep link, deliberately NOT two separate
+            <Route> entries: React Router v6 remounts a component when the
+            *matched route* changes, even if both routes render the exact
+            same element — which would reset the camera and the film
+            layer's reveal()/hide() every time the photo viewer opens or
+            closes. A splat keeps this one route match throughout; Gallery
+            itself parses the optional "photo/:id" tail from useParams().
+          */}
           <Route
-            path="/gallery"
+            path="/gallery/*"
             element={
               <Suspense fallback={null}>
                 <Gallery />
