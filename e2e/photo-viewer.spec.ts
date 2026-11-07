@@ -128,18 +128,25 @@ test.describe("photo viewer", () => {
     await revealBoard(page);
     await panToCollage(page);
     await page.getByRole("button", { name: /^Placeholder photo \d+/ }).first().click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
 
     // A CSS (not role) locator, since aria-hidden removes an element from
     // the accessibility tree role queries search — exactly the state this
-    // test is checking.
-    const nextButton = page.locator('button[aria-label="Next photo"]');
+    // test is checking. Scoped to the dialog: the collage thumbnails
+    // behind it (PhotoThumbnail.tsx) also use `alt=""`, and with several
+    // of them culled into view at once (panToCollage's whole point), a
+    // bare page-wide `img[alt=""]` locator can resolve to more than one
+    // element — only the dialog's own full-size image is what this test
+    // means to click.
+    const image = dialog.locator('img[alt=""]');
+    const nextButton = dialog.locator('button[aria-label="Next photo"]');
     await expect(nextButton).toHaveAttribute("aria-hidden", "false");
 
-    await page.locator('img[alt=""]').click();
+    await image.click();
     await expect(nextButton).toHaveAttribute("aria-hidden", "true");
 
-    await page.locator('img[alt=""]').click();
+    await image.click();
     await expect(nextButton).toHaveAttribute("aria-hidden", "false");
   });
 
