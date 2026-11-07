@@ -15,6 +15,8 @@ if [[ -z "$OUTFILE" ]]; then
   exit 1
 fi
 
+mkdir -p "$(dirname "$OUTFILE")"
+
 ffmpeg -y \
   -f lavfi -i "testsrc2=size=1280x720:rate=24" \
   -f lavfi -i "sine=frequency=440" \
