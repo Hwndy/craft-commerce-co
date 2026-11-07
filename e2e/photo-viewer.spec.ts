@@ -23,6 +23,25 @@ async function revealBoard(page: Page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
   await video.evaluate((el: HTMLVideoElement) => el.pause());
+
+  // Continue's own flyTo (T10) is async and never awaited by its click
+  // handler, so the camera is still mid-flight (position changing every
+  // rAF frame) the instant this click() resolves. Confirmed on real CI:
+  // every photo-thumbnail click here failed with Playwright's own
+  // "element is not stable"/"detached from the DOM" — NodeLayer's culling
+  // recomputes against whatever intermediate camera position the flight
+  // is passing through, not just its settled end state. Waiting for the
+  // camera to actually reach collage (2000, 1200, zoom 1 — the exact
+  // values flyTo's own set({ camera: targetCamera }) finishes on) avoids
+  // interacting with anything until it's genuinely done moving.
+  const camera = page.locator("[data-camera-x]").first();
+  await expect
+    .poll(async () => ({
+      x: Number(await camera.getAttribute("data-camera-x")),
+      y: Number(await camera.getAttribute("data-camera-y")),
+      zoom: Number(await camera.getAttribute("data-camera-zoom")),
+    }))
+    .toEqual({ x: 2000, y: 1200, zoom: 1 });
 }
 
 function boxesOverlap(
