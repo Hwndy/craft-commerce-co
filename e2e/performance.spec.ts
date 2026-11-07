@@ -45,15 +45,21 @@ test.describe("performance (headless-Chromium proxy — see file comment)", () =
     for (let i = 0; i < 12; i++) await page.keyboard.press("-");
 
     const fpsWhilePanning = page.evaluate(() => {
+      // Races the rAF count against a hard wall-clock deadline (setTimeout,
+      // not rAF-driven) so this always resolves even if a headless/
+      // backgrounded tab throttles or fully suspends requestAnimationFrame
+      // — a real risk under CI's parallel load, not hypothetical. A
+      // suspended-rAF result (frames stuck at 0) fails the assertion below
+      // cleanly instead of hanging the whole test (and its retries).
       let frames = 0;
       const start = performance.now();
-      return new Promise<number>((resolve) => {
-        function tick() {
-          frames++;
-          if (performance.now() - start < 2000) requestAnimationFrame(tick);
-          else resolve((frames * 1000) / (performance.now() - start));
-        }
+      function tick() {
+        frames++;
         requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+      return new Promise<number>((resolve) => {
+        setTimeout(() => resolve((frames * 1000) / (performance.now() - start)), 2000);
       });
     });
     for (let i = 0; i < 40; i++) {
