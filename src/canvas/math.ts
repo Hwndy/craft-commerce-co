@@ -157,3 +157,50 @@ export function flightDurationMs(
   const t = clamp01(distance / reference);
   return range.min + t * (range.max - range.min);
 }
+
+/**
+ * Exponential decay of a scalar (e.g. a drag-release velocity component)
+ * over `dtSeconds`, at `halfLifeSeconds` (time for the value to halve).
+ * Pure so the inertia loop's per-frame math is unit-testable without a
+ * real rAF/pointer simulation. docs/02-canvas-spec.md §4: "inertia from
+ * the drag velocity with exponential decay."
+ */
+export function exponentialDecay(
+  value: number,
+  dtSeconds: number,
+  halfLifeSeconds = 0.25
+): number {
+  if (halfLifeSeconds <= 0) return 0;
+  return value * Math.pow(0.5, dtSeconds / halfLifeSeconds);
+}
+
+/**
+ * Keeps at least `minVisibleFraction` of `bounds` on screen for the given
+ * camera (docs/02-canvas-spec.md §2: "Pan limits: keep at least one region
+ * on screen"). Only nudges `x`/`y`; leaves `zoom` untouched. No-op if the
+ * visible rect already overlaps `bounds` by at least that fraction in both
+ * axes.
+ */
+export function clampPanToBounds(
+  cam: Camera,
+  bounds: Rect,
+  vw: number,
+  vh: number,
+  minVisibleFraction = 0.1
+): Camera {
+  const visible = visibleWorldRect(cam, vw, vh);
+  const minOverlapW = Math.min(visible.width, bounds.width) * minVisibleFraction;
+  const minOverlapH = Math.min(visible.height, bounds.height) * minVisibleFraction;
+
+  // visible.x must stay within [bounds.x - visible.width + minOverlapW, bounds.x + bounds.width - minOverlapW]
+  const minX = bounds.x - visible.width + minOverlapW;
+  const maxX = bounds.x + bounds.width - minOverlapW;
+  const minY = bounds.y - visible.height + minOverlapH;
+  const maxY = bounds.y + bounds.height - minOverlapH;
+
+  return {
+    ...cam,
+    x: maxX >= minX ? clamp(cam.x, minX, maxX) : cam.x,
+    y: maxY >= minY ? clamp(cam.y, minY, maxY) : cam.y,
+  };
+}

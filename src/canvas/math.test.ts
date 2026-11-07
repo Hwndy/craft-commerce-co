@@ -4,8 +4,10 @@ import {
   cameraFromCenter,
   clamp,
   clamp01,
+  clampPanToBounds,
   clampZoom,
   easeInOutCubic,
+  exponentialDecay,
   fitRectToViewport,
   flightDurationMs,
   interpolateCamera,
@@ -170,6 +172,65 @@ describe("interpolateCamera", () => {
       expect(dist).toBeLessThanOrEqual(prevDist + 1e-6);
       prevDist = dist;
     }
+  });
+});
+
+describe("exponentialDecay", () => {
+  it("halves the value after one half-life", () => {
+    expect(exponentialDecay(100, 0.25, 0.25)).toBeCloseTo(50);
+  });
+
+  it("is unchanged at dt=0", () => {
+    expect(exponentialDecay(100, 0, 0.25)).toBeCloseTo(100);
+  });
+
+  it("approaches zero as dt grows, never overshooting or flipping sign", () => {
+    let prev = 100;
+    for (let dt = 0; dt <= 2; dt += 0.1) {
+      const value = exponentialDecay(100, dt, 0.25);
+      expect(value).toBeLessThanOrEqual(prev + 1e-9);
+      expect(value).toBeGreaterThanOrEqual(0);
+      prev = value;
+    }
+    expect(exponentialDecay(100, 2, 0.25)).toBeLessThan(1);
+  });
+
+  it("preserves sign for a negative value", () => {
+    expect(exponentialDecay(-100, 0.25, 0.25)).toBeCloseTo(-50);
+  });
+
+  it("returns 0 for a non-positive half-life", () => {
+    expect(exponentialDecay(100, 0.1, 0)).toBe(0);
+    expect(exponentialDecay(100, 0.1, -1)).toBe(0);
+  });
+});
+
+describe("clampPanToBounds", () => {
+  const bounds = { x: 0, y: 0, width: 1000, height: 1000 };
+
+  it("does not move a camera already well inside the bounds", () => {
+    const cam = { x: 400, y: 400, zoom: 1 };
+    const next = clampPanToBounds(cam, bounds, 200, 200);
+    expect(next.x).toBeCloseTo(cam.x);
+    expect(next.y).toBeCloseTo(cam.y);
+  });
+
+  it("pulls the camera back so some of the bounds stays visible", () => {
+    // Visible rect at zoom 1, 200x200 viewport, camera way off to the right —
+    // with no overlap with bounds at all.
+    const cam = { x: 5000, y: 5000, zoom: 1 };
+    const next = clampPanToBounds(cam, bounds, 200, 200, 0.1);
+    const visible = visibleWorldRect(next, 200, 200);
+    const overlapsX = visible.x < bounds.x + bounds.width && visible.x + visible.width > bounds.x;
+    const overlapsY = visible.y < bounds.y + bounds.height && visible.y + visible.height > bounds.y;
+    expect(overlapsX).toBe(true);
+    expect(overlapsY).toBe(true);
+  });
+
+  it("leaves zoom untouched", () => {
+    const cam = { x: 5000, y: 5000, zoom: 2.5 };
+    const next = clampPanToBounds(cam, bounds, 200, 200);
+    expect(next.zoom).toBe(2.5);
   });
 });
 
