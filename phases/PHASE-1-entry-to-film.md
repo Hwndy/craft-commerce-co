@@ -116,8 +116,25 @@ Out: pan/zoom gestures, minimap, guided mode, collage, shop, admin, prerendering
 - **Done when:** the above is true and recorded. ✅ `npm run typecheck`, `lint`, `test` (110 tests) and `build` all green; `npx playwright test` green across chromium, mobile-chrome, webkit and mobile-safari (webkit-family video-decode assertions correctly skipped, not silently passing) — verified stable across repeated runs, not a one-off. Real-device manual checks and the landing-page LCP follow-up are carried into T14.
 
 ### T14. Preview deployment and hand-over
-- [ ] Vercel preview with env vars set; staging Supabase connected.
-- [ ] Run `/finish-phase 1` and produce the demo script for the owner.
+- [x] Vercel preview with env vars set; staging Supabase connected. *(`main` is Vercel's production deployment via Git integration, already live at `www.alllifeworks.com`; confirmed this phase's final commit is deployed and serving — `/` and `/gallery` both return 200. Staging Supabase (`xuengnzfnywlbvcjmwie`) confirmed connected with a real published film via a direct, non-proxied REST check.)*
+- [x] Run `/finish-phase 1` and produce the demo script for the owner. *(This section. Full re-verification run fresh for this: typecheck/lint/test/build all green; `supabase db reset` + `supabase test db` green (15/15, fresh); `npx playwright test` green, 30 passed / 14 correctly skipped / 0 failed, all 4 projects. Demo script and acceptance-criteria audit below.)*
+
+## Acceptance criteria — audit (2026-11-07, T14)
+
+| # | Criterion | Result | Evidence |
+|---|---|---|---|
+| A1 | Spin-up to ~5-7x speed, rays, light flood, luminous form, fades to Gallery in ~7s, no loading gap on a mid-range phone | ✅ logic/timing, ⚠️ real-phone gap check outstanding | `EntryOrchestrator.test.ts` (14 tests); `entry-sequence.spec.ts` confirms ~7.3s sequence completes and lands on `/gallery` with the film already playing. "No loading gap on a *mid-range phone*" specifically needs a real device — `docs/real-device-checklist.md`. |
+| A2 | Skip control; reduced-motion cross-fade; nothing flashes above 3 Hz | ✅ | `entry-sequence.spec.ts` (Skip, reduced-motion); `photosensitivity.test.ts` (4 tests, 60fps sampling, D-29). |
+| A3 | Film plays full screen on arrival (primed or fallback); never a black screen | ✅ | `filmControllerStore.test.ts` (12 tests); `gate.spec.ts`'s forced-autoplay-blocked case shows the play button, not black. |
+| A4 | Exit/scroll locked until 95% watched; refresh doesn't re-lock unless version changes | ✅ | `watched-ranges.test.ts` (20) + `gateStore.test.ts` (9); `gate.spec.ts` (cheat attempt fails, genuine watch unlocks, reload doesn't re-lock). |
+| A5 | Play/pause, volume/mute, fast scrubbing with thumbnails by touch, mouse, keyboard | ✅ mouse/keyboard, ⚠️ touch outstanding | Verified in a real browser + `keyboardShortcuts.test.ts`. Touch-specific behaviour needs a real phone — `docs/real-device-checklist.md`. |
+| A6 | Rotating iPhone keeps position/state; landscape usable | ✅ simulated, ⚠️ real iPhone outstanding | `orientation.spec.ts`: same `<video>` DOM node, `currentTime` advances, controls stay usable across a simulated viewport rotation (chromium/mobile-chrome; webkit-family skipped per D-27, since it can't decode this project's HLS to test meaningfully anyway). Real iPhone rotation/notch behaviour is explicitly unverified — `docs/real-device-checklist.md`. |
+| A7 | Replay/Continue after first watch; Continue reveals the Gallery region | ✅ | `gate.spec.ts`; `Gallery.tsx`/`FilmStage.tsx` wiring (D-28 fix included). |
+| A8 | HLS streaming from Supabase Storage, adaptive quality, recovers from a network drop | ✅ adaptive streaming, ⚠️ real network-drop outstanding | `hls.js` loads the ladder and picks a rendition (verified against a real decoded video). `attachHls`'s NETWORK_ERROR/MEDIA_ERROR auto-retry + visible Retry button is implemented but not exercised under a real throttled/dropped connection — needs a manual check. |
+| A9 | RLS: anonymous reads only published film data, writes nothing | ✅ | 15/15 pgTAP assertions, re-run fresh against a clean `supabase db reset` for this audit. |
+| A10 | CI green; budgets hold; axe clean; real-device notes recorded | ✅ CI/axe, ⚠️ one budget miss (flagged, not Phase-1 scope), ✅ notes recorded (checks themselves still outstanding) | CI: [run #12](https://github.com/Hwndy/craft-commerce-co/actions/runs/42328047414), genuinely green (D-30). Budgets: initial JS 189.63 KB gzip (<250 KB, pass); Lighthouse a11y/best-practices/SEO all ≥95 (pass); Lighthouse performance 78 / LCP 4.4s (miss — pre-existing `all_life_1.webm` landing asset, D-29, not introduced by this phase). axe: zero serious/critical on `/` and `/gallery`. Real-device notes: `docs/real-device-checklist.md` exists and is specific; the checks themselves need the owner's hands on an actual iPhone/Android. |
+
+**Net:** every criterion has a real, falsifiable PASS on everything this sandbox can actually exercise. Nothing is claimed done that wasn't checked. What's left is exactly what AGENTS.md rule 7 says can't be done from here — real touch, real iOS autoplay/rotation, a real network drop, a real mid-range phone's load timing — plus one pre-existing landing-page asset choice flagged for the owner, not fixed silently.
 
 ## Acceptance criteria
 
