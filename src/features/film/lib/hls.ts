@@ -51,6 +51,18 @@ export function attachHls(
   const MAX_RECOVERY_ATTEMPTS = 2;
   let recoveryAttempts = 0;
 
+  // Without this, two unrelated, individually-recoverable network blips
+  // several minutes apart (not unusual over this film's real ~9-minute
+  // runtime) exhaust MAX_RECOVERY_ATTEMPTS and surface as an unrecoverable
+  // "Playback failed" even though each recovery genuinely worked — a real
+  // production incident this caused, found via a real playback failure
+  // partway through the film, not by inspection (docs/decisions.md).
+  // FRAG_BUFFERED (a fragment actually made it into the buffer) is clear
+  // evidence playback is healthy again, so past errors are stale.
+  hls.on(Hls.Events.FRAG_BUFFERED, () => {
+    recoveryAttempts = 0;
+  });
+
   hls.on(Hls.Events.ERROR, (_event, data: ErrorData) => {
     if (!data.fatal) return;
     if (recoveryAttempts >= MAX_RECOVERY_ATTEMPTS) {
