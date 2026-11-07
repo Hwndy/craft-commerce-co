@@ -114,4 +114,20 @@ test.describe("canvas gestures", () => {
     await expect.poll(async () => (await getCamera(page))?.x, { timeout: 5000 }).toBeCloseTo(0, 0);
     await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 5000 }).toBeCloseTo(1, 1);
   });
+
+  test("Tab-focusing a node flies the camera to bring it back into view", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await revealBoard(page);
+
+    // Gallery.tsx's film-thumbnail button is a real focusable node inside
+    // the Board. Pan it off-centre first, so refocusing it has somewhere
+    // real to move the camera back to — docs/02-canvas-spec.md §9/FR-8.9.
+    const node = page.getByRole("button", { name: /^Play / });
+    await page.locator("[data-camera-zoom]").first().focus();
+    for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowRight");
+    const panned = await getCamera(page);
+
+    await node.focus();
+    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 10000 }).toBeLessThan(panned!.x);
+  });
 });

@@ -13,6 +13,11 @@ import NotFound from "./pages/NotFound";
 // sequence (the "Gallery chunk" T6's brief calls for).
 const Gallery = lazy(() => import("./pages/Gallery"));
 
+// Plain semantic HTML, no canvas/gestures — lazy mainly for bundle hygiene
+// (keeps them out of the initial chunk), not because of a DEV guard.
+const ListIndex = lazy(() => import("./pages/ListIndex"));
+const ListRegion = lazy(() => import("./pages/ListRegion"));
+
 // Dev-only routes are lazy so their dependencies (hls.js, the canvas
 // engine) never enter the initial bundle real visitors download — they
 // wouldn't be reachable in production anyway (see the DEV guard below),
@@ -58,6 +63,22 @@ const App = () => (
             element={
               <Suspense fallback={null}>
                 <Gallery />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/list"
+            element={
+              <Suspense fallback={null}>
+                <ListIndex />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/list/:region"
+            element={
+              <Suspense fallback={null}>
+                <ListRegion />
               </Suspense>
             }
           />

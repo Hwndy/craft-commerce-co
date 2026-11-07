@@ -1,10 +1,20 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CanvasChrome } from "./CanvasChrome";
 import { useCameraStore } from "./store";
 import { useGuidedModeStore } from "./useGuidedModeStore";
 import { clearViewpointsCache, setViewpointsCache } from "./viewpoints";
+
+// CanvasChrome's "List view" link needs a Router context.
+function renderChrome() {
+  return render(
+    <MemoryRouter>
+      <CanvasChrome />
+    </MemoryRouter>
+  );
+}
 
 const viewpoints = [
   { key: "landing", label: "Landing", x: 0, y: 0, zoom: 1, sortOrder: 0, inGuidedPath: true },
@@ -34,19 +44,19 @@ afterEach(() => {
 
 describe("CanvasChrome", () => {
   it("shows the nearest viewpoint's label", async () => {
-    render(<CanvasChrome />);
+    renderChrome();
     await waitFor(() => expect(screen.getByText("Landing")).toBeInTheDocument());
   });
 
   it("Home flies the camera to the landing viewpoint", async () => {
     useCameraStore.setState({ camera: { x: 2000, y: 0, zoom: 1 }, viewport: { width: 1000, height: 800 }, isFlying: false });
-    render(<CanvasChrome />);
+    renderChrome();
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
     await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(0));
   });
 
   it("clicking a minimap region flies the camera there", async () => {
-    render(<CanvasChrome />);
+    renderChrome();
     const minimap = screen.getByRole("img", { name: "Minimap" });
     const rects = minimap.querySelectorAll("rect");
     // First two rects are the viewpoint regions (landing, gallery); click the second.
@@ -55,7 +65,7 @@ describe("CanvasChrome", () => {
   });
 
   it("toggles between Guided and Explore, keeping the camera in place on Explore", () => {
-    render(<CanvasChrome />);
+    renderChrome();
     expect(screen.getByRole("button", { name: "Guided" })).toBeInTheDocument();
 
     useCameraStore.getState().setCamera({ x: 555, y: 0, zoom: 1 });
@@ -68,7 +78,7 @@ describe("CanvasChrome", () => {
   });
 
   it("Next advances the guided-mode progress indicator and flies forward", async () => {
-    render(<CanvasChrome />);
+    renderChrome();
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { visibleWorldRect } from "./math";
 import { nearestViewpoint } from "./nearestViewpoint";
@@ -125,6 +126,20 @@ export function CanvasChrome() {
         <span data-current-region-label style={{ fontSize: 13, fontWeight: 600 }}>
           {current?.label ?? ""}
         </span>
+        <Link
+          to="/list"
+          style={{
+            background: "rgba(0,0,0,0.6)",
+            border: "1px solid rgba(255,255,255,0.4)",
+            borderRadius: 999,
+            color: "#fff",
+            padding: "6px 12px",
+            fontSize: 12,
+            textDecoration: "none",
+          }}
+        >
+          List view
+        </Link>
       </div>
 
       {geometry && (
