@@ -82,7 +82,10 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
 
       - name: Playwright e2e
-        run: npx playwright test --project=chromium --project=webkit
+        # mobile-chrome/mobile-safari (playwright.config.ts) reuse the same
+        # chromium/webkit binaries installed above, just with different
+        # device emulation — no extra browser install needed.
+        run: npx playwright test --project=chromium --project=webkit --project=mobile-chrome --project=mobile-safari
 
       - name: Stop local Supabase stack
         if: always()
