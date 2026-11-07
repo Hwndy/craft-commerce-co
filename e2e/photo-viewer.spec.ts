@@ -63,6 +63,7 @@ function boxesOverlap(
  */
 async function clickAnUnobstructedPhoto(page: Page) {
   const chromeBox = await page.locator("[data-canvas-chrome]").boundingBox();
+  const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
   for (let i = 0; i < count; i++) {
@@ -79,12 +80,20 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    if (box && (!chromeBox || !boxesOverlap(box, chromeBox))) {
-      await candidate.click();
-      return candidate;
+    if (!box || (chromeBox && boxesOverlap(box, chromeBox))) continue;
+    // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
+    // mobile viewport genuinely doesn't contain every seeded photo: the
+    // phyllotaxis cluster's radius can exceed half the viewport width.
+    // Confirmed on real CI ("element is outside of the viewport") once
+    // the chrome-overlap check alone let a fully off-screen candidate
+    // through.
+    if (viewport && (box.x < 0 || box.y < 0 || box.x + box.width > viewport.width || box.y + box.height > viewport.height)) {
+      continue;
     }
+    await candidate.click();
+    return candidate;
   }
-  throw new Error("every seeded photo thumbnail is obstructed by CanvasChrome — nothing clickable found");
+  throw new Error("no seeded photo thumbnail is both on-screen and unobstructed by CanvasChrome");
 }
 
 test.describe("photo viewer", () => {
