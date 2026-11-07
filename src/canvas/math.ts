@@ -90,6 +90,13 @@ export function visibleWorldRect(cam: Camera, vw: number, vh: number): Rect {
   return { x: cam.x, y: cam.y, width: vw / cam.zoom, height: vh / cam.zoom };
 }
 
+/** Area of the overlap between two rects, in the same units as each (0 if they don't overlap). */
+export function intersectionArea(a: Rect, b: Rect): number {
+  const overlapWidth = Math.max(0, Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x));
+  const overlapHeight = Math.max(0, Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y));
+  return overlapWidth * overlapHeight;
+}
+
 /** The world point at the centre of the viewport for this camera. */
 export function cameraCenter(
   cam: Camera,

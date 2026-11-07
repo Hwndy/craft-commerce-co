@@ -11,6 +11,7 @@ import {
   fitRectToViewport,
   flightDurationMs,
   interpolateCamera,
+  intersectionArea,
   lerp,
   screenToWorld,
   visibleWorldRect,
@@ -231,6 +232,37 @@ describe("clampPanToBounds", () => {
     const cam = { x: 5000, y: 5000, zoom: 2.5 };
     const next = clampPanToBounds(cam, bounds, 200, 200);
     expect(next.zoom).toBe(2.5);
+  });
+});
+
+describe("intersectionArea", () => {
+  it("is the full area of either rect when one fully contains the other", () => {
+    const outer = { x: 0, y: 0, width: 100, height: 100 };
+    const inner = { x: 10, y: 10, width: 20, height: 20 };
+    expect(intersectionArea(outer, inner)).toBeCloseTo(400);
+  });
+
+  it("is 0 when the rects don't overlap", () => {
+    expect(intersectionArea({ x: 0, y: 0, width: 10, height: 10 }, { x: 100, y: 100, width: 10, height: 10 })).toBe(
+      0
+    );
+  });
+
+  it("is 0 for merely touching edges", () => {
+    expect(intersectionArea({ x: 0, y: 0, width: 10, height: 10 }, { x: 10, y: 0, width: 10, height: 10 })).toBe(0);
+  });
+
+  it("computes a partial overlap", () => {
+    const a = { x: 0, y: 0, width: 10, height: 10 };
+    const b = { x: 5, y: 5, width: 10, height: 10 };
+    // overlap is the 5x5 square from (5,5) to (10,10)
+    expect(intersectionArea(a, b)).toBeCloseTo(25);
+  });
+
+  it("is symmetric", () => {
+    const a = { x: 0, y: 0, width: 10, height: 10 };
+    const b = { x: 5, y: 5, width: 10, height: 10 };
+    expect(intersectionArea(a, b)).toBeCloseTo(intersectionArea(b, a));
   });
 });
 
