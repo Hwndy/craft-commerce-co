@@ -41,7 +41,15 @@ describe("mapProductRow", () => {
     const mediaById = new Map([
       [
         "media-1",
-        { id: "media-1", width: 2000, height: 1500, blur_data_url: "data:image/webp;base64,AAA", renditions: { "640": "products/p1/640.webp" } },
+        {
+          id: "media-1",
+          width: 2000,
+          height: 1500,
+          blur_data_url: "data:image/webp;base64,AAA",
+          renditions: { "640": "products/p1/640.webp" },
+          storage_path: "products/p1",
+          hls_master: null,
+        },
       ],
     ]);
     const product = mapProductRow(baseRow({ poster_media_id: "media-1" }), mediaById);
@@ -51,6 +59,8 @@ describe("mapProductRow", () => {
       height: 1500,
       blurDataUrl: "data:image/webp;base64,AAA",
       renditions: { "640": "products/p1/640.webp" },
+      storagePath: "products/p1",
+      hlsMaster: null,
     });
   });
 

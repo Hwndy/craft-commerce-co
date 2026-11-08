@@ -69,7 +69,6 @@ export function FilmStage() {
   const gateInitFor = useGateStore((s) => s.initFor);
   const gateSetDuration = useGateStore((s) => s.setDuration);
   const gateRecordTimeUpdate = useGateStore((s) => s.recordTimeUpdate);
-  const gatePercent = useGateStore((s) => s.percent);
   const isUnlocked = useGateStore((s) => s.isUnlocked);
   const [hasEnded, setHasEnded] = useState(false);
 
@@ -191,18 +190,22 @@ export function FilmStage() {
             <span className="font-heading text-sm font-bold uppercase tracking-wider">Gallery</span>
             <span className="text-xs text-white/60">/ Film</span>
           </div>
-          {isLocked && (
-            <div
-              aria-live="polite"
-              className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
-            >
-              <span aria-hidden="true">🔒</span>
-              <span>
-                Watch once to unlock the gallery
-                <span className="sr-only"> — {Math.round(gatePercent * 100)}% watched</span>
-              </span>
-            </div>
-          )}
+          {/* Stays mounted whenever the film is revealed, locked or not —
+           * only its visibility and text change — rather than mounting
+           * fresh at the moment it locks. Many screen readers only
+           * announce an aria-live region's later content changes, not one
+           * that mounts already showing the text (found in review). The
+           * watched-percent is deliberately left out of this live content:
+           * it ticks on every timeupdate, which would otherwise announce
+           * on every percentage point instead of just the lock state. */}
+          <div
+            aria-live="polite"
+            className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
+            style={{ visibility: isLocked ? "visible" : "hidden" }}
+          >
+            <span aria-hidden="true">🔒</span>
+            <span>{isLocked ? "Watch once to unlock the gallery" : ""}</span>
+          </div>
         </div>
       )}
 

@@ -82,6 +82,23 @@ describe("CanvasChrome", () => {
     expect(screen.queryByRole("button", { name: /^Next/ })).not.toBeInTheDocument();
   });
 
+  it("clicking a region tab directly also syncs currentIndex, not just the camera (found in review)", async () => {
+    renderChrome();
+    expect(screen.getByText("1 of 2")).toBeInTheDocument();
+
+    // The region-tabs row (hidden md:flex) renders one button per guided
+    // viewpoint, labelled with the viewpoint's own label — "Gallery" here.
+    fireEvent.click(screen.getByRole("button", { name: "Gallery" }));
+
+    await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(2000));
+    // Previously only the camera moved; currentIndex (and therefore
+    // progress/Next) stayed wherever Guided mode last left it. Gallery is
+    // the last guided stop in this fixture, so Next has nowhere further to
+    // go — its own label falls back to the plain "Next", not "Next: X".
+    expect(screen.getByText("2 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next" })).toBeInTheDocument();
+  });
+
   it("Next advances the guided-mode progress indicator and flies forward", async () => {
     renderChrome();
     expect(screen.getByText("1 of 2")).toBeInTheDocument();

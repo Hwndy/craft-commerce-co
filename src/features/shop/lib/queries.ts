@@ -11,6 +11,12 @@ const mediaSchema = z.object({
   height: z.number().nullable(),
   blurDataUrl: z.string().nullable(),
   renditions: z.record(z.string()),
+  // storagePath (a picture's own file) / hlsMaster (a video's playlist) —
+  // without these, ProductDetail.video would validate but have nothing to
+  // actually play (found in review): a picture's `mediaSchema` entry was
+  // being reused as-is for the turntable video too.
+  storagePath: z.string(),
+  hlsMaster: z.string().nullable(),
 });
 export type ProductMedia = z.infer<typeof mediaSchema>;
 
@@ -44,6 +50,8 @@ interface MediaRow {
   height: number | null;
   blur_data_url: string | null;
   renditions: unknown;
+  storage_path: string;
+  hls_master: string | null;
 }
 
 interface ProductRow {
@@ -69,6 +77,8 @@ function mapMedia(row: MediaRow | undefined): ProductMedia | null {
     height: row.height,
     blurDataUrl: row.blur_data_url,
     renditions: row.renditions ?? {},
+    storagePath: row.storage_path,
+    hlsMaster: row.hls_master,
   });
 }
 

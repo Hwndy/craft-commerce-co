@@ -29,15 +29,34 @@ const AUTO_HIDE_MS = 3000;
 export function FilmControls({ video, spriteUrl, spriteMeta, captionsAvailable }: FilmControlsProps) {
   const controls = useVideoState(video);
   const [visible, setVisible] = useState(true);
-  const [captionsOn, setCaptionsOn] = useState(false);
+  const [captionsOn, setCaptionsOn] = useState(() => video?.textTracks[0]?.mode === "showing");
   const hideTimerRef = useRef<number | null>(null);
+
+  // Reads the track's real mode, both on mount and whenever it changes —
+  // not just after this component's own toggleCaptions() call. FilmStage's
+  // <video> is mounted once at the app root and never recreated, so a
+  // visitor who enables CC, hits Continue, then reopens the film would
+  // otherwise see the button start back at "off" while captions keep
+  // showing (found in review, independently, by two reviewers).
+  useEffect(() => {
+    const track = video?.textTracks[0];
+    if (!track) {
+      setCaptionsOn(false);
+      return;
+    }
+    setCaptionsOn(track.mode === "showing");
+    const tracks = video.textTracks;
+    const onChange = () => setCaptionsOn(track.mode === "showing");
+    tracks.addEventListener("change", onChange);
+    return () => tracks.removeEventListener("change", onChange);
+  }, [video]);
 
   const toggleCaptions = useCallback(() => {
     const track = video?.textTracks[0];
     if (!track) return;
-    const next = track.mode !== "showing";
-    track.mode = next ? "showing" : "hidden";
-    setCaptionsOn(next);
+    track.mode = track.mode === "showing" ? "hidden" : "showing";
+    // captionsOn updates via the "change" listener above, the single
+    // source of truth for this state — not set directly here.
   }, [video]);
 
   const scheduleHide = useCallback(() => {

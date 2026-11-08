@@ -77,6 +77,7 @@ export function CanvasChrome() {
   // caught by this component's own test.
   const currentIndex = useGuidedModeStore((s) => s.currentIndex);
   const setMode = useGuidedModeStore((s) => s.setMode);
+  const setGuidedIndex = useGuidedModeStore((s) => s.setIndex);
   const next = useGuidedModeStore((s) => s.next);
   const previous = useGuidedModeStore((s) => s.previous);
   const progress = useGuidedModeStore.getState().progress();
@@ -209,7 +210,14 @@ export function CanvasChrome() {
                   type="button"
                   variant={v.key === current?.key ? "pill" : "pill-outline"}
                   size="sm"
-                  onClick={() => flyToViewpoint(v)}
+                  onClick={() => {
+                    // Keep currentIndex in step with a direct tab jump, not
+                    // just the camera — otherwise Next/Previous and the
+                    // progress indicator keep pointing at wherever Guided
+                    // mode last left off, not here (found in review).
+                    setGuidedIndex(path.indexOf(v));
+                    flyToViewpoint(v);
+                  }}
                 >
                   {v.label}
                 </Button>

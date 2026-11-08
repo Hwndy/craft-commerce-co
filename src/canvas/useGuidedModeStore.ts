@@ -35,6 +35,11 @@ interface GuidedModeState {
   mode: ExploreMode;
   currentIndex: number;
   setMode: (mode: ExploreMode) => void;
+  /** Jumps guided position directly to `index` (e.g. a region-tab click),
+   * without flying the camera — the caller (CanvasChrome's own
+   * flyToViewpoint) does that part, same division of labour as next()/
+   * previous() but for an arbitrary target instead of +-1. */
+  setIndex: (index: number) => void;
   next: () => Promise<void>;
   previous: () => Promise<void>;
   /** 1-indexed position in the path, for a "2 of 6" style indicator. */
@@ -63,6 +68,8 @@ export const useGuidedModeStore = create<GuidedModeState>((set, get) => ({
     // "Switching to Explore keeps the camera where it is."
     set({ mode });
   },
+
+  setIndex: (index) => set({ currentIndex: index }),
 
   next: async () => {
     const path = guidedPathViewpoints(listViewpoints());

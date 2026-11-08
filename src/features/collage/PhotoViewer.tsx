@@ -201,11 +201,25 @@ export function PhotoViewer({ photos, openId, onClose, onNavigate }: PhotoViewer
                       tabIndex={-1}
                       onClick={() => onNavigate(p.id)}
                       className={cn(
-                        "h-12 w-12 shrink-0 overflow-hidden rounded border-2 bg-black/40 bg-cover bg-center transition-colors",
+                        "h-12 w-12 shrink-0 overflow-hidden rounded border-2 bg-black/40 transition-colors",
                         p.id === photo.id ? "border-primary" : "border-transparent hover:border-white/30"
                       )}
-                      style={thumbSrc ? { backgroundImage: `url(${siteMediaUrl(thumbSrc)})` } : undefined}
-                    />
+                    >
+                      {/* A real <img loading="lazy">, not an eagerly-applied
+                       * CSS background-image — opening the viewer otherwise
+                       * fetches every photo in the collection at once
+                       * instead of only the ones actually scrolled into
+                       * view (found in review). */}
+                      {thumbSrc && (
+                        <img
+                          src={siteMediaUrl(thumbSrc)}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-cover"
+                        />
+                      )}
+                    </button>
                   );
                 })}
               </div>
