@@ -231,4 +231,14 @@ function buildDeps(): Deps {
   };
 }
 
-Deno.serve((req) => handleRequest(req, buildDeps()));
+// import.meta.main is true only for the module Deno actually runs as the
+// entry point (how the Supabase Edge Runtime invokes this file) — false
+// when another module merely imports it, which is exactly what
+// index.test.ts does to reach handleRequest. Without this guard, running
+// the tests (`deno test`, deliberately with no --allow-net: they exercise
+// handleRequest directly, with mock deps, and should need no network
+// permission at all) tries to actually bind a listener as an import side
+// effect and fails outright before a single test can run.
+if (import.meta.main) {
+  Deno.serve((req) => handleRequest(req, buildDeps()));
+}
