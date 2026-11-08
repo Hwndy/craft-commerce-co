@@ -255,6 +255,40 @@ describe("FilmStage", () => {
       expect(useFilmControllerStore.getState().isRevealed).toBe(false);
     });
 
+    // A second real CI failure on an earlier attempt at this exact fix,
+    // distinct from the test above: gateInitFor's own effect (declared
+    // earlier in FilmStage, so it runs first) synchronously corrects the
+    // gate store's real isUnlocked value the instant film.version first
+    // becomes known — in the very same commit the auto-hide effect also
+    // sees film become non-null in. A version of the auto-hide effect
+    // that read the React-subscribed `isUnlocked` (this same render's
+    // now-stale closure, captured before either effect ran) rather than
+    // the live store value saw a false "locked" reading for exactly one
+    // render — and because that reading was also latched permanently (to
+    // protect the mid-watch-unlock case the test below covers), the false
+    // reading stuck forever instead of self-correcting. version starts at
+    // null (not an already-initialized 1) specifically so gateInitFor's
+    // own effect genuinely fires for the first time in the same commit,
+    // matching the real sequence instead of skipping it.
+    it("reads the gate's real, corrected isUnlocked even when gateInitFor's own effect first runs in the very same commit film resolves", () => {
+      window.localStorage.setItem(`alllife:film:${film.version}:unlocked`, "true");
+      mockFilmData.current = undefined;
+      useGateStore.setState({ version: null, isUnlocked: false });
+      const { rerender } = render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+
+      mockFilmData.current = film;
+      act(() => {
+        rerender(<FilmStage />);
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+    });
+
     // The counterpart: an explicit, visitor-requested reveal (the Gallery
     // board card, Replay) must never be silently cancelled just because
     // the gate happens to already be unlocked — a first attempt at this

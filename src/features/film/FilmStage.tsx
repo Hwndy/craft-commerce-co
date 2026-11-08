@@ -225,26 +225,6 @@ export function FilmStage() {
     }
   }, [isRevealed]);
 
-  // Latches true the moment this reveal cycle is ever genuinely locked,
-  // and only resets once isRevealed drops — distinct from isLockedRef
-  // above (a one-time snapshot at the reveal transition, for fullscreen):
-  // the auto-hide effect below needs to stay reactive to isUnlocked
-  // settling in *before* it's known whether this is locked at all, but
-  // must never fire again once it's seen a genuine lock, even after
-  // isUnlocked later flips true from actually watching through — found in
-  // review (Greptile, PR #3): a version keyed on isLockedRef's own
-  // snapshot alone couldn't tell "started unlocked" apart from "started
-  // locked, now unlocked by watching," since both read as "not locked"
-  // the instant isUnlocked flips.
-  const wasLockedRef = useRef(false);
-  useEffect(() => {
-    if (!isRevealed) {
-      wasLockedRef.current = false;
-      return;
-    }
-    if (isLocked) wasLockedRef.current = true;
-  }, [isRevealed, isLocked]);
-
   // T6 (found via a real, reproducible e2e failure — About/Contact's own
   // form fields unclickable after a *second*, already-unlocked navigation
   // straight into /gallery/contact): Gallery.tsx's own reveal() runs
@@ -266,22 +246,33 @@ export function FilmStage() {
   // re-watching (found in review, Greptile, PR #3).
   //
   // A genuinely reactive effect (not isRevealed-only, one-shot): `film`
-  // is network-loaded and `undefined` while pending, so a returning
-  // visitor whose gate-unlock hasn't finished reading from localStorage
-  // yet (gateInitFor only runs once film.version arrives, above) must
-  // not be judged "locked" from a still-`undefined` film — this effect
-  // simply waits (does nothing) until film settles one way or the other,
-  // then re-evaluates for real once it does (also found in review,
-  // Greptile, PR #3, on that same first attempt). `isUnlocked` is
-  // therefore a real dependency here too (not read once via `.getState()`)
-  // — but `!wasLockedRef.current` is what actually keeps that safe: once
-  // this reveal cycle has been genuinely locked even briefly, it stays
-  // that way for the rest of the cycle, so a later isUnlocked flip from
-  // actually watching through can never reach this branch again.
+  // is network-loaded and `undefined` while pending, so this waits (does
+  // nothing) until it settles one way or the other, then re-evaluates for
+  // real once it does (found in review, Greptile, PR #3, on a first
+  // attempt at this fix). Deliberately reads `useGateStore.getState().
+  // isUnlocked` live rather than the React-subscribed `isUnlocked` value,
+  // and `isUnlocked` is deliberately *not* a dependency: within the same
+  // commit where `film` first resolves, `gateInitFor`'s own effect above
+  // (declared earlier, so it runs first) synchronously corrects the gate
+  // store's *actual* value the instant it learns the film's version — but
+  // React doesn't retroactively update an *already-rendered* closure's
+  // `isUnlocked`, only the *next* one. A second attempt at this fix read
+  // the stale, not-yet-corrected closure value at exactly that instant,
+  // which reads as "locked" for one render even for an already-unlocked
+  // returning visitor — and because that attempt also *latched* that
+  // reading permanently (to protect the mid-watch-unlock case below), the
+  // false reading stuck forever instead of self-correcting on the next
+  // render (found the same way, a second real CI failure on the same
+  // fix). Reading the store live sidesteps the staleness entirely; *not*
+  // depending on `isUnlocked` is what naturally keeps this effect from
+  // re-firing when a *genuinely* locked visitor later unlocks it by
+  // actually watching through — nothing else in this effect's own
+  // dependencies changes at that moment, so it simply doesn't re-run, and
+  // the deliberate Replay/Continue screen is reached undisturbed.
   useEffect(() => {
-    if (!isRevealed || !isAutomaticReveal || wasLockedRef.current) return;
+    if (!isRevealed || !isAutomaticReveal) return;
     if (film === undefined) return; // still loading — re-runs once it resolves
-    if (film === null || isUnlocked) {
+    if (film === null || useGateStore.getState().isUnlocked) {
       // Also stop any playback the separate start() effect may already
       // have begun (it fires on every isRevealed, including an automatic
       // one that turns out not locked, since a genuinely locked visitor
@@ -292,7 +283,7 @@ export function FilmStage() {
       videoRef.current?.pause();
       useFilmControllerStore.getState().hide();
     }
-  }, [isRevealed, isAutomaticReveal, film, isUnlocked]);
+  }, [isRevealed, isAutomaticReveal, film]);
 
   return (
     <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">
