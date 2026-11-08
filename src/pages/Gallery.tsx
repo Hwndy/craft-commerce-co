@@ -8,6 +8,7 @@ import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
 import { RegionLabel } from "@/components/brand/RegionLabel";
 import { Collage } from "@/features/collage/Collage";
+import { CollageChrome } from "@/features/collage/CollageChrome";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
@@ -117,17 +118,22 @@ export default function Gallery() {
        * once Continue calls hide()), so gating on it alone — rather than
        * re-deriving isLocked here too — is both correct and simpler.
        *
-       * Rendered as a SIBLING of <Board>, not a child: CanvasChrome's own
-       * `position: fixed` chrome needs the real viewport as its containing
-       * block. Board's own world div carries a `transform` (its rAF camera
-       * loop) and `will-change: transform`, either of which redefines the
-       * containing block for any `position: fixed` descendant — nesting
-       * CanvasChrome inside <Board>'s children would silently move it
-       * with the camera instead of keeping it screen-anchored. DevCanvas.tsx
-       * already established this exact sibling placement; this just
-       * follows it.
+       * Rendered as a SIBLING of <Board>, not a child: CanvasChrome's (and
+       * CollageChrome's, D-45) own `position: fixed` chrome needs the real
+       * viewport as its containing block. Board's own world div carries a
+       * `transform` (its rAF camera loop) and `will-change: transform`,
+       * either of which redefines the containing block for any
+       * `position: fixed` descendant — nesting this chrome inside <Board>'s
+       * children would silently move it with the camera instead of keeping
+       * it screen-anchored. DevCanvas.tsx already established this exact
+       * sibling placement; this just follows it.
        */}
-      {!isFilmRevealed && <CanvasChrome />}
+      {!isFilmRevealed && (
+        <>
+          <CanvasChrome />
+          <CollageChrome />
+        </>
+      )}
     </>
   );
 }

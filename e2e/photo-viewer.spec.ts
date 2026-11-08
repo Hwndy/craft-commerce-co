@@ -53,18 +53,21 @@ function boxesOverlap(
 
 /**
  * Clicks a seeded photo thumbnail, skipping any that one of CanvasChrome's
- * fixed regions (top bar, minimap, bottom bar, Home — correctly screen-
- * anchored since docs/decisions.md D-44; spread across several regions
- * rather than one corner box since D-45's reskin) happens to sit on top
- * of. Each photo's seeded id is random per CI run, so exactly which one
- * the phyllotaxis layout places nearest a chrome region isn't something
- * `.first()` can assume is always clickable — Continue's own flyTo (T10)
- * already centres the camera on collage at zoom 1, so no extra panning/
- * zooming is needed here just to reach a clickable photo.
+ * or CollageChrome's fixed regions (top bar, minimap, bottom bar, Home;
+ * the Circle/Diagonal toggle, shoot chips, zoom + Recentre — D-45) happens
+ * to sit on top of — both are screen-anchored (D-44) and both render at
+ * the same time once Continue hands off to the collage. Each photo's
+ * seeded id is random per CI run, so exactly which one the phyllotaxis
+ * layout places nearest a chrome region isn't something `.first()` can
+ * assume is always clickable — Continue's own flyTo (T10) already centres
+ * the camera on collage at zoom 1, so no extra panning/zooming is needed
+ * here just to reach a clickable photo.
  */
 async function clickAnUnobstructedPhoto(page: Page) {
   const chromeBoxes = (
-    await Promise.all((await page.locator("[data-canvas-chrome]").all()).map((el) => el.boundingBox()))
+    await Promise.all(
+      (await page.locator("[data-canvas-chrome], [data-collage-chrome]").all()).map((el) => el.boundingBox())
+    )
   ).filter((box): box is NonNullable<typeof box> => box !== null);
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });

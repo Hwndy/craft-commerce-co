@@ -9,6 +9,7 @@ function photo(id: string, title: string, takenOn: string | null = null): Collag
     id,
     title,
     takenOn,
+    shoot: { id: "set-a", title: "Studio" },
     media: { id: `${id}-media`, width: 2000, height: 1500, blurDataUrl: null, renditions: { "1280": `p/${id}/1280.webp` } },
   };
 }

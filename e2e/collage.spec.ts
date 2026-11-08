@@ -110,4 +110,30 @@ test.describe("collage region", () => {
     await expect(page.getByText(/^Placeholder photo \d+/).first()).toBeVisible();
     await expect(page.getByText("region-label")).toHaveCount(0);
   });
+
+  // D-45: CollageChrome only shows once the camera is actually near the
+  // collage viewpoint (it shares the board with the Gallery/film region,
+  // which must NOT show a "Circle" layout toggle that belongs to the
+  // collage alone). Continue's own flyTo (T10) already lands on collage,
+  // so this checks the toggle disappears when guided Previous moves away
+  // to gallery, then reappears on Next back to collage.
+  test("the Circle/Diagonal strips toggle only shows while the camera is near the collage", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await revealBoard(page);
+    await expect(page.getByRole("button", { name: "Circle" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Previous" }).click();
+    await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
+    await expect(page.getByRole("button", { name: "Circle" })).not.toBeVisible();
+
+    await page.getByRole("button", { name: "Next: Collage" }).click();
+    await expect(page.getByRole("button", { name: "Circle" })).toBeVisible();
+
+    await page.getByRole("button", { name: "Diagonal strips" }).click();
+    const photoButton = page.getByRole("button", { name: /^Placeholder photo \d+/ }).first();
+    await expect(photoButton).toBeVisible();
+  });
 });
