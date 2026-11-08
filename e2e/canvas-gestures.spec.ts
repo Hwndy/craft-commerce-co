@@ -169,7 +169,8 @@ test.describe("canvas gestures", () => {
     await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 0, zoom: 1 });
     await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
 
-    await page.getByRole("button", { name: "Next" }).click();
+    // "Next: Collage" — names the real target (docs/decisions.md D-45), not a bare "Next".
+    await page.getByRole("button", { name: "Next: Collage" }).click();
     await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
     await expect(page.locator("[data-photo-id]").first()).toBeVisible();
   });

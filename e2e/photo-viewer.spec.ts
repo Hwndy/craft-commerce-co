@@ -52,17 +52,20 @@ function boxesOverlap(
 }
 
 /**
- * Clicks a seeded photo thumbnail, skipping any that CanvasChrome's fixed
- * top-left corner (minimap/Home/Guided controls — correctly screen-
- * anchored since docs/decisions.md D-44) happens to sit on top of. Each
- * photo's seeded id is random per CI run, so exactly which one the
- * phyllotaxis layout places nearest that corner isn't something `.first()`
- * can assume is always clickable — Continue's own flyTo (T10) already
- * centres the camera on collage at zoom 1, so no extra panning/zooming is
- * needed here just to reach a clickable photo.
+ * Clicks a seeded photo thumbnail, skipping any that one of CanvasChrome's
+ * fixed regions (top bar, minimap, bottom bar, Home — correctly screen-
+ * anchored since docs/decisions.md D-44; spread across several regions
+ * rather than one corner box since D-45's reskin) happens to sit on top
+ * of. Each photo's seeded id is random per CI run, so exactly which one
+ * the phyllotaxis layout places nearest a chrome region isn't something
+ * `.first()` can assume is always clickable — Continue's own flyTo (T10)
+ * already centres the camera on collage at zoom 1, so no extra panning/
+ * zooming is needed here just to reach a clickable photo.
  */
 async function clickAnUnobstructedPhoto(page: Page) {
-  const chromeBox = await page.locator("[data-canvas-chrome]").boundingBox();
+  const chromeBoxes = (
+    await Promise.all((await page.locator("[data-canvas-chrome]").all()).map((el) => el.boundingBox()))
+  ).filter((box): box is NonNullable<typeof box> => box !== null);
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
@@ -80,7 +83,7 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    if (!box || (chromeBox && boxesOverlap(box, chromeBox))) continue;
+    if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
     // phyllotaxis cluster's radius can exceed half the viewport width.

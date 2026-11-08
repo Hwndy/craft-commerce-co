@@ -45,7 +45,12 @@ afterEach(() => {
 describe("CanvasChrome", () => {
   it("shows the nearest viewpoint's label", async () => {
     renderChrome();
-    await waitFor(() => expect(screen.getByText("Landing")).toBeInTheDocument());
+    // Scoped to the dedicated label span — "Landing" also appears as a
+    // region-tab button now (docs/decisions.md D-45), so a bare getByText
+    // would be ambiguous.
+    await waitFor(() =>
+      expect(screen.getByText("Landing", { selector: "[data-current-region-label]" })).toBeInTheDocument()
+    );
   });
 
   it("Home flies the camera to the landing viewpoint", async () => {
@@ -74,14 +79,16 @@ describe("CanvasChrome", () => {
     expect(screen.getByRole("button", { name: "Explore" })).toBeInTheDocument();
     expect(useCameraStore.getState().camera.x).toBe(555);
     // Next/Previous and the progress indicator only show in Guided mode.
-    expect(screen.queryByRole("button", { name: "Next" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Next/ })).not.toBeInTheDocument();
   });
 
   it("Next advances the guided-mode progress indicator and flies forward", async () => {
     renderChrome();
     expect(screen.getByText("1 of 2")).toBeInTheDocument();
+    // "Next: Gallery" (docs/decisions.md D-45) — names the real target, not a bare "Next".
+    expect(screen.getByRole("button", { name: "Next: Gallery" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Next/ }));
     await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(2000));
     expect(screen.getByText("2 of 2")).toBeInTheDocument();
   });

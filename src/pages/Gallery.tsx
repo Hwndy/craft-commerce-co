@@ -6,6 +6,7 @@ import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
+import { RegionLabel } from "@/components/brand/RegionLabel";
 import { Collage } from "@/features/collage/Collage";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
@@ -72,18 +73,21 @@ export default function Gallery() {
     <>
       <Board>
         <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
-          <button
-            type="button"
+          {/* Board quadrant card (docs/decisions.md D-45) — the region's
+              poster image fills the card's own background rather than
+              sitting in RegionLabel's icon tile, so the whole 800x600
+              region stays one large, clickable poster as before. */}
+          <RegionLabel
             onClick={() => useFilmControllerStore.getState().reveal()}
             aria-label={film ? `Play ${film.title}` : "Film"}
+            title="Gallery"
+            subtitle="Film · Collage"
+            className="h-full w-full justify-end bg-cover bg-center"
             style={{
-              width: "100%",
-              height: "100%",
-              border: "none",
-              cursor: "pointer",
-              background: posterUrl
-                ? `#000 url(${posterUrl}) center / cover no-repeat`
-                : "#111",
+              backgroundImage: posterUrl
+                ? `linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.1) 60%), url(${posterUrl})`
+                : undefined,
+              backgroundColor: posterUrl ? undefined : "#111",
             }}
           />
         </Region>

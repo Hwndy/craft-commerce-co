@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
+import { IconButton } from "@/components/brand/IconButton";
+import { Button } from "@/components/ui/button";
+
+import { guidedPathViewpoints } from "./guidedPath";
 import { visibleWorldRect } from "./math";
 import { nearestViewpoint } from "./nearestViewpoint";
 import { useCameraStore } from "./store";
@@ -15,6 +19,7 @@ const POLL_MS = 200;
 const MINIMAP_REGION_WIDTH = 800;
 const MINIMAP_REGION_HEIGHT = 600;
 const MINIMAP_SIZE = { width: 140, height: 100 };
+const GOLD = "255,217,0";
 
 function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
@@ -48,9 +53,10 @@ function computeMinimapGeometry(viewpoints: Viewpoint[]): MinimapGeometry | null
 }
 
 /**
- * Minimap, region title, Home control, Guided/Explore switch with Next/
- * Previous and a progress indicator, and a polite live region announcing
- * the current viewpoint by label — docs/02-canvas-spec.md §6, §8, §9.
+ * Top bar (wordmark, current region, Guided/Explore, List view), a
+ * bottom-left minimap, and a bottom bar (Previous, region tabs, a gold
+ * "Next: <region>" CTA) — docs/02-canvas-spec.md §6, §8, §9, restyled per
+ * the owner's design upload (docs/decisions.md D-45).
  *
  * Polls the camera store on an interval rather than subscribing through
  * the React hook (which would re-render every rAF frame during a flight
@@ -69,7 +75,7 @@ export function CanvasChrome() {
   // would build a new object every render, and Zustand's reference-equality
   // check would see that as "changed" forever — an infinite re-render loop,
   // caught by this component's own test.
-  useGuidedModeStore((s) => s.currentIndex);
+  const currentIndex = useGuidedModeStore((s) => s.currentIndex);
   const setMode = useGuidedModeStore((s) => s.setMode);
   const next = useGuidedModeStore((s) => s.next);
   const previous = useGuidedModeStore((s) => s.previous);
@@ -88,136 +94,142 @@ export function CanvasChrome() {
   const current = nearestViewpoint(camera, viewpoints, viewport.width, viewport.height);
   const geometry = computeMinimapGeometry(viewpoints);
   const visible = visibleWorldRect(camera, viewport.width, viewport.height);
+  const path = guidedPathViewpoints(viewpoints);
+  // Not the clamped next() target — path[currentIndex] directly, so the
+  // button's own label can tell "there's nowhere further to go" (undefined)
+  // apart from "the next stop is this one" (a real Viewpoint).
+  const nextViewpoint = path[currentIndex + 1];
 
   function flyToViewpoint(viewpoint: Viewpoint) {
     void useCameraStore.getState().flyTo(viewpoint, { reducedMotion: prefersReducedMotion() });
   }
 
   return (
-    <div
-      data-canvas-chrome
-      style={{
-        position: "fixed",
-        top: 12,
-        left: 12,
-        zIndex: 60,
-        display: "flex",
-        flexDirection: "column",
-        gap: 8,
-        fontFamily: "sans-serif",
-        color: "#fff",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <button
-          type="button"
-          aria-label="Home"
-          onClick={() => flyToViewpoint(getViewpoint("landing"))}
-          style={{
-            background: "rgba(0,0,0,0.6)",
-            border: "1px solid rgba(255,255,255,0.4)",
-            borderRadius: 999,
-            color: "#fff",
-            padding: "6px 12px",
-            fontSize: 12,
-          }}
-        >
-          Home
-        </button>
-        <span data-current-region-label style={{ fontSize: 13, fontWeight: 600 }}>
-          {current?.label ?? ""}
-        </span>
-        <Link
-          to="/list"
-          style={{
-            background: "rgba(0,0,0,0.6)",
-            border: "1px solid rgba(255,255,255,0.4)",
-            borderRadius: 999,
-            color: "#fff",
-            padding: "6px 12px",
-            fontSize: 12,
-            textDecoration: "none",
-          }}
-        >
-          List view
-        </Link>
+    <div className="pointer-events-none fixed inset-0 z-[60] font-body text-sm text-foreground">
+      {/* Top bar: wordmark + current region (left), Guided/Explore + List view (right).
+          data-canvas-chrome marks each real interactive region (not this
+          outer inset-0 wrapper, whose own box would cover the whole
+          viewport) so e2e specs can check a candidate element against
+          CanvasChrome's actual footprint — see e2e/photo-viewer.spec.ts. */}
+      <div data-canvas-chrome className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-4">
+        <div className="flex items-center gap-3">
+          <img
+            src="/videos/all_life_poster.jpg"
+            alt=""
+            className="h-8 w-8 rounded-full border border-primary/50 object-cover"
+          />
+          <span className="font-heading text-sm font-bold uppercase tracking-wider">ALL LIFE</span>
+          <span className="hidden text-xs text-muted-foreground sm:inline">You are at</span>
+          <span data-current-region-label className="text-sm font-semibold text-primary">
+            {current?.label ?? ""}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant={mode === "guided" ? "pill" : "pill-outline"}
+            size="sm"
+            onClick={() => setMode(mode === "guided" ? "explore" : "guided")}
+          >
+            {mode === "guided" ? "Guided" : "Explore"}
+          </Button>
+          <Button asChild variant="pill-outline" size="sm">
+            <Link to="/list">List view</Link>
+          </Button>
+        </div>
       </div>
 
+      {/* Minimap, bottom-left. */}
       {geometry && (
-        <svg
-          width={MINIMAP_SIZE.width}
-          height={MINIMAP_SIZE.height}
-          role="img"
-          aria-label="Minimap"
-          style={{ background: "rgba(0,0,0,0.6)", borderRadius: 6 }}
-        >
-          {geometry.viewpoints.map((v) => {
-            const topLeft = geometry.worldToMinimap(v.x - MINIMAP_REGION_WIDTH / 2, v.y - MINIMAP_REGION_HEIGHT / 2);
-            const bottomRight = geometry.worldToMinimap(
-              v.x + MINIMAP_REGION_WIDTH / 2,
-              v.y + MINIMAP_REGION_HEIGHT / 2
-            );
-            return (
-              <rect
-                key={v.key}
-                x={topLeft.x}
-                y={topLeft.y}
-                width={Math.max(1, bottomRight.x - topLeft.x)}
-                height={Math.max(1, bottomRight.y - topLeft.y)}
-                fill={v.key === current?.key ? "rgba(201,166,75,0.5)" : "rgba(255,255,255,0.15)"}
-                stroke="rgba(255,255,255,0.4)"
-                style={{ cursor: "pointer" }}
-                onClick={() => flyToViewpoint(v)}
-              />
-            );
-          })}
-          {(() => {
-            const topLeft = geometry.worldToMinimap(visible.x, visible.y);
-            const bottomRight = geometry.worldToMinimap(visible.x + visible.width, visible.y + visible.height);
-            return (
-              <rect
-                x={topLeft.x}
-                y={topLeft.y}
-                width={Math.max(1, bottomRight.x - topLeft.x)}
-                height={Math.max(1, bottomRight.y - topLeft.y)}
-                fill="none"
-                stroke="#fff"
-                strokeWidth={1.5}
-                pointerEvents="none"
-              />
-            );
-          })()}
-        </svg>
+        <div data-canvas-chrome className="pointer-events-auto absolute bottom-20 left-4">
+          <svg
+            width={MINIMAP_SIZE.width}
+            height={MINIMAP_SIZE.height}
+            role="img"
+            aria-label="Minimap"
+            className="rounded-md bg-background/70 backdrop-blur-sm"
+          >
+            {geometry.viewpoints.map((v) => {
+              const topLeft = geometry.worldToMinimap(v.x - MINIMAP_REGION_WIDTH / 2, v.y - MINIMAP_REGION_HEIGHT / 2);
+              const bottomRight = geometry.worldToMinimap(
+                v.x + MINIMAP_REGION_WIDTH / 2,
+                v.y + MINIMAP_REGION_HEIGHT / 2
+              );
+              return (
+                <rect
+                  key={v.key}
+                  x={topLeft.x}
+                  y={topLeft.y}
+                  width={Math.max(1, bottomRight.x - topLeft.x)}
+                  height={Math.max(1, bottomRight.y - topLeft.y)}
+                  fill={v.key === current?.key ? `rgba(${GOLD},0.5)` : "rgba(255,255,255,0.15)"}
+                  stroke="rgba(255,255,255,0.4)"
+                  style={{ cursor: "pointer" }}
+                  onClick={() => flyToViewpoint(v)}
+                />
+              );
+            })}
+            {(() => {
+              const topLeft = geometry.worldToMinimap(visible.x, visible.y);
+              const bottomRight = geometry.worldToMinimap(visible.x + visible.width, visible.y + visible.height);
+              return (
+                <rect
+                  x={topLeft.x}
+                  y={topLeft.y}
+                  width={Math.max(1, bottomRight.x - topLeft.x)}
+                  height={Math.max(1, bottomRight.y - topLeft.y)}
+                  fill="none"
+                  stroke="#fff"
+                  strokeWidth={1.5}
+                  pointerEvents="none"
+                />
+              );
+            })()}
+          </svg>
+        </div>
       )}
 
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <button
-          type="button"
-          onClick={() => setMode(mode === "guided" ? "explore" : "guided")}
-          style={{
-            background: "rgba(0,0,0,0.6)",
-            border: "1px solid rgba(255,255,255,0.4)",
-            borderRadius: 999,
-            color: "#fff",
-            padding: "4px 10px",
-            fontSize: 11,
-          }}
-        >
-          {mode === "guided" ? "Guided" : "Explore"}
-        </button>
-        {mode === "guided" && (
-          <>
-            <button type="button" aria-label="Previous" onClick={() => void previous()} style={navButtonStyle}>
+      {/* Bottom bar: Previous + progress (left), region tabs (centre), gold Next CTA (right) — guided mode only. */}
+      {mode === "guided" && (
+        <div data-canvas-chrome className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-4">
+          <div className="flex items-center gap-2">
+            <IconButton aria-label="Previous" size="sm" onClick={() => void previous()}>
               ‹
-            </button>
-            <span style={{ fontSize: 11 }}>
+            </IconButton>
+            <span className="text-xs text-muted-foreground">
               {progress.index} of {progress.total}
             </span>
-            <button type="button" aria-label="Next" onClick={() => void next()} style={navButtonStyle}>
-              ›
-            </button>
-          </>
-        )}
+          </div>
+
+          {path.length > 0 && (
+            <div className="hidden items-center gap-1.5 overflow-x-auto md:flex">
+              {path.map((v) => (
+                <Button
+                  key={v.key}
+                  type="button"
+                  variant={v.key === current?.key ? "pill" : "pill-outline"}
+                  size="sm"
+                  onClick={() => flyToViewpoint(v)}
+                >
+                  {v.label}
+                </Button>
+              ))}
+            </div>
+          )}
+
+          <Button type="button" variant="pill" onClick={() => void next()}>
+            {nextViewpoint ? `Next: ${nextViewpoint.label}` : "Next"}
+          </Button>
+        </div>
+      )}
+
+      {/* Home (recentre) — the mockup's crosshair icon in its zoom-control
+          cluster, bottom-right. Mirrors the minimap's bottom-20 so it
+          clears the bottom bar's "Next" CTA in the same corner. */}
+      <div data-canvas-chrome className="pointer-events-auto absolute bottom-20 right-4">
+        <IconButton aria-label="Home" onClick={() => flyToViewpoint(getViewpoint("landing"))}>
+          ⊙
+        </IconButton>
       </div>
 
       <div aria-live="polite" className="sr-only">
@@ -226,14 +238,3 @@ export function CanvasChrome() {
     </div>
   );
 }
-
-const navButtonStyle = {
-  background: "rgba(0,0,0,0.6)",
-  border: "1px solid rgba(255,255,255,0.4)",
-  borderRadius: 999,
-  color: "#fff",
-  width: 24,
-  height: 24,
-  fontSize: 14,
-  lineHeight: 1,
-} as const;
