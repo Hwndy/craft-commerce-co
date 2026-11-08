@@ -95,6 +95,23 @@ export function FilmStage() {
     };
   }, [isLocked]);
 
+  // D-50's live region needs its very first *render* to be empty, not just
+  // its first render relative to isRevealed/isLocked's own history: both
+  // FilmStage and Gallery are separately lazy()-loaded (App.tsx), so on a
+  // direct /gallery visit (no landing-page preload to order them) Gallery's
+  // reveal() can run — and isLocked can already be true — before FilmStage's
+  // chunk has even resolved once. Deriving the text directly from
+  // isRevealed/isLocked during render would then make FilmStage's actual
+  // first render already-populated, the exact bug this was meant to fix,
+  // just moved to a different trigger (found in review). Starting this at
+  // "" and only ever writing the real value from an effect — which only
+  // runs after the first commit — guarantees the live region's first
+  // committed content is always empty, independent of load order.
+  const [lockAnnouncement, setLockAnnouncement] = useState("");
+  useEffect(() => {
+    setLockAnnouncement(isLocked ? "Watch once to unlock the gallery" : "");
+  }, [isLocked]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -179,30 +196,37 @@ export function FilmStage() {
 
   return (
     <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">
-      {/* Always mounted from this component's very first render (it's
-       * mounted once at the app root, well before any navigation to
-       * /gallery) and never a descendant of the aria-hidden wrapper below
-       * — a screen reader has therefore already "seen" this exact
-       * element, empty, before its text can ever change. Nesting it under
-       * that wrapper (as a previous version of this fix did) doesn't
-       * actually solve the timing problem: isRevealed and isLocked can
-       * both already be true on the very first render a visitor's screen
-       * reader processes, so the wrapper's own aria-hidden flips to false
-       * in the same tick the text would appear — AT can still miss it
-       * (found in review, docs/decisions.md D-50). Kept inside `stageRef`
-       * itself (not a true sibling of it) rather than hoisted further
-       * out: the Fullscreen API stops rendering anything outside the
-       * fullscreen element's own subtree, and `stageRef` is exactly what
-       * gets requestFullscreen()'d below — a sibling further out would go
-       * silent during fullscreen, exactly when the lock matters most.
-       * `sr-only` clips visually without `display:none`/`visibility:
-       * hidden`, both of which (like aria-hidden) would also pull it from
-       * the accessibility tree. The watched-percent is deliberately left
-       * out of this content: it ticks on every timeupdate, which would
-       * otherwise announce on every percentage point instead of just the
-       * lock state. */}
+      {/* Mounted unconditionally and never a descendant of the aria-hidden
+       * wrapper below — a screen reader has therefore already "seen" this
+       * exact element before its text can ever change. Nesting it under
+       * that wrapper (an earlier version of this fix did) doesn't actually
+       * solve the timing problem: isRevealed and isLocked can both already
+       * be true on the very first render a visitor's screen reader
+       * processes, so the wrapper's own aria-hidden flips to false in the
+       * same tick the text would appear — AT can still miss it. Its text
+       * comes from `lockAnnouncement` state, not a direct isRevealed/
+       * isLocked expression, for the same reason one level up: FilmStage
+       * itself is lazy()-loaded (App.tsx), separately from Gallery, so on a
+       * direct /gallery visit (no landing-page preload to order the two)
+       * Gallery's reveal() can run before FilmStage's chunk has even
+       * resolved once — making isLocked already true on FilmStage's actual
+       * first render too. `lockAnnouncement` starts at "" unconditionally
+       * and is only ever set from an effect (which can't run before the
+       * first commit), so the live region's first committed content is
+       * always empty regardless of chunk load order (found in review,
+       * docs/decisions.md D-50). Kept inside `stageRef` itself (not a true
+       * sibling of it) rather than hoisted further out: the Fullscreen API
+       * stops rendering anything outside the fullscreen element's own
+       * subtree, and `stageRef` is exactly what gets requestFullscreen()'d
+       * below — a sibling further out would go silent during fullscreen,
+       * exactly when the lock matters most. `sr-only` clips visually
+       * without `display:none`/`visibility:hidden`, both of which (like
+       * aria-hidden) would also pull it from the accessibility tree. The
+       * watched-percent is deliberately left out of this content: it ticks
+       * on every timeupdate, which would otherwise announce on every
+       * percentage point instead of just the lock state. */}
       <div aria-live="polite" className="sr-only">
-        {isRevealed && isLocked ? "Watch once to unlock the gallery" : ""}
+        {lockAnnouncement}
       </div>
 
       {/* Everything below is purely visual chrome + the video itself, so

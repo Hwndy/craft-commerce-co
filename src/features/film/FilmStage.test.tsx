@@ -103,4 +103,24 @@ describe("FilmStage", () => {
     const video = container.querySelector("video") as HTMLElement;
     expect(video.closest('[aria-hidden="true"]')).not.toBeNull();
   });
+
+  // Regression test for a real finding (found in review, docs/decisions.md
+  // D-50): FilmStage is lazy()-loaded separately from Gallery (App.tsx), so
+  // on a direct /gallery visit Gallery's reveal() can mutate the shared
+  // store before FilmStage's own chunk has even resolved once — meaning
+  // isRevealed/isLocked can already be true the very first time FilmStage
+  // itself mounts, not just "sometime after" as the other tests above
+  // exercise. Simulated here by setting the store before render() rather
+  // than after. React Testing Library's render() flushes effects before
+  // returning, so this can't observe the literal first-paint DOM (empty) —
+  // that guarantee is structural: `lockAnnouncement` is plain useState
+  // state, only ever written from a useEffect, which cannot run before the
+  // first commit. What this does prove is that the end state is still
+  // correct in this scenario, i.e. the effect-based rewiring doesn't leave
+  // the announcement stuck empty when isLocked was already true at mount.
+  it("still announces the lock correctly even when isRevealed/isLocked are already true the first time it mounts", () => {
+    useFilmControllerStore.setState({ isRevealed: true });
+    const { container } = render(<FilmStage />);
+    expect(liveRegion(container).textContent).toBe("Watch once to unlock the gallery");
+  });
 });
