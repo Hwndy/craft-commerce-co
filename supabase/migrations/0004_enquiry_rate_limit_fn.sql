@@ -55,5 +55,14 @@ $$;
 
 -- Only the service-role client calls this (same reasoning as the
 -- enquiries table's own RLS, 0003) — never exposed to anon/authenticated.
+-- `revoke ... from public` alone isn't enough on a Supabase project: its
+-- bootstrap already grants EXECUTE on every new public-schema function
+-- directly to anon/authenticated/service_role (ALTER DEFAULT PRIVILEGES,
+-- not just the PUBLIC pseudo-role), and revoking from PUBLIC doesn't
+-- touch a grant made directly to a named role — confirmed the hard way:
+-- the pgTAP test below for this (anon expected to be rejected) initially
+-- failed with no exception, exactly because of this.
 revoke all on function public.insert_enquiry_rate_limited(uuid, text, text, text, text, int, interval) from public;
+revoke all on function public.insert_enquiry_rate_limited(uuid, text, text, text, text, int, interval) from anon;
+revoke all on function public.insert_enquiry_rate_limited(uuid, text, text, text, text, int, interval) from authenticated;
 grant execute on function public.insert_enquiry_rate_limited(uuid, text, text, text, text, int, interval) to service_role;
