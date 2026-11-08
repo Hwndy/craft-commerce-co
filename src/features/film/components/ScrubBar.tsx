@@ -157,7 +157,7 @@ export function ScrubBar({
             bottom: 0,
             left: 0,
             width: `${percent}%`,
-            background: "#C9A64B",
+            background: "hsl(var(--primary))",
             borderRadius: 3,
           }}
         />

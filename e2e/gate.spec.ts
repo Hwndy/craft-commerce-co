@@ -62,8 +62,8 @@ test.describe("first-watch gate", () => {
     await expect(video).toBeVisible();
     await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
 
-    // "Watch to continue" hint is present while locked.
-    await expect(page.getByText(/Watch to continue/)).toBeVisible();
+    // "Watch once to unlock the gallery" hint is present while locked (docs/decisions.md D-45).
+    await expect(page.getByText(/Watch once to unlock/)).toBeVisible();
 
     // Simulate an honestly-paced watch-through via synthetic timeupdate
     // events (waiting out the real ~20s test film in real time works too,
@@ -89,7 +89,7 @@ test.describe("first-watch gate", () => {
     // (e.g. several browser engines running other specs in parallel).
     await expect(page.getByRole("button", { name: "Replay" })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole("button", { name: "Continue" })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/Watch to continue/)).not.toBeVisible();
+    await expect(page.getByText(/Watch once to unlock/)).not.toBeVisible();
 
     const unlocked = await page.evaluate(() =>
       Object.keys(localStorage).some(
@@ -148,7 +148,7 @@ test.describe("first-watch gate", () => {
 
     await page.reload();
 
-    await expect(page.getByText(/Watch to continue/)).not.toBeVisible();
+    await expect(page.getByText(/Watch once to unlock/)).not.toBeVisible();
   });
 
   test("a direct /gallery/photo/:id deep link requires the gate first, then opens automatically once unlocked (T10, D-07)", async ({
@@ -169,7 +169,7 @@ test.describe("first-watch gate", () => {
 
     await page.goto(`/gallery/photo/${photoId}`);
     await expect(video).toBeVisible();
-    await expect(page.getByText(/Watch to continue/)).toBeVisible();
+    await expect(page.getByText(/Watch once to unlock/)).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // CanvasChrome mustn't be reachable either while locked.
     await expect(page.getByRole("button", { name: "Home" })).toHaveCount(0);

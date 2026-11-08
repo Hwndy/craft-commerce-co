@@ -11,6 +11,7 @@ export interface VideoState {
   muted: boolean;
   /** false on iOS, where writes to .volume are silently ignored. */
   volumeIsWritable: boolean;
+  playbackRate: number;
 }
 
 export interface VideoControls extends VideoState {
@@ -18,6 +19,7 @@ export interface VideoControls extends VideoState {
   seek: (time: number) => void;
   setVolume: (value: number) => void;
   toggleMute: () => void;
+  setPlaybackRate: (rate: number) => void;
 }
 
 const SYNCED_EVENTS = [
@@ -27,6 +29,7 @@ const SYNCED_EVENTS = [
   "durationchange",
   "progress",
   "volumechange",
+  "ratechange",
   "ended",
 ] as const;
 
@@ -39,6 +42,7 @@ export function useVideoState(video: HTMLVideoElement | null): VideoControls {
     volume: 1,
     muted: false,
     volumeIsWritable: true,
+    playbackRate: 1,
   });
 
   useEffect(() => {
@@ -60,6 +64,7 @@ export function useVideoState(video: HTMLVideoElement | null): VideoControls {
         volume: video.volume,
         muted: video.muted,
         volumeIsWritable,
+        playbackRate: video.playbackRate,
       });
     }
 
@@ -104,5 +109,13 @@ export function useVideoState(video: HTMLVideoElement | null): VideoControls {
     video.muted = !video.muted;
   }, [video]);
 
-  return { ...state, togglePlay, seek, setVolume, toggleMute };
+  const setPlaybackRate = useCallback(
+    (rate: number) => {
+      if (!video) return;
+      video.playbackRate = rate;
+    },
+    [video]
+  );
+
+  return { ...state, togglePlay, seek, setVolume, toggleMute, setPlaybackRate };
 }

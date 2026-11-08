@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
+import { Button } from "@/components/ui/button";
 import { siteMediaUrl } from "@/lib/storage";
 
 import { FilmControls } from "./components/FilmControls";
@@ -182,7 +183,29 @@ export function FilmStage() {
       ref={stageRef}
       style={isRevealed ? revealedLayerStyle : hiddenLayerStyle}
       aria-hidden={!isRevealed}
+      className="font-body text-sm text-white"
     >
+      {isRevealed && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 p-4">
+          <div className="flex items-baseline gap-2">
+            <span className="font-heading text-sm font-bold uppercase tracking-wider">Gallery</span>
+            <span className="text-xs text-white/60">/ Film</span>
+          </div>
+          {isLocked && (
+            <div
+              aria-live="polite"
+              className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
+            >
+              <span aria-hidden="true">🔒</span>
+              <span>
+                Watch once to unlock the gallery
+                <span className="sr-only"> — {Math.round(gatePercent * 100)}% watched</span>
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       <video
         ref={videoRef}
         playsInline
@@ -203,28 +226,23 @@ export function FilmStage() {
       )}
 
       {isRevealed && fallback === "muted" && (
-        <button
-          type="button"
-          onClick={() => {
-            const video = videoRef.current;
-            if (!video) return;
-            video.muted = false;
-            void video.play();
-          }}
-          style={{
-            position: "absolute",
-            bottom: "calc(24px + env(safe-area-inset-bottom))",
-            left: "50%",
-            transform: "translateX(-50%)",
-            color: "#fff",
-            background: "rgba(0,0,0,0.6)",
-            border: "1px solid rgba(255,255,255,0.4)",
-            borderRadius: 999,
-            padding: "8px 20px",
-          }}
+        <div
+          className="absolute left-1/2 z-10 -translate-x-1/2"
+          style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
         >
-          Tap for sound
-        </button>
+          <Button
+            type="button"
+            variant="pill"
+            onClick={() => {
+              const video = videoRef.current;
+              if (!video) return;
+              video.muted = false;
+              void video.play();
+            }}
+          >
+            <span aria-hidden="true">🔊</span> Tap for sound
+          </Button>
+        </div>
       )}
 
       {isRevealed && fallback === "play-button" && !fatalError && (
@@ -241,15 +259,7 @@ export function FilmStage() {
               });
             }}
             aria-label="Play the film"
-            style={{
-              width: 72,
-              height: 72,
-              borderRadius: "50%",
-              border: "2px solid #fff",
-              background: "rgba(0,0,0,0.4)",
-              color: "#fff",
-              fontSize: 28,
-            }}
+            className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-white bg-black/40 text-3xl text-white"
           >
             ▶
           </button>
@@ -257,72 +267,53 @@ export function FilmStage() {
       )}
 
       {isRevealed && !fatalError && (fallback === "autoplay" || fallback === "muted") && (
-        <FilmControls video={videoElement} spriteUrl={spriteUrl} spriteMeta={spriteMeta} />
-      )}
-
-      {isLocked && !hasEnded && (fallback === "autoplay" || fallback === "muted") && (
-        <div
-          aria-live="polite"
-          style={{
-            position: "absolute",
-            bottom: "calc(16px + env(safe-area-inset-bottom))",
-            left: "50%",
-            transform: "translateX(-50%)",
-            color: "rgba(255,255,255,0.7)",
-            fontSize: 12,
-            letterSpacing: 1,
-            textTransform: "uppercase",
-            pointerEvents: "none",
-          }}
-        >
-          Watch to continue · {Math.round(gatePercent * 100)}%
-        </div>
+        <FilmControls
+          video={videoElement}
+          spriteUrl={spriteUrl}
+          spriteMeta={spriteMeta}
+          captionsAvailable={captionsUrl != null}
+        />
       )}
 
       {isRevealed && hasEnded && isUnlocked && (
         <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }}>
-          <button
-            type="button"
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              video.currentTime = 0;
-              setHasEnded(false);
-              void video.play();
-            }}
-            style={{
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.5)",
-              borderRadius: 999,
-              padding: "10px 24px",
-            }}
-          >
-            Replay
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // T10: once unlocked, Continue hands the visitor straight to
-              // the collage rather than leaving them wherever Explore-mode
-              // panning happened to be — flyTo (not setCamera) so this reads
-              // as a deliberate hand-off, same as Guided mode's Next/
-              // Previous, and respects prefers-reduced-motion the same way.
-              const reducedMotion =
-                window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-              void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
-              useFilmControllerStore.getState().hide();
-            }}
-            style={{
-              color: "#000",
-              background: "#fff",
-              border: "none",
-              borderRadius: 999,
-              padding: "10px 24px",
-              fontWeight: 600,
-            }}
-          >
-            Continue
-          </button>
+          <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-background/80 p-6 backdrop-blur-sm">
+            <span className="font-body text-xs font-medium uppercase tracking-wider text-white/60">
+              After the first full watch
+            </span>
+            <div className="flex items-center gap-3">
+              <Button
+                type="button"
+                variant="pill-outline"
+                onClick={() => {
+                  const video = videoRef.current;
+                  if (!video) return;
+                  video.currentTime = 0;
+                  setHasEnded(false);
+                  void video.play();
+                }}
+              >
+                Replay
+              </Button>
+              <Button
+                type="button"
+                variant="pill"
+                onClick={() => {
+                  // T10: once unlocked, Continue hands the visitor straight to
+                  // the collage rather than leaving them wherever Explore-mode
+                  // panning happened to be — flyTo (not setCamera) so this reads
+                  // as a deliberate hand-off, same as Guided mode's Next/
+                  // Previous, and respects prefers-reduced-motion the same way.
+                  const reducedMotion =
+                    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+                  void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
+                  useFilmControllerStore.getState().hide();
+                }}
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -349,19 +340,9 @@ export function FilmStage() {
               {fatalError.reason} · {fatalError.detail}
             </p>
           )}
-          <button
-            type="button"
-            onClick={() => setRetryToken((t) => t + 1)}
-            style={{
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.4)",
-              borderRadius: 6,
-              padding: "8px 16px",
-              background: "transparent",
-            }}
-          >
+          <Button type="button" variant="pill-outline" onClick={() => setRetryToken((t) => t + 1)}>
             Retry
-          </button>
+          </Button>
         </div>
       )}
     </div>
