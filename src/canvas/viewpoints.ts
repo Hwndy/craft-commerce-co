@@ -1,4 +1,4 @@
-import { cameraFromCenter } from "./math";
+import { cameraCenter, cameraFromCenter } from "./math";
 import type { Camera, Viewpoint } from "./types";
 
 /**
@@ -157,4 +157,28 @@ const CENTERED_REGION_KEYS = new Set(["about", "contact"]);
 export function cameraForViewpoint(viewpoint: Viewpoint, viewport: { width: number; height: number }): Camera {
   if (!CENTERED_REGION_KEYS.has(viewpoint.key)) return viewpoint;
   return cameraFromCenter(viewpoint, viewpoint.zoom, viewport.width, viewport.height);
+}
+
+/**
+ * The true world point `viewpoint`'s camera actually centres the viewport
+ * on once landed, at viewport size (vw, vh) — the counterpart "nearest
+ * viewpoint to the current camera" comparisons need, instead of a raw
+ * `cameraCenter(viewpoint, vw, vh)` call (which assumes the viewpoint's
+ * own x/y is already a landed camera position: true for every region
+ * except About/Contact). Without this, `nearestViewpoint()` and
+ * `nearestGuidedIndex()` — unaware of `cameraForViewpoint()`'s own
+ * CENTERED_REGION_KEYS exception above — compared the real, now-correctly-
+ * centred Contact camera against the *wrong* candidate centres, so the
+ * page showed the wrong "you are at" region name and switching Explore
+ * → Guided flew away from Contact entirely (found in review, Greptile, PR
+ * #3, on this very fix).
+ *
+ * For a centred region this is simply the viewpoint's own x/y (that's the
+ * definition `cameraForViewpoint` computes backward from via
+ * `cameraFromCenter`); for every other region it's unchanged —
+ * `cameraCenter(viewpoint, vw, vh)`, exactly as before this fix.
+ */
+export function viewpointCenter(viewpoint: Viewpoint, vw: number, vh: number): { x: number; y: number } {
+  if (CENTERED_REGION_KEYS.has(viewpoint.key)) return { x: viewpoint.x, y: viewpoint.y };
+  return cameraCenter(viewpoint, vw, vh);
 }

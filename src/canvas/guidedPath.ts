@@ -4,6 +4,7 @@
  */
 import { cameraCenter } from "./math";
 import type { Camera, Viewpoint } from "./types";
+import { viewpointCenter } from "./viewpoints";
 
 /** Viewpoints in the guided path, in order. */
 export function guidedPathViewpoints(viewpoints: Viewpoint[]): Viewpoint[] {
@@ -30,7 +31,9 @@ export function nearestGuidedIndex(camera: Camera, path: Viewpoint[], vw: number
   let bestIndex = 0;
   let bestDistance = Infinity;
   path.forEach((viewpoint, index) => {
-    const vpCenter = cameraCenter(viewpoint, vw, vh);
+    // viewpointCenter: see nearestViewpoint.ts's own comment — same fix,
+    // same reason (found in review, Greptile, PR #3).
+    const vpCenter = viewpointCenter(viewpoint, vw, vh);
     const distance = Math.hypot(vpCenter.x - center.x, vpCenter.y - center.y);
     if (distance < bestDistance) {
       bestDistance = distance;
