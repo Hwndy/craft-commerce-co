@@ -58,6 +58,14 @@ jobs:
         run: |
           supabase status -o env | grep -E '^[A-Z_]+="' | sed -E 's/^([A-Z_]+)="(.*)"$/\1=\2/' >> "$GITHUB_ENV"
 
+      # pgTAP (supabase/tests/) was never actually run in CI before D-46 —
+      # every migration's RLS tests only ran ad hoc, locally. Each test file
+      # runs in its own rolled-back transaction, scoped to its own
+      # 'pgtap-test-%' fixtures, so this needs no seed data and can run
+      # right after migrations apply.
+      - name: pgTAP (RLS tests)
+        run: supabase test db
+
       - name: Install ffmpeg and ImageMagick
         run: sudo apt-get update && sudo apt-get install -y ffmpeg imagemagick
 
@@ -83,6 +91,18 @@ jobs:
         run: |
           scripts/generate-placeholder-photos.sh assets/test-photos 8
           npx tsx scripts/seed-photos.ts assets/test-photos "ALL LIFE Test Shoot"
+
+      # The shop specs (Phase 3 T2+) need a real published product to
+      # render anything meaningful, same reasoning as the photos above —
+      # reuses the same placeholder-image generator, never the real
+      # staging project.
+      - name: Generate and seed a placeholder product
+        env:
+          SUPABASE_URL: ${{ env.API_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: |
+          scripts/generate-placeholder-photos.sh assets/test-product-photos 1
+          npx tsx scripts/seed-products.ts assets/test-product-photos
 
       - name: Build (against the local Supabase stack)
         env:
