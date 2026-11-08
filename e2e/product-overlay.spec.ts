@@ -152,6 +152,52 @@ test.describe("product overlay (T3)", () => {
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboardText).toBe(href!.replace(/^mailto:/, "").split("?")[0]);
 
-    await expect(dialog.getByRole("button", { name: "Use the form instead" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Use the form instead" })).toBeEnabled();
+  });
+
+  // T5 (FR-5.2–FR-5.4): the fallback enquiry form. submit-enquiry itself is
+  // mocked (not a real Supabase project to hit from e2e) — this proves the
+  // client-side flow: open the form, fill it in, Turnstile's own test site
+  // key auto-verifies for real (no network stubbing of challenges.
+  // cloudflare.com), submit, see the success state.
+  test("'Use the form instead' opens a working enquiry form that submits and shows success", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await revealBoard(page);
+
+    let requestBody: Record<string, unknown> | undefined;
+    await page.route("**/functions/v1/submit-enquiry", async (route) => {
+      requestBody = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+
+    await page.goto("/gallery/shop/sample-belt-no-5");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Use the form instead" }).click();
+    await expect(dialog.getByText("Hi, I'd like to ask about Sample Belt No.5.")).toBeVisible();
+
+    await dialog.getByLabel("Name").fill("Jane Visitor");
+    await dialog.getByLabel("Email").fill("jane@example.com");
+    await dialog.getByLabel("Message").fill("Is this still available?");
+
+    const sendButton = dialog.getByRole("button", { name: "Send enquiry" });
+    // Cloudflare's "always passes" test site key (.env.example) auto-solves
+    // without any click — just needs a moment to load and call back.
+    await expect(sendButton).toBeEnabled({ timeout: 15000 });
+    await sendButton.click();
+
+    await expect(dialog.getByText("Thank you — message sent")).toBeVisible();
+    expect(requestBody).toMatchObject({
+      name: "Jane Visitor",
+      email: "jane@example.com",
+      message: "Is this still available?",
+      website: "",
+    });
+    expect(typeof requestBody?.turnstileToken).toBe("string");
+    expect((requestBody?.turnstileToken as string).length).toBeGreaterThan(0);
   });
 });

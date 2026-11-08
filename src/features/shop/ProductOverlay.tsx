@@ -6,8 +6,10 @@ import { IconButton } from "@/components/brand/IconButton";
 import { formatGbp, STATUS_COPY, STATUS_VARIANT } from "@/components/brand/ProductLabel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EnquiryForm } from "@/features/enquiry/components/EnquiryForm";
 import { buildMailtoLink } from "@/features/enquiry/lib/mailto";
 import { attachHls } from "@/features/film/lib/hls";
+import { exitFullscreenIfActive } from "@/features/film/lib/fullscreen";
 import { env } from "@/lib/env";
 import { siteMediaUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -49,12 +51,27 @@ function prefersReducedData(): boolean {
 export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) {
   const [view, setView] = useState<"pictures" | "video">("pictures");
   const [pictureIndex, setPictureIndex] = useState(0);
+  const [showForm, setShowForm] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Reset to the gallery's first picture whenever a different product opens.
   useEffect(() => {
     setView("pictures");
     setPictureIndex(0);
+    setShowForm(false);
+  }, [slug]);
+
+  // Defensive, not just a FilmStage-side fix: a Dialog portaled to body
+  // (any z-index) can't be interacted with while the browser is in actual
+  // Fullscreen-API mode on a *different* element — fullscreen content sits
+  // in the browser's own top layer, above everything else regardless of
+  // CSS stacking, so every click here would silently fail to hit-test at
+  // all until it's exited. FilmStage no longer requests fullscreen for an
+  // already-unlocked visit, but this guards the remaining real case too
+  // (a genuine first watch, Continue clicked, fullscreen mid-exit) rather
+  // than trusting that exit's own timing always wins the race.
+  useEffect(() => {
+    if (slug) void exitFullscreenIfActive();
   }, [slug]);
 
   const hasVideo = !!product?.video?.hlsMaster && !prefersReducedData();
@@ -114,7 +131,17 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
             <div className="h-1 w-10 rounded-full bg-surface-light-foreground/20" />
           </div>
 
-          <div className="absolute right-3 top-3">
+          {/* z-10: without an explicit stacking order, this absolutely
+           * positioned wrapper and the picture area below it
+           * (`position: relative`, for its own pagination-dot/toggle
+           * overlays) are both "positioned, z-index: auto" — CSS stacks
+           * those in DOM order, so the picture area (declared later)
+           * painted over this button and silently ate every click/tap on
+           * it, close-overlay keyboard/Escape still worked, X/tap did not
+           * (found by reproducing a real CI e2e failure locally: Close
+           * never actually received the click, elementFromPoint at its
+           * center resolved to the picture div instead). */}
+          <div className="absolute right-3 top-3 z-10">
             <DialogPrimitive.Close asChild>
               <IconButton aria-label="Close">×</IconButton>
             </DialogPrimitive.Close>
@@ -242,42 +269,64 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                     {product.description ?? product.name}
                   </DialogPrimitive.Description>
 
-                  {/* T4 (FR-5.1): purchase by email. T5 will wire a real
-                   * enquiry form in behind "Use the form instead" — kept
-                   * visibly present but inert until then (disabled, not a
-                   * dead link to nowhere), same "acceptable gap" precedent
-                   * ShopRegion's own onOpenProduct had for T3 before this
-                   * overlay existed. */}
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    <Button asChild variant="pill">
-                      <a
-                        href={buildMailtoLink({
-                          to: env.VITE_OWNER_EMAIL,
-                          productName: product.name,
-                          priceAmount: product.priceAmount,
-                          priceCurrency: product.priceCurrency,
-                          pageUrl: `${window.location.origin}/shop/${product.slug}`,
-                        })}
+                  {/* T4 (FR-5.1) mailto purchase + T5 (FR-5.2–5.4) fallback
+                   * form, toggled in place rather than a second nested
+                   * dialog — avoids stacking Radix focus traps for what's
+                   * still just one logical "purchase this" panel. C3
+                   * (phases/PHASE-3-shop-and-enquiry.md): a sold item drops
+                   * the mailto "Buy" action for "Ask about something
+                   * similar", which opens the same form instead. */}
+                  {showForm ? (
+                    <div className="mt-5">
+                      <button
+                        type="button"
+                        onClick={() => setShowForm(false)}
+                        className="mb-3 text-sm text-surface-light-foreground/70 underline underline-offset-2"
                       >
-                        Buy / Enquire
-                      </a>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="pill-outline"
-                      onClick={() => {
-                        navigator.clipboard
-                          .writeText(env.VITE_OWNER_EMAIL)
-                          .then(() => toast("Email address copied"))
-                          .catch(() => toast("Couldn't copy — the address is " + env.VITE_OWNER_EMAIL));
-                      }}
-                    >
-                      Copy email address
-                    </Button>
-                    <Button type="button" variant="pill-outline" disabled title="Coming soon">
-                      Use the form instead
-                    </Button>
-                  </div>
+                        ← Back
+                      </button>
+                      <EnquiryForm productId={product.id} productName={product.name} />
+                    </div>
+                  ) : (
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      {product.status === "sold" ? (
+                        <Button type="button" variant="pill" onClick={() => setShowForm(true)}>
+                          Ask about something similar
+                        </Button>
+                      ) : (
+                        <>
+                          <Button asChild variant="pill">
+                            <a
+                              href={buildMailtoLink({
+                                to: env.VITE_OWNER_EMAIL,
+                                productName: product.name,
+                                priceAmount: product.priceAmount,
+                                priceCurrency: product.priceCurrency,
+                                pageUrl: `${window.location.origin}/shop/${product.slug}`,
+                              })}
+                            >
+                              Buy / Enquire
+                            </a>
+                          </Button>
+                          <Button type="button" variant="pill-outline" onClick={() => setShowForm(true)}>
+                            Use the form instead
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        type="button"
+                        variant="pill-outline"
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(env.VITE_OWNER_EMAIL)
+                            .then(() => toast("Email address copied"))
+                            .catch(() => toast("Couldn't copy — the address is " + env.VITE_OWNER_EMAIL));
+                        }}
+                      >
+                        Copy email address
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}

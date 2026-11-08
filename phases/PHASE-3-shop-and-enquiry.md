@@ -18,28 +18,28 @@ Use the sample product from the board for development: **Sample Belt No.5**, bla
 ## Checklist
 
 ### T1. Data
-- [ ] Migration `0003_shop_and_enquiries` with RLS and pgTAP tests (anonymous reads published products only; `enquiries` has no public policy; admin can read and update).
-- [ ] Seed sample products and placeholder media; add shop nodes to `canvas_nodes`; viewpoints for `shop`, `shop-wall`, `shop-floor`.
-- [ ] `useProducts()` and `useProduct(slug)` queries with Zod-validated shapes.
+- [x] Migration `0003_shop_and_enquiries` with RLS and pgTAP tests (anonymous reads published products only; `enquiries` has no public policy; admin can read and update).
+- [x] Seed sample products and placeholder media; add shop nodes to `canvas_nodes`; viewpoints for `shop`, `shop-wall`, `shop-floor`.
+- [x] `useProducts()` and `useProduct(slug)` queries with Zod-validated shapes.
 
 ### T2. Shop regions (FR-4.1, FR-4.2, FR-4.6)
-- [ ] Two neighbouring regions with distinct looks (wall: items hung or framed; floor: items laid out), using canvas nodes of type `product`.
-- [ ] `ProductLabel`: name, price formatted with `Intl.NumberFormat('en-GB', { style: 'currency', currency })`, short description, status badge (Available, Sold, Made to order). Sold items stay visible but the buy action changes to "Ask about something similar".
-- [ ] Optional sale flag display (FR-4.7), behind a product field.
+- [x] Two neighbouring regions with distinct looks (wall: items hung or framed; floor: items laid out), using canvas nodes of type `product`.
+- [x] `ProductLabel`: name, price formatted with `Intl.NumberFormat('en-GB', { style: 'currency', currency })`, short description, status badge (Available, Sold, Made to order). Sold items stay visible but the buy action changes to "Ask about something similar".
+- [x] Optional sale flag display (FR-4.7), behind a product field.
 
 ### T3. Product overlay (FR-4.3 to FR-4.5)
-- [ ] `/shop/:slug` overlay opened from a node: picture gallery and video view with a toggle, bullets and story text, focus trap, Escape and X to close, deep link and back-button behaviour.
-- [ ] Turntable video: muted, looping, `playsInline`, starts when visible and pauses when hidden, poster shown first, falls back to pictures if the video fails or data-saver is on.
+- [x] `/shop/:slug` overlay opened from a node: picture gallery and video view with a toggle, bullets and story text, focus trap, Escape and X to close, deep link and back-button behaviour.
+- [x] Turntable video: muted, looping, `playsInline`, starts when visible and pauses when hidden, poster shown first, falls back to pictures if the video fails or data-saver is on.
 
 ### T4. Purchase by email (FR-5.1)
-- [ ] `src/features/enquiry/lib/mailto.ts`: builds `mailto:` with an encoded subject ("Enquiry: Sample Belt No.5 (GBP 40)") and a body that includes the product name, price and page link. Unit-test encoding of spaces, ampersands, pound signs and non-ASCII characters.
-- [ ] "Buy / Enquire" button that opens the mailto link, with a visible "Copy email address" and "Use the form instead" next to it.
+- [x] `src/features/enquiry/lib/mailto.ts`: builds `mailto:` with an encoded subject ("Enquiry: Sample Belt No.5 (GBP 40)") and a body that includes the product name, price and page link. Unit-test encoding of spaces, ampersands, pound signs and non-ASCII characters.
+- [x] "Buy / Enquire" button that opens the mailto link, with a visible "Copy email address" and "Use the form instead" next to it.
 
 ### T5. Enquiry form and Edge Function (FR-5.2 to FR-5.4)
-- [ ] Form with react-hook-form and Zod (name, email, message, optional product), honeypot field, Turnstile widget, accessible errors and a success state.
-- [ ] `supabase/functions/submit-enquiry/index.ts` as specified in `docs/03-data-and-security.md`: validation, Turnstile verification, rate limit by IP hash, store with the service-role client, email the owner through Resend with `Reply-To`, safe error responses, CORS for known origins, no personal data in logs.
-- [ ] Deno tests for the function (validation failures, honeypot, rate limit, success path with email mocked).
-- [ ] Deploy the function to staging and document the secrets to set (`RESEND_API_KEY`, `OWNER_EMAIL`, `TURNSTILE_SECRET`, `IP_HASH_SALT`).
+- [x] Form with react-hook-form and Zod (name, email, message, optional product), honeypot field, Turnstile widget, accessible errors and a success state.
+- [x] `supabase/functions/submit-enquiry/index.ts` as specified in `docs/03-data-and-security.md`: validation, Turnstile verification, rate limit by IP hash, store with the service-role client, email the owner through Resend with `Reply-To`, safe error responses, CORS for known origins, no personal data in logs.
+- [x] Deno tests for the function (validation failures, honeypot, rate limit, success path with email mocked).
+- [ ] Deploy the function to staging and document the secrets to set (`RESEND_API_KEY`, `OWNER_EMAIL`, `TURNSTILE_SECRET`, `IP_HASH_SALT`) — **blocked on owner inputs**: a Resend account + verified sending domain, and confirmation of the real `OWNER_EMAIL`/`ALLOWED_ORIGINS`. Turnstile itself is not blocked — dev/CI use Cloudflare's own public test key pair (docs/decisions.md), swapped for the owner's real site+secret keys at the same time.
 
 ### T6. Contact and About regions (FR-6)
 - [ ] Contact region with the form, the email hyperlink (rendered so the address is not exposed as plain text in the client bundle) and social links.
