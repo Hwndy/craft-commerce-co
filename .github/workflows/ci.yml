@@ -34,6 +34,7 @@ jobs:
           # call. Real production values live in Vercel's project env vars.
           VITE_SUPABASE_URL: https://placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-only
+          VITE_OWNER_EMAIL: owner-ci@example.com
         run: |
           npm run typecheck
           npm run lint
@@ -108,6 +109,11 @@ jobs:
         env:
           VITE_SUPABASE_URL: ${{ env.API_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ env.ANON_KEY }}
+          # Not a real secret — the mailto: link's own recipient is always
+          # visible in the page source regardless (see src/lib/env.ts's own
+          # comment); CI just needs a syntactically valid address for T4's
+          # e2e specs to assert against.
+          VITE_OWNER_EMAIL: owner-ci@example.com
         run: npm run build
 
       - name: Install Playwright browsers

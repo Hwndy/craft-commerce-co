@@ -1,11 +1,14 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { IconButton } from "@/components/brand/IconButton";
 import { formatGbp, STATUS_COPY, STATUS_VARIANT } from "@/components/brand/ProductLabel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { buildMailtoLink } from "@/features/enquiry/lib/mailto";
 import { attachHls } from "@/features/film/lib/hls";
+import { env } from "@/lib/env";
 import { siteMediaUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
@@ -229,6 +232,43 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                   <DialogPrimitive.Description className="mt-4 text-sm text-surface-light-foreground/70">
                     {product.description ?? product.name}
                   </DialogPrimitive.Description>
+
+                  {/* T4 (FR-5.1): purchase by email. T5 will wire a real
+                   * enquiry form in behind "Use the form instead" — kept
+                   * visibly present but inert until then (disabled, not a
+                   * dead link to nowhere), same "acceptable gap" precedent
+                   * ShopRegion's own onOpenProduct had for T3 before this
+                   * overlay existed. */}
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    <Button asChild variant="pill">
+                      <a
+                        href={buildMailtoLink({
+                          to: env.VITE_OWNER_EMAIL,
+                          productName: product.name,
+                          priceAmount: product.priceAmount,
+                          priceCurrency: product.priceCurrency,
+                          pageUrl: `${window.location.origin}/shop/${product.slug}`,
+                        })}
+                      >
+                        Buy / Enquire
+                      </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="pill-outline"
+                      onClick={() => {
+                        navigator.clipboard
+                          .writeText(env.VITE_OWNER_EMAIL)
+                          .then(() => toast("Email address copied"))
+                          .catch(() => toast("Couldn't copy — the address is " + env.VITE_OWNER_EMAIL));
+                      }}
+                    >
+                      Copy email address
+                    </Button>
+                    <Button type="button" variant="pill-outline" disabled title="Coming soon">
+                      Use the form instead
+                    </Button>
+                  </div>
                 </div>
               </>
             )}

@@ -124,4 +124,34 @@ test.describe("product overlay (T3)", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText("This item isn't available")).toBeVisible();
   });
+
+  // T4 (FR-5.1): purchase by email.
+  test("the Buy / Enquire link has the right mailto subject and body, and the copy/form actions are present", async ({
+    page,
+    browserName,
+    context,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await revealBoard(page);
+
+    await page.goto("/gallery/shop/sample-belt-no-5");
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+
+    const buyLink = dialog.getByRole("link", { name: "Buy / Enquire" });
+    const href = await buyLink.getAttribute("href");
+    expect(href).toBeTruthy();
+    const decoded = decodeURIComponent(href!);
+    expect(decoded).toContain("subject=Enquiry: Sample Belt No.5 (GBP 40)");
+    expect(decoded).toContain("Sample Belt No.5");
+    expect(decoded).toContain("£40.00");
+    expect(decoded).toContain("/shop/sample-belt-no-5");
+
+    await dialog.getByRole("button", { name: "Copy email address" }).click();
+    const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
+    expect(clipboardText).toBe(href!.replace(/^mailto:/, "").split("?")[0]);
+
+    await expect(dialog.getByRole("button", { name: "Use the form instead" })).toBeDisabled();
+  });
 });

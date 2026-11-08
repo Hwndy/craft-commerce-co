@@ -9,6 +9,11 @@ const envSchema = z.object({
     .default("true")
     .transform((value) => value !== "false"),
   VITE_TURNSTILE_SITE_KEY: z.string().optional(),
+  // The public, client-visible contact address for T4's mailto: purchase
+  // link — distinct from OWNER_EMAIL (docs/01-architecture.md), which is a
+  // server-only Edge Function secret for T5. A mailto: link is inherently
+  // visible in the page regardless, so this one is meant to be public.
+  VITE_OWNER_EMAIL: z.string().email(),
 });
 
 export type Env = z.infer<typeof envSchema>;

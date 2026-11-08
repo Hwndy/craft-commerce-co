@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { env } from "@/lib/env";
+
 import type { ProductDetail, ProductMedia } from "./lib/queries";
 import { ProductOverlay } from "./ProductOverlay";
 
@@ -94,5 +96,32 @@ describe("ProductOverlay", () => {
     );
     getByLabelText("Close").click();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // T4 (FR-5.1): purchase by email.
+  describe("purchase actions", () => {
+    it("the Buy / Enquire link opens a mailto: to the owner's address with this product's details", () => {
+      render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
+      const link = screen.getByRole("link", { name: "Buy / Enquire" });
+      const href = link.getAttribute("href")!;
+      expect(href.startsWith(`mailto:${env.VITE_OWNER_EMAIL}?`)).toBe(true);
+      expect(decodeURIComponent(href)).toContain("Sample Belt No.5");
+      expect(decodeURIComponent(href)).toContain("£40.00");
+    });
+
+    it("copies the owner's email address when 'Copy email address' is activated", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
+      screen.getByRole("button", { name: "Copy email address" }).click();
+
+      expect(writeText).toHaveBeenCalledWith(env.VITE_OWNER_EMAIL);
+    });
+
+    it("'Use the form instead' is visible but disabled until T5 builds the real form", () => {
+      render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
+      expect(screen.getByRole("button", { name: "Use the form instead" })).toBeDisabled();
+    });
   });
 });
