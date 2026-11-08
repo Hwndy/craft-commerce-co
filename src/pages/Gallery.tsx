@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Board } from "@/canvas/Board";
@@ -7,10 +7,12 @@ import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
 import { RegionLabel } from "@/components/brand/RegionLabel";
+import { About } from "@/features/about/About";
 import { Collage } from "@/features/collage/Collage";
 import { CollageChrome } from "@/features/collage/CollageChrome";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
+import { Contact } from "@/features/contact/Contact";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
@@ -20,18 +22,18 @@ import { ShopChrome } from "@/features/shop/ShopChrome";
 import { ShopRegion } from "@/features/shop/ShopRegion";
 import { siteMediaUrl } from "@/lib/storage";
 
-import { photoIdFromSplat, productSlugFromSplat } from "./galleryRoute";
+import { initialViewpointKeyFromSplat, photoIdFromSplat, productSlugFromSplat } from "./galleryRoute";
 
 /**
  * Despite the name/route, this page now hosts the *whole* spatial board —
- * Gallery (film), Collage, and (Phase 3 T2) both Shop regions — all on the
- * same persistent `<Board>`, because App.tsx only mounts one `<Board>`
- * anywhere, under `/gallery/*`; there's no separate always-mounted board
- * for every route to share. Each area's own viewpoint (supabase/seed.sql)
- * is what Explore-mode panning and Guided-mode Next/Previous actually move
- * between, with no route change needed. Renaming this page/route is a
- * reasonable future cleanup as more regions land here (About/Contact, T6)
- * but is out of scope for any one task to do incidentally.
+ * Gallery (film), Collage, both Shop regions (T2), and About/Contact (T6)
+ * — all on the same persistent `<Board>`, because App.tsx only mounts one
+ * `<Board>` anywhere, under `/gallery/*`; there's no separate always-mounted
+ * board for every route to share. Each area's own viewpoint (supabase/
+ * seed.sql) is what Explore-mode panning and Guided-mode Next/Previous
+ * actually move between, with no route change needed. Renaming this
+ * page/route is a reasonable future cleanup, but is out of scope for any
+ * one task to do incidentally.
  *
  * The Gallery region (the film) plus the Collage region (T8) specifically:
  * "gallery" and "collage" are two distinct viewpoints within the one
@@ -58,6 +60,7 @@ export default function Gallery() {
   const params = useParams();
   const requestedPhotoId = photoIdFromSplat(params["*"]);
   const requestedProductSlug = productSlugFromSplat(params["*"]);
+  const requestedViewpointKey = initialViewpointKeyFromSplat(params["*"]);
   const isUnlocked = useGateStore((s) => s.isUnlocked);
   const isFilmRevealed = useFilmControllerStore((s) => s.isRevealed);
   // T10 (D-07): a direct /gallery/photo/:id visit still has to earn the
@@ -74,8 +77,13 @@ export default function Gallery() {
   const openProductSlug = !film || isUnlocked ? requestedProductSlug : null;
   const { data: product } = useProduct(openProductSlug ?? "");
 
+  // A ref, not a dependency: this effect must run exactly once, on mount
+  // (same reasoning as reveal()/hide() below) — only the splat's *initial*
+  // value should ever decide where the camera first lands, not a changing
+  // one re-running this effect on every navigation within /gallery/*.
+  const initialViewpointKeyRef = useRef(requestedViewpointKey);
   useEffect(() => {
-    useCameraStore.getState().setCamera(getViewpoint("gallery"));
+    useCameraStore.getState().setCamera(getViewpoint(initialViewpointKeyRef.current ?? "gallery"));
   }, []);
 
   useEffect(() => {
@@ -146,6 +154,12 @@ export default function Gallery() {
           centerY={getViewpoint("shop-floor").y}
           onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
         />
+
+        {/* T6: real content at its own world position, same precedent as
+         * Collage/Shop above — no modal to open, so nothing extra to wire
+         * through onOpenProduct-style callbacks. */}
+        <About centerX={getViewpoint("about").x} centerY={getViewpoint("about").y} />
+        <Contact centerX={getViewpoint("contact").x} centerY={getViewpoint("contact").y} />
 
         <PhotoViewer
           photos={photos ?? []}

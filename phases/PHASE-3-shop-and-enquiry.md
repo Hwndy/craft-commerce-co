@@ -12,6 +12,8 @@
 - [ ] Product photos and turntable videos (5 to 10 s loops), with posters.
 - [ ] The enquiry email address; Resend account and a verified sending domain (or SMTP details); Cloudflare Turnstile site key and secret.
 - [ ] Wording for the enquiry confirmation message.
+- [ ] The real About brand story (`src/content/about.ts`) — the owner's own design mockup itself shows this as a placeholder, `[Brand story — owner's own words, editable in the admin.]`.
+- [ ] Real Instagram/YouTube/website URLs for the Contact region's three social icons (`src/content/contact.ts`) — currently shown, visibly disabled, pending these.
 
 Use the sample product from the board for development: **Sample Belt No.5**, black tyre belt with aluminium buckle, GBP 40; bullets "belt made from repurposed bike tyre" and "buckle sand-cast using discarded aluminium".
 
@@ -42,8 +44,8 @@ Use the sample product from the board for development: **Sample Belt No.5**, bla
 - [ ] Deploy the function to staging and document the secrets to set (`RESEND_API_KEY`, `OWNER_EMAIL`, `TURNSTILE_SECRET`, `IP_HASH_SALT`) — **blocked on owner inputs**: a Resend account + verified sending domain, and confirmation of the real `OWNER_EMAIL`/`ALLOWED_ORIGINS`. Turnstile itself is not blocked — dev/CI use Cloudflare's own public test key pair (docs/decisions.md), swapped for the owner's real site+secret keys at the same time.
 
 ### T6. Contact and About regions (FR-6)
-- [ ] Contact region with the form, the email hyperlink (rendered so the address is not exposed as plain text in the client bundle) and social links.
-- [ ] About region reading from `pages` once Phase 4 adds the table; until then read a typed static file `src/content/about.ts` and mark it for replacement.
+- [x] Contact region with the form, the email hyperlink (the visible text names its purpose, not the address — see docs/decisions.md D-56 for why full bundle obfuscation isn't achievable given T4's existing mailto link) and social links (Instagram/YouTube/website icons, shown disabled — `title="Coming soon"` — pending the owner's real URLs).
+- [x] About region reading a typed static file `src/content/about.ts`, marked for replacement once Phase 4 adds the `pages` table.
 
 ### T7. Quality pass
 - [ ] Playwright: open a product from the board and from a deep link; toggle picture/video; mailto link has the right subject and body; the form validates, submits against a mocked function and shows success; axe clean; keyboard-only purchase path.

@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/env", () => ({ env: { VITE_TURNSTILE_SITE_KEY: "test-site-key" } }));
@@ -19,6 +20,37 @@ vi.mock("./Turnstile", () => ({
 const submitEnquiry = vi.fn();
 vi.mock("../lib/submitEnquiry", () => ({
   submitEnquiry: (...args: unknown[]) => submitEnquiry(...args),
+}));
+
+// Radix's real Select needs layout/pointer-capture behaviour jsdom doesn't
+// implement (see src/test/setup.ts's polyfills) and its listbox renders
+// into a Portal that doesn't reliably open under jsdom either — same
+// "third-party-ish widget, stand in with the same contract" treatment as
+// Turnstile above. A native <select> exercises EnquiryForm's own logic
+// (which option maps to which productId, what gets submitted) for real;
+// the real Radix component's own open/close/keyboard behaviour is covered
+// by e2e/about-contact.spec.ts in a real browser instead.
+vi.mock("@/components/ui/select", () => ({
+  Select: ({
+    value,
+    onValueChange,
+    children,
+  }: {
+    value: string;
+    onValueChange: (value: string) => void;
+    children: ReactNode;
+  }) => (
+    <select aria-label="About a product (optional)" value={value} onChange={(e) => onValueChange(e.target.value)}>
+      <option value="" />
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectValue: () => null,
+  SelectContent: ({ children }: { children: ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children: ReactNode }) => (
+    <option value={value}>{children}</option>
+  ),
 }));
 
 import { EnquiryForm } from "./EnquiryForm";
@@ -137,5 +169,55 @@ describe("EnquiryForm", () => {
     expect(honeypot).not.toBeNull();
     expect(honeypot).toHaveAttribute("tabIndex", "-1");
     expect(honeypot.closest('[aria-hidden="true"]')).not.toBeNull();
+  });
+
+  // T6 (Contact region): the visitor picks which product their enquiry is
+  // about, since Contact has no pre-selected product the way ProductOverlay
+  // does. Not shown for existing callers (no productOptions passed at all,
+  // every test above this one) — confirms the new prop is opt-in.
+  describe("productOptions (T6, Contact region)", () => {
+    const options = [
+      { id: "product-1", label: "Sample Belt No.5 — £40.00" },
+      { id: "product-2", label: "Sample Belt No.2 — £40.00" },
+    ];
+
+    it("is not shown when no productOptions are given", () => {
+      render(<EnquiryForm />);
+      expect(screen.queryByLabelText("About a product (optional)")).not.toBeInTheDocument();
+    });
+
+    it("is not shown when a specific productId is already given (ProductOverlay's own usage)", () => {
+      render(<EnquiryForm productId="product-1" productOptions={options} />);
+      expect(screen.queryByLabelText("About a product (optional)")).not.toBeInTheDocument();
+    });
+
+    it("lets the visitor pick a product, included in the submitted enquiry", async () => {
+      submitEnquiry.mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+      render(<EnquiryForm productOptions={options} />);
+
+      await user.selectOptions(screen.getByLabelText("About a product (optional)"), "Sample Belt No.5 — £40.00");
+      await fillAndVerify(user);
+      await user.click(screen.getByRole("button", { name: "Send enquiry" }));
+
+      await waitFor(() =>
+        expect(submitEnquiry).toHaveBeenCalledWith(
+          expect.objectContaining({ productId: "product-1" })
+        )
+      );
+    });
+
+    it("submits with no productId when the visitor leaves the picker on its default", async () => {
+      submitEnquiry.mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+      render(<EnquiryForm productOptions={options} />);
+
+      await fillAndVerify(user);
+      await user.click(screen.getByRole("button", { name: "Send enquiry" }));
+
+      await waitFor(() =>
+        expect(submitEnquiry).toHaveBeenCalledWith(expect.not.objectContaining({ productId: expect.anything() }))
+      );
+    });
   });
 });

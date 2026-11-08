@@ -17,6 +17,9 @@ import type { Viewpoint } from "./types";
  * query resolves (a real crash, not a stale-camera-position question —
  * found in review). `shop` itself is deliberately left out: nothing calls
  * `getViewpoint("shop")` synchronously at render time today.
+ * `about`/`contact` (T6) are here for the same reason again — Gallery
+ * renders both unconditionally too, and `/about`/`/contact`'s own redirect
+ * (App.tsx) calls `getViewpoint()` with one of these keys on mount.
  *
  * `getViewpoint`/`listViewpoints` stay synchronous so every existing call
  * site (event handlers, non-component code like useBoardKeyboard.ts) keeps
@@ -66,6 +69,24 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
     y: 1200,
     zoom: 1,
     sortOrder: 4,
+    inGuidedPath: true,
+  },
+  about: {
+    key: "about",
+    label: "About",
+    x: 0,
+    y: -2000,
+    zoom: 1,
+    sortOrder: 5,
+    inGuidedPath: true,
+  },
+  contact: {
+    key: "contact",
+    label: "Contact",
+    x: 0,
+    y: 2000,
+    zoom: 1,
+    sortOrder: 6,
     inGuidedPath: true,
   },
 };

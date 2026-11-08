@@ -7,7 +7,7 @@ describe("viewpoints", () => {
     clearViewpointsCache();
   });
 
-  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor registry before the cache is populated", () => {
+  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor/about/contact registry before the cache is populated", () => {
     expect(getViewpoint("landing")).toEqual({
       key: "landing",
       label: "Landing",
@@ -37,6 +37,16 @@ describe("viewpoints", () => {
       inGuidedPath: true,
     });
     expect(getViewpoint("shop-floor").y).toBe(1200);
+    expect(getViewpoint("about")).toEqual({
+      key: "about",
+      label: "About",
+      x: 0,
+      y: -2000,
+      zoom: 1,
+      sortOrder: 5,
+      inGuidedPath: true,
+    });
+    expect(getViewpoint("contact").y).toBe(2000);
   });
 
   it("throws for an unknown key in the fallback registry", () => {
@@ -50,6 +60,8 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
+      "about",
+      "contact",
     ]);
   });
 
@@ -83,6 +95,8 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
+      "about",
+      "contact",
     ]);
   });
 });
