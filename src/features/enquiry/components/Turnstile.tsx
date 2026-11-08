@@ -28,18 +28,26 @@ function loadTurnstileScript(): Promise<void> {
   if (window.turnstile) return Promise.resolve();
   scriptLoadPromise ??= new Promise((resolve, reject) => {
     const existing = document.querySelector<HTMLScriptElement>(`script[src="${SCRIPT_SRC}"]`);
-    if (existing) {
-      existing.addEventListener("load", () => resolve());
-      existing.addEventListener("error", () => reject(new Error("Failed to load Turnstile")));
-      return;
-    }
-    const script = document.createElement("script");
-    script.src = SCRIPT_SRC;
-    script.async = true;
-    script.defer = true;
+    const script = existing ?? document.createElement("script");
     script.addEventListener("load", () => resolve());
-    script.addEventListener("error", () => reject(new Error("Failed to load Turnstile")));
-    document.head.appendChild(script);
+    script.addEventListener("error", () => {
+      // A failed load (a network blip, an ad-blocker) must not cache a
+      // permanently-rejected promise — every enquiry form for the rest of
+      // the page's lifetime would otherwise be stuck unable to verify,
+      // with no way to retry short of a full reload (found in review,
+      // PR #2). Clearing the module-level cache and dropping the failed
+      // element lets the next call (e.g. closing and reopening the form)
+      // try a fresh `<script>` tag instead of reusing the dead one.
+      scriptLoadPromise = null;
+      script.remove();
+      reject(new Error("Failed to load Turnstile"));
+    });
+    if (!existing) {
+      script.src = SCRIPT_SRC;
+      script.async = true;
+      script.defer = true;
+      document.head.appendChild(script);
+    }
   });
   return scriptLoadPromise;
 }

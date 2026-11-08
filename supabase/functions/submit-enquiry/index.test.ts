@@ -25,8 +25,9 @@ function makeDeps(overrides: Partial<Deps> = {}): Deps & { inserted: unknown[]; 
     isRateLimited: () => Promise.resolve(false),
     insertEnquiry: (row) => {
       inserted.push(row);
-      return Promise.resolve();
+      return Promise.resolve({ ok: true });
     },
+    lookupProduct: () => Promise.resolve(null),
     sendOwnerEmail: (input) => {
       emailed.push(input);
       return Promise.resolve();
@@ -132,7 +133,73 @@ Deno.test("success path: valid submission is stored and the owner is emailed (mo
   assertEquals(body, { ok: true });
   assertEquals(deps.inserted.length, 1);
   assertEquals(deps.emailed.length, 1);
-  assertEquals(deps.emailed[0], { name: validBody.name, email: validBody.email, message: validBody.message });
+  assertEquals(deps.emailed[0], { name: validBody.name, email: validBody.email, message: validBody.message, product: null });
+});
+
+// PR #2 review: the atomic insert (migration 0004) is the real
+// enforcement point — the pre-check (isRateLimited) is only a fast,
+// non-atomic optimisation, so a request that slips past it must still be
+// caught here, exactly as a genuinely concurrent request would be.
+Deno.test("rate limit: the atomic insert catching what the pre-check missed is still rejected", async () => {
+  const deps = makeDeps({
+    isRateLimited: () => Promise.resolve(false),
+    insertEnquiry: () => Promise.resolve({ ok: false, reason: "rate_limited" }),
+  });
+  const res = await handleRequest(makeRequest(validBody), deps);
+  assertEquals(res.status, 429);
+  assertEquals(deps.emailed.length, 0);
+});
+
+Deno.test("an unexpected failure from a dependency returns a generic 500, not a raw error", async () => {
+  const deps = makeDeps({
+    isRateLimited: () => Promise.reject(new Error("db connection lost")),
+  });
+  const res = await handleRequest(makeRequest(validBody, { "x-forwarded-for": "203.0.113.5" }), deps);
+  assertEquals(res.status, 500);
+  const body = await res.json();
+  assertEquals(body, { error: "Something went wrong. Please try again." });
+});
+
+Deno.test("an unexpected failure from verifyTurnstile also returns a generic 500", async () => {
+  const deps = makeDeps({
+    verifyTurnstile: () => Promise.reject(new Error("network error")),
+  });
+  const res = await handleRequest(makeRequest(validBody), deps);
+  assertEquals(res.status, 500);
+});
+
+Deno.test("an unexpected failure from insertEnquiry also returns a generic 500", async () => {
+  const deps = makeDeps({
+    insertEnquiry: () => Promise.reject(new Error("constraint violation")),
+  });
+  const res = await handleRequest(makeRequest(validBody), deps);
+  assertEquals(res.status, 500);
+});
+
+Deno.test("CORS: preflight allows x-client-info, which supabase-js's functions.invoke() always sends", async () => {
+  const deps = makeDeps();
+  const res = await handleRequest(
+    new Request("https://example.supabase.co/functions/v1/submit-enquiry", {
+      method: "OPTIONS",
+      headers: { origin: ALLOWED_ORIGIN },
+    }),
+    deps
+  );
+  const allowHeaders = res.headers.get("access-control-allow-headers") ?? "";
+  assertEquals(allowHeaders.toLowerCase().includes("x-client-info"), true);
+});
+
+Deno.test("a selected product's name and link are included in the owner's email, independent of the message text", async () => {
+  const productId = "11111111-1111-1111-1111-111111111111";
+  const deps = makeDeps({
+    lookupProduct: (id) => {
+      assertEquals(id, productId);
+      return Promise.resolve({ name: "Sample Belt No.5", slug: "sample-belt-no-5" });
+    },
+  });
+  await handleRequest(makeRequest({ ...validBody, productId, message: "Is this still available?" }), deps);
+  const emailed = deps.emailed[0] as { product: { name: string; slug: string } | null };
+  assertEquals(emailed.product, { name: "Sample Belt No.5", slug: "sample-belt-no-5" });
 });
 
 Deno.test("success path: an email send failure is swallowed — the visitor still sees ok:true", async () => {

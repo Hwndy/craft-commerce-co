@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/env", () => ({ env: { VITE_TURNSTILE_SITE_KEY: "test-site-key" } }));
 
@@ -22,6 +22,13 @@ vi.mock("../lib/submitEnquiry", () => ({
 }));
 
 import { EnquiryForm } from "./EnquiryForm";
+
+afterEach(() => {
+  // submitEnquiry's call history otherwise accumulates across tests in
+  // this file (no global clearMocks configured) — several tests here
+  // assert on call count/args, which only means anything per-test.
+  submitEnquiry.mockReset();
+});
 
 async function fillAndVerify(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByLabelText("Name"), "Jane Visitor");
@@ -96,6 +103,27 @@ describe("EnquiryForm", () => {
     await waitFor(() => expect(submitEnquiry).toHaveBeenCalled());
     expect(screen.queryByText("Thank you — message sent")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Send enquiry" })).toBeInTheDocument();
+  });
+
+  // A Turnstile token is single-use — reusing the one from a failed
+  // attempt would just fail verification again with no visible reason.
+  it("clears the spent Turnstile token after a failed submission, requiring a fresh verification before retrying", async () => {
+    submitEnquiry.mockRejectedValueOnce(new Error("network blip"));
+    const user = userEvent.setup();
+    render(<EnquiryForm />);
+    await fillAndVerify(user);
+    await user.click(screen.getByRole("button", { name: "Send enquiry" }));
+    await waitFor(() => expect(submitEnquiry).toHaveBeenCalledTimes(1));
+
+    expect(screen.getByRole("button", { name: "Send enquiry" })).toBeDisabled();
+
+    submitEnquiry.mockResolvedValueOnce(undefined);
+    await user.click(screen.getByRole("button", { name: "Verify (mock Turnstile)" }));
+    expect(screen.getByRole("button", { name: "Send enquiry" })).toBeEnabled();
+    await user.click(screen.getByRole("button", { name: "Send enquiry" }));
+
+    await waitFor(() => expect(submitEnquiry).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("Thank you — message sent")).toBeInTheDocument();
   });
 
   it("pre-fills the message when opened for a specific product", () => {

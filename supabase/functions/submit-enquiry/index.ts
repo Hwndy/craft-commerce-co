@@ -34,18 +34,32 @@ export interface Env {
   allowedOrigins: string[];
 }
 
+export interface ProductSummary {
+  name: string;
+  slug: string;
+}
+
 export interface Deps {
   env: Env;
   verifyTurnstile: (token: string, remoteIp: string | null) => Promise<boolean>;
+  /** A fast, non-atomic pre-check only — skips a wasted Turnstile call for
+   * an IP that's obviously already over the cap. `insertEnquiry` below is
+   * the real, atomic enforcement. */
   isRateLimited: (ipHash: string) => Promise<boolean>;
+  /** Atomic (a single DB round trip, `insert_enquiry_rate_limited` —
+   * migration 0004): re-checks the cap and inserts in one transaction,
+   * closing the race the pre-check alone can't (PR #2 review — concurrent
+   * requests with distinct valid Turnstile tokens could each pass the
+   * pre-check before any of them inserted). */
   insertEnquiry: (row: {
     productId: string | null;
     name: string;
     email: string;
     message: string;
     ipHash: string | null;
-  }) => Promise<void>;
-  sendOwnerEmail: (input: { name: string; email: string; message: string }) => Promise<void>;
+  }) => Promise<{ ok: true } | { ok: false; reason: "rate_limited" }>;
+  lookupProduct: (productId: string) => Promise<ProductSummary | null>;
+  sendOwnerEmail: (input: { name: string; email: string; message: string; product: ProductSummary | null }) => Promise<void>;
   hashIp: (ip: string) => Promise<string>;
 }
 
@@ -56,7 +70,11 @@ function corsHeaders(origin: string | null, allowedOrigins: string[]): HeadersIn
   return {
     "access-control-allow-origin": allowOrigin,
     "access-control-allow-methods": "POST, OPTIONS",
-    "access-control-allow-headers": "content-type, authorization, apikey",
+    // x-client-info: supabase-js's functions.invoke() always sends this —
+    // omitting it from the allow-list makes the browser's own CORS
+    // preflight check reject the header before the real POST is ever
+    // sent, so every real browser submission would fail (PR #2 review).
+    "access-control-allow-headers": "content-type, authorization, apikey, x-client-info",
     vary: "origin",
   };
 }
@@ -112,35 +130,56 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
   }
 
   const remoteIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
-  const ipHash = remoteIp ? await deps.hashIp(remoteIp) : null;
 
-  if (ipHash && (await deps.isRateLimited(ipHash))) {
-    return json({ error: "Too many requests. Please try again later." }, 429, origin, deps.env.allowedOrigins);
-  }
-
-  const verified = await deps.verifyTurnstile(input.turnstileToken, remoteIp);
-  if (!verified) {
-    return json({ error: "Verification failed. Please try again." }, 400, origin, deps.env.allowedOrigins);
-  }
-
-  await deps.insertEnquiry({
-    productId: input.productId ?? null,
-    name: input.name,
-    email: input.email,
-    message: input.message,
-    ipHash,
-  });
-
+  // Everything from here on touches the database, Turnstile or Resend —
+  // any of those can throw (a connection error, a non-JSON response, a
+  // timeout). None of that is the visitor's fault or theirs to see the
+  // details of: catch it at this boundary and answer with the same
+  // generic, CORS-headed error shape the rest of this function already
+  // uses, rather than letting it escape as a raw 500 (PR #2 review — only
+  // the email leg below was ever actually covered by a try/catch).
   try {
-    await deps.sendOwnerEmail({ name: input.name, email: input.email, message: input.message });
-  } catch (sendError) {
-    // Never log names/emails/message bodies (docs/03-data-and-security.md
-    // §6) — only that a send failed. The row is already stored above, so
-    // the enquiry itself isn't lost even if this leg fails.
-    console.error("submit-enquiry: owner email send failed", sendError instanceof Error ? sendError.message : sendError);
-  }
+    const ipHash = remoteIp ? await deps.hashIp(remoteIp) : null;
 
-  return json({ ok: true }, 200, origin, deps.env.allowedOrigins);
+    if (ipHash && (await deps.isRateLimited(ipHash))) {
+      return json({ error: "Too many requests. Please try again later." }, 429, origin, deps.env.allowedOrigins);
+    }
+
+    const verified = await deps.verifyTurnstile(input.turnstileToken, remoteIp);
+    if (!verified) {
+      return json({ error: "Verification failed. Please try again." }, 400, origin, deps.env.allowedOrigins);
+    }
+
+    const inserted = await deps.insertEnquiry({
+      productId: input.productId ?? null,
+      name: input.name,
+      email: input.email,
+      message: input.message,
+      ipHash,
+    });
+    if (!inserted.ok) {
+      // The atomic insert itself found the cap already reached — the
+      // pre-check above raced and lost, which is exactly the case this
+      // path exists to still catch correctly.
+      return json({ error: "Too many requests. Please try again later." }, 429, origin, deps.env.allowedOrigins);
+    }
+
+    const product = input.productId ? await deps.lookupProduct(input.productId) : null;
+
+    try {
+      await deps.sendOwnerEmail({ name: input.name, email: input.email, message: input.message, product });
+    } catch (sendError) {
+      // Never log names/emails/message bodies (docs/03-data-and-security.md
+      // §6) — only that a send failed. The row is already stored above, so
+      // the enquiry itself isn't lost even if this leg fails.
+      console.error("submit-enquiry: owner email send failed", sendError instanceof Error ? sendError.message : sendError);
+    }
+
+    return json({ ok: true }, 200, origin, deps.env.allowedOrigins);
+  } catch (error) {
+    console.error("submit-enquiry: unexpected failure", error instanceof Error ? error.message : error);
+    return json({ error: "Something went wrong. Please try again." }, 500, origin, deps.env.allowedOrigins);
+  }
 }
 
 function readEnv(): Env {
@@ -199,17 +238,39 @@ function buildDeps(): Deps {
     },
 
     insertEnquiry: async (row) => {
-      const { error } = await supabase.from("enquiries").insert({
-        product_id: row.productId,
-        name: row.name,
-        email: row.email,
-        message: row.message,
-        ip_hash: row.ipHash,
-      });
+      // Migration 0004: check-then-insert in one DB round trip, serialized
+      // per ip_hash via an advisory lock — see that migration's own
+      // comment for why the two separate calls this replaced couldn't be
+      // made atomic any other way from here.
+      const { data, error } = await supabase
+        .rpc("insert_enquiry_rate_limited", {
+          p_product_id: row.productId,
+          p_name: row.name,
+          p_email: row.email,
+          p_message: row.message,
+          p_ip_hash: row.ipHash,
+          p_rate_limit_max: RATE_LIMIT_MAX,
+          p_rate_limit_window: `${RATE_LIMIT_WINDOW_MS / 1000} seconds`,
+        })
+        .single();
       if (error) throw error;
+      if (data.rate_limited) return { ok: false, reason: "rate_limited" };
+      return { ok: true };
     },
 
-    sendOwnerEmail: async ({ name, email, message }) => {
+    lookupProduct: async (productId) => {
+      const { data, error } = await supabase.from("products").select("name, slug").eq("id", productId).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+
+    sendOwnerEmail: async ({ name, email, message, product }) => {
+      // The message body is the visitor's own free text — EnquiryForm
+      // pre-fills it with the product name when opened from one, but a
+      // visitor can edit or delete that, so the product line below is
+      // sent separately and doesn't depend on the message containing it
+      // (PR #2 review).
+      const productLine = product ? `\n\nAbout: ${product.name} (/shop/${product.slug})` : "";
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -220,8 +281,8 @@ function buildDeps(): Deps {
           from: env.resendFrom,
           to: [env.ownerEmail],
           reply_to: email,
-          subject: `New enquiry from ${name}`,
-          text: message,
+          subject: `New enquiry from ${name}${product ? ` about ${product.name}` : ""}`,
+          text: `${message}${productLine}`,
         }),
       });
       if (!response.ok) {

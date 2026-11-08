@@ -30,6 +30,16 @@ export interface EnquiryFormProps {
  */
 export function EnquiryForm({ productId, productName, onSuccess }: EnquiryFormProps) {
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  // Changing TurnstileWidget's key forces React to unmount and remount it
+  // — a fresh widget, a fresh token. A Turnstile token is single-use: if
+  // verification already succeeded once but the submission still failed
+  // (the insert, the network, anything past verification), the token
+  // EnquiryForm is still holding has already been spent server-side.
+  // Resubmitting it as-is would fail Turnstile verification again with no
+  // visible reason, until the widget happened to refresh on its own
+  // (found in review, PR #2) — forcing a remount here gets a visitor a
+  // working retry immediately instead.
+  const [turnstileKey, setTurnstileKey] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
   const form = useForm<EnquiryFormValues>({
@@ -48,6 +58,8 @@ export function EnquiryForm({ productId, productName, onSuccess }: EnquiryFormPr
       onSuccess?.();
     } catch {
       toast("Couldn't send your enquiry — please try again, or email us directly.");
+      setTurnstileToken(null);
+      setTurnstileKey((key) => key + 1);
     }
   };
 
@@ -118,6 +130,7 @@ export function EnquiryForm({ productId, productName, onSuccess }: EnquiryFormPr
 
         {env.VITE_TURNSTILE_SITE_KEY ? (
           <TurnstileWidget
+            key={turnstileKey}
             siteKey={env.VITE_TURNSTILE_SITE_KEY}
             onVerify={setTurnstileToken}
             onExpire={() => setTurnstileToken(null)}
