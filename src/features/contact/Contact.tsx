@@ -49,7 +49,10 @@ export function Contact({ centerX, centerY }: ContactProps) {
 
   return (
     <Region id="contact" title="Contact" x={centerX - width / 2} y={centerY - height / 2} width={width} height={height}>
-      <div className="flex h-full w-full flex-col gap-5 overflow-y-auto rounded-2xl bg-surface-light p-8 text-surface-light-foreground">
+      <div
+        data-board-scrollable
+        className="flex h-full w-full flex-col gap-5 overflow-y-auto rounded-2xl bg-surface-light p-8 text-surface-light-foreground"
+      >
         <div>
           <h2 className="font-heading text-3xl font-bold uppercase tracking-wide">Contact</h2>
           <p className="mt-2 text-sm text-surface-light-foreground/70">{contactIntro}</p>

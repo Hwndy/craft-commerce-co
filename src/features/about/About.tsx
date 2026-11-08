@@ -31,7 +31,10 @@ export function About({ centerX, centerY }: AboutProps) {
   const { width, height } = useFittedPanelSize(MAX_WIDTH, MAX_HEIGHT);
   return (
     <Region id="about" title="About" x={centerX - width / 2} y={centerY - height / 2} width={width} height={height}>
-      <div className="flex h-full w-full flex-col gap-6 overflow-y-auto rounded-2xl border border-white/10 bg-card p-8 text-foreground">
+      <div
+        data-board-scrollable
+        className="flex h-full w-full flex-col gap-6 overflow-y-auto rounded-2xl border border-white/10 bg-card p-8 text-foreground"
+      >
         <div className="flex items-center gap-4">
           <img
             src="/videos/all_life_poster.jpg"
