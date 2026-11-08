@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 import { clampGuidedIndex, guidedPathViewpoints, nearestGuidedIndex } from "./guidedPath";
 import { useCameraStore } from "./store";
-import { listViewpoints } from "./viewpoints";
+import { cameraForViewpoint, listViewpoints } from "./viewpoints";
 
 export type ExploreMode = "guided" | "explore";
 
@@ -61,7 +61,9 @@ export const useGuidedModeStore = create<GuidedModeState>((set, get) => ({
       const { camera, viewport, flyTo } = useCameraStore.getState();
       const nearest = nearestGuidedIndex(camera, path, viewport.width, viewport.height);
       set({ mode, currentIndex: nearest });
-      if (path[nearest]) void flyTo(path[nearest], { reducedMotion: prefersReducedMotion() });
+      // cameraForViewpoint: see CanvasChrome.tsx's flyToViewpoint — a
+      // no-op for every region but About/Contact (T6).
+      if (path[nearest]) void flyTo(cameraForViewpoint(path[nearest], viewport), { reducedMotion: prefersReducedMotion() });
       return;
     }
 
@@ -76,7 +78,10 @@ export const useGuidedModeStore = create<GuidedModeState>((set, get) => ({
     const nextIndex = clampGuidedIndex(get().currentIndex + 1, path.length);
     set({ currentIndex: nextIndex });
     const target = path[nextIndex];
-    if (target) await useCameraStore.getState().flyTo(target, { reducedMotion: prefersReducedMotion() });
+    if (target) {
+      const { viewport, flyTo } = useCameraStore.getState();
+      await flyTo(cameraForViewpoint(target, viewport), { reducedMotion: prefersReducedMotion() });
+    }
   },
 
   previous: async () => {
@@ -84,7 +89,10 @@ export const useGuidedModeStore = create<GuidedModeState>((set, get) => ({
     const prevIndex = clampGuidedIndex(get().currentIndex - 1, path.length);
     set({ currentIndex: prevIndex });
     const target = path[prevIndex];
-    if (target) await useCameraStore.getState().flyTo(target, { reducedMotion: prefersReducedMotion() });
+    if (target) {
+      const { viewport, flyTo } = useCameraStore.getState();
+      await flyTo(cameraForViewpoint(target, viewport), { reducedMotion: prefersReducedMotion() });
+    }
   },
 
   progress: () => {

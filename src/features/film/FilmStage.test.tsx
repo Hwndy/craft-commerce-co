@@ -1,5 +1,6 @@
-import { render } from "@testing-library/react";
+import { render as rtlRender } from "@testing-library/react";
 import { act } from "react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useGateStore } from "./gateStore";
@@ -33,6 +34,14 @@ vi.mock("./lib/fullscreen", () => ({
 
 import { useFilmControllerStore } from "./filmControllerStore";
 import { FilmStage } from "./FilmStage";
+
+// FilmStage reads useLocation() (T6: the Continue handler needs the
+// current path to know whether to hand off to About/Contact instead of
+// the collage) — every render() below needs a Router ancestor as a result,
+// same reason ListRegion.test.tsx/Contact.test.tsx already wrap in one.
+function render(ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, { wrapper: MemoryRouter });
+}
 
 describe("FilmStage", () => {
   beforeEach(() => {

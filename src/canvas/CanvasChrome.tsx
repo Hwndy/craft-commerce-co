@@ -10,7 +10,7 @@ import { nearestViewpoint } from "./nearestViewpoint";
 import { useCameraStore } from "./store";
 import type { Viewpoint } from "./types";
 import { useGuidedModeStore } from "./useGuidedModeStore";
-import { getViewpoint, listViewpoints } from "./viewpoints";
+import { cameraForViewpoint, getViewpoint, listViewpoints } from "./viewpoints";
 
 const POLL_MS = 200;
 /** Default half-extent used to draw a region's box on the minimap — there's
@@ -102,7 +102,14 @@ export function CanvasChrome() {
   const nextViewpoint = path[currentIndex + 1];
 
   function flyToViewpoint(viewpoint: Viewpoint) {
-    void useCameraStore.getState().flyTo(viewpoint, { reducedMotion: prefersReducedMotion() });
+    const { viewport, flyTo } = useCameraStore.getState();
+    // cameraForViewpoint centres the landing camera for About/Contact
+    // (T6) specifically — a no-op for every other region, so their own
+    // already-tested landing positions are unchanged (found in review,
+    // Greptile/CodeRabbit, PR #3: the minimap and region-tab clicks here
+    // share the exact same off-centre bug the direct /about, /contact
+    // deep links had).
+    void flyTo(cameraForViewpoint(viewpoint, viewport), { reducedMotion: prefersReducedMotion() });
   }
 
   return (

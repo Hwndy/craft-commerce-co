@@ -1,4 +1,5 @@
-import type { Viewpoint } from "./types";
+import { cameraFromCenter } from "./math";
+import type { Camera, Viewpoint } from "./types";
 
 /**
  * Static fallback registry — used until `useViewpointsQuery()` (lib/
@@ -20,6 +21,14 @@ import type { Viewpoint } from "./types";
  * `about`/`contact` (T6) are here for the same reason again — Gallery
  * renders both unconditionally too, and `/about`/`/contact`'s own redirect
  * (App.tsx) calls `getViewpoint()` with one of these keys on mount.
+ *
+ * `sortOrder` values here are fallback-only — they only need to preserve
+ * *relative* order among the handful of keys actually present (there's no
+ * `shop` entry, so this registry's own numbering is already a compacted
+ * subset, not a mirror of supabase/seed.sql's absolute numbers). Once the
+ * real query resolves, `setViewpointsCache` below replaces this whole
+ * object outright, seed.sql's own values and all — these never cross over
+ * (noted in review, CodeRabbit, PR #3).
  *
  * `getViewpoint`/`listViewpoints` stay synchronous so every existing call
  * site (event handlers, non-component code like useBoardKeyboard.ts) keeps
@@ -117,4 +126,35 @@ export function getViewpoint(key: string): Viewpoint {
 
 export function listViewpoints(): Viewpoint[] {
   return Object.values(activeViewpoints()).sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/**
+ * Region keys whose own Region placement (About.tsx/Contact.tsx) treats
+ * the viewpoint's x/y as the panel's *centre* — distinct from every other
+ * region (Gallery/Collage/Shop), where a flyTo/setCamera(viewpoint) call
+ * landing with that same x/y as the camera's own top-left is the already-
+ * tested, intentional behaviour (interpolateCamera in math.ts is built to
+ * end there exactly; e2e/product-overlay.spec.ts's revealBoard() already
+ * asserts that literally for "collage"). About and Contact are the first
+ * case where a visitor can land directly on a region whose real,
+ * immediately-readable content — not hidden behind a modal or the film
+ * layer — must actually be centred the moment they arrive, rather than
+ * left mostly off-screen above/left of the viewport (found in review,
+ * Greptile/CodeRabbit, PR #3).
+ */
+const CENTERED_REGION_KEYS = new Set(["about", "contact"]);
+
+/**
+ * The camera to use when flying to or setting `viewpoint` directly —
+ * every call site that takes a Viewpoint off this registry and hands it
+ * to the camera store (Gallery.tsx's initial mount, FilmStage's Continue
+ * handoff, CanvasChrome's minimap/region-tab clicks and Home button,
+ * useGuidedModeStore's next/previous/setMode) should go through this
+ * rather than passing the raw viewpoint straight through, so the
+ * CENTERED_REGION_KEYS exception above only has to be decided in one
+ * place. A no-op (returns `viewpoint` itself) for every other region.
+ */
+export function cameraForViewpoint(viewpoint: Viewpoint, viewport: { width: number; height: number }): Camera {
+  if (!CENTERED_REGION_KEYS.has(viewpoint.key)) return viewpoint;
+  return cameraFromCenter(viewpoint, viewpoint.zoom, viewport.width, viewport.height);
 }

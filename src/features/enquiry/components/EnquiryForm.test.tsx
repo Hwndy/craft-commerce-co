@@ -40,8 +40,11 @@ vi.mock("@/components/ui/select", () => ({
     onValueChange: (value: string) => void;
     children: ReactNode;
   }) => (
+    // No hardcoded blank <option> here: EnquiryForm.tsx's own "None" item
+    // (a real SelectItem, sentinel-valued) is what children renders —
+    // matches the real component exactly, including the "clear a mistaken
+    // choice" fix (Greptile/CodeRabbit, PR #3).
     <select aria-label="About a product (optional)" value={value} onChange={(e) => onValueChange(e.target.value)}>
-      <option value="" />
       {children}
     </select>
   ),
@@ -211,6 +214,26 @@ describe("EnquiryForm", () => {
       submitEnquiry.mockResolvedValueOnce(undefined);
       const user = userEvent.setup();
       render(<EnquiryForm productOptions={options} />);
+
+      await fillAndVerify(user);
+      await user.click(screen.getByRole("button", { name: "Send enquiry" }));
+
+      await waitFor(() =>
+        expect(submitEnquiry).toHaveBeenCalledWith(expect.not.objectContaining({ productId: expect.anything() }))
+      );
+    });
+
+    // Found in review (Greptile/CodeRabbit, PR #3): a visitor who picked a
+    // product by mistake previously had no way back to "no product"
+    // without reloading the whole form.
+    it("lets the visitor clear a mistaken product choice back to None", async () => {
+      submitEnquiry.mockResolvedValueOnce(undefined);
+      const user = userEvent.setup();
+      render(<EnquiryForm productOptions={options} />);
+
+      const picker = screen.getByLabelText("About a product (optional)");
+      await user.selectOptions(picker, "Sample Belt No.5 — £40.00");
+      await user.selectOptions(picker, "None");
 
       await fillAndVerify(user);
       await user.click(screen.getByRole("button", { name: "Send enquiry" }));

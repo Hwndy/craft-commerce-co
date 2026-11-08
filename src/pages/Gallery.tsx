@@ -5,7 +5,7 @@ import { Board } from "@/canvas/Board";
 import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
-import { getViewpoint } from "@/canvas/viewpoints";
+import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
 import { RegionLabel } from "@/components/brand/RegionLabel";
 import { About } from "@/features/about/About";
 import { Collage } from "@/features/collage/Collage";
@@ -83,7 +83,9 @@ export default function Gallery() {
   // one re-running this effect on every navigation within /gallery/*.
   const initialViewpointKeyRef = useRef(requestedViewpointKey);
   useEffect(() => {
-    useCameraStore.getState().setCamera(getViewpoint(initialViewpointKeyRef.current ?? "gallery"));
+    const viewpoint = getViewpoint(initialViewpointKeyRef.current ?? "gallery");
+    const { viewport, setCamera } = useCameraStore.getState();
+    setCamera(cameraForViewpoint(viewpoint, viewport));
   }, []);
 
   useEffect(() => {

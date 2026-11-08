@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useLocation } from "react-router-dom";
 
 import { useCameraStore } from "@/canvas/store";
-import { getViewpoint } from "@/canvas/viewpoints";
+import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
 import { Button } from "@/components/ui/button";
 import { siteMediaUrl } from "@/lib/storage";
 
@@ -50,6 +51,7 @@ const centeredOverlayStyle: CSSProperties = {
  * for free. Invisible and inert until `isRevealed`.
  */
 export function FilmStage() {
+  const location = useLocation();
   const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const registerVideoElement = useFilmControllerStore((s) => s.registerVideoElement);
@@ -388,9 +390,32 @@ export function FilmStage() {
                     // panning happened to be — flyTo (not setCamera) so this reads
                     // as a deliberate hand-off, same as Guided mode's Next/
                     // Previous, and respects prefers-reduced-motion the same way.
+                    // T6: unless the visitor arrived via a direct /about or
+                    // /contact deep link — reading the *current* URL here
+                    // (not a value captured at mount) matches how this button
+                    // already reads prefers-reduced-motion fresh on each
+                    // click; the destination can only be either of these two
+                    // literal paths (App.tsx's redirects land on exactly one
+                    // /gallery/<key> URL each) or plain /gallery itself,
+                    // never a changing value otherwise — found in review
+                    // (Greptile/CodeRabbit, PR #3): this handoff was
+                    // previously unconditional, so a first-time visitor's
+                    // requested About/Contact destination was silently lost
+                    // the moment they clicked Continue. cameraForViewpoint
+                    // (viewpoints.ts) centres the landing camera for exactly
+                    // these two keys — a no-op for "collage" itself, so its
+                    // own already-tested landing position is unchanged.
+                    const destinationKey =
+                      location.pathname === "/gallery/about"
+                        ? "about"
+                        : location.pathname === "/gallery/contact"
+                          ? "contact"
+                          : "collage";
+                    const destination = getViewpoint(destinationKey);
+                    const { viewport, flyTo } = useCameraStore.getState();
                     const reducedMotion =
                       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-                    void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
+                    void flyTo(cameraForViewpoint(destination, viewport), { reducedMotion });
                     useFilmControllerStore.getState().hide();
                   }}
                 >

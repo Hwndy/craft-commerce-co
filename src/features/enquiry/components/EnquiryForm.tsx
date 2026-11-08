@@ -57,6 +57,12 @@ export interface EnquiryFormProps {
 // visible on a cream panel for the first time.
 const FIELD_CLASSNAME = "border-surface-light-foreground/20 bg-white text-surface-light-foreground placeholder:text-surface-light-foreground/40";
 
+// Radix Select's own value can't be an empty string (that's reserved for
+// "uncontrolled, no value prop"), so the explicit "no product" option
+// below needs a real, non-empty sentinel instead — never submitted:
+// onSubmit maps it straight back to an omitted productId.
+const NO_PRODUCT_VALUE = "__none__";
+
 export function EnquiryForm({ productId, productName, onSuccess, productOptions }: EnquiryFormProps) {
   const [selectedProductId, setSelectedProductId] = useState<string>("");
   const showProductSelect = !productId && !!productOptions && productOptions.length > 0;
@@ -140,11 +146,22 @@ export function EnquiryForm({ productId, productName, onSuccess, productOptions 
             <label htmlFor="enquiry-product" className="text-sm font-medium">
               About a product (optional)
             </label>
-            <Select value={selectedProductId} onValueChange={setSelectedProductId}>
+            <Select
+              value={selectedProductId || NO_PRODUCT_VALUE}
+              onValueChange={(value) => setSelectedProductId(value === NO_PRODUCT_VALUE ? "" : value)}
+            >
               <SelectTrigger id="enquiry-product" className={FIELD_CLASSNAME}>
                 <SelectValue placeholder="None" />
               </SelectTrigger>
               <SelectContent>
+                {/* Radix Select disallows an empty-string item value — this
+                 * sentinel is how a visitor returns to "no product" after
+                 * picking one by mistake, without reloading the form
+                 * (found in review, Greptile/CodeRabbit, PR #3: the
+                 * placeholder alone isn't a selectable option, so there was
+                 * previously no way back to it once any real item was
+                 * chosen). */}
+                <SelectItem value={NO_PRODUCT_VALUE}>None</SelectItem>
                 {productOptions!.map((option) => (
                   <SelectItem key={option.id} value={option.id}>
                     {option.label}

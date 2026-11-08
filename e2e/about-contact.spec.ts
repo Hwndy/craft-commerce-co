@@ -26,6 +26,40 @@ async function revealBoard(page: Page) {
 }
 
 test.describe("About and Contact regions (T6)", () => {
+  // Found in review (Greptile/CodeRabbit, PR #3): a genuinely first-time
+  // visitor (gate not yet unlocked) who opens /about or /contact directly
+  // previously lost that destination the moment they clicked Continue —
+  // FilmStage's own handoff flew unconditionally to the collage instead.
+  // Distinct from every other test below, which calls revealBoard() first
+  // (an *already-unlocked* visit) and so never exercised this path.
+  test("a genuinely first-time visitor who opens /contact directly still lands there after watching and clicking Continue", async ({
+    page,
+    browserName,
+  }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+
+    await page.goto("/contact");
+    await expect(page).toHaveURL(/\/gallery\/contact$/);
+
+    const video = page.locator("video").last();
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
+    await video.evaluate((el: HTMLVideoElement) => {
+      const duration = el.duration;
+      for (let t = 0; t <= duration; t += 0.5) {
+        el.currentTime = t;
+        el.dispatchEvent(new Event("timeupdate"));
+      }
+      el.pause();
+      el.dispatchEvent(new Event("ended"));
+    });
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    const region = page.locator('section[data-region-id="contact"]');
+    await expect(region.getByText("Commissions, collaborations, press or a question about a belt.")).toBeVisible();
+    await expect(region.getByLabel("Name")).toBeVisible();
+  });
+
   test("a direct /about visit redirects into the board's About region", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
     await page.goto("/about");
