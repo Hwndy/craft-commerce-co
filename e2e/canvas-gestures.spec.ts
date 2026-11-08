@@ -122,7 +122,7 @@ test.describe("canvas gestures", () => {
     // Gallery.tsx's film-thumbnail button is a real focusable node inside
     // the Board. Pan it off-centre first, so refocusing it has somewhere
     // real to move the camera back to — docs/02-canvas-spec.md §9/FR-8.9.
-    const node = page.getByRole("button", { name: /^Play / });
+    const node = page.getByRole("button", { name: /^Gallery, Film/ });
     await page.locator("[data-camera-zoom]").first().focus();
     for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowRight");
     const panned = await getCamera(page);

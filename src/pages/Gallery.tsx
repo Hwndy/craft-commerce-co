@@ -77,10 +77,15 @@ export default function Gallery() {
           {/* Board quadrant card (docs/decisions.md D-45) — the region's
               poster image fills the card's own background rather than
               sitting in RegionLabel's icon tile, so the whole 800x600
-              region stays one large, clickable poster as before. */}
+              region stays one large, clickable poster as before.
+              aria-label must still contain the card's own visible text
+              ("Gallery", "Film · Collage"), not just replace it with "Play
+              X" — WCAG 2.5.3/axe's label-content-name-mismatch: a voice-
+              control user who sees "GALLERY" on screen and says "click
+              Gallery" needs that word in the accessible name too. */}
           <RegionLabel
             onClick={() => useFilmControllerStore.getState().reveal()}
-            aria-label={film ? `Play ${film.title}` : "Film"}
+            aria-label={`Gallery, Film · Collage — ${film ? `play ${film.title}` : "play the film"}`}
             title="Gallery"
             subtitle="Film · Collage"
             className="h-full w-full justify-end bg-cover bg-center"

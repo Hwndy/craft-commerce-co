@@ -125,6 +125,15 @@ test.describe("collage region", () => {
     await revealBoard(page);
     await expect(page.getByRole("button", { name: "Circle" })).toBeVisible();
 
+    // currentIndex starts at 0 (landing) on every fresh load regardless of
+    // where Continue's own flyTo (T10) actually left the camera (collage) —
+    // same quirk canvas-gestures.spec.ts's own guided-mode test documents.
+    // Toggling Guided -> Explore -> Guided resyncs currentIndex to the
+    // camera's real position before Previous/Next labels can be trusted.
+    const modeButton = page.getByRole("button", { name: /^(Guided|Explore)$/ });
+    await modeButton.click();
+    await modeButton.click();
+
     await page.getByRole("button", { name: "Previous" }).click();
     await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
     await expect(page.getByRole("button", { name: "Circle" })).not.toBeVisible();

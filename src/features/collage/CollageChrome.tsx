@@ -44,8 +44,13 @@ export function CollageChrome() {
   const setActiveShootId = useCollageViewStore((s) => s.setActiveShootId);
 
   useEffect(() => {
-    const viewpoints = listViewpoints();
     const interval = window.setInterval(() => {
+      // Read fresh each tick, not once at mount: listViewpoints() returns
+      // the small static fallback (landing/gallery/collage only) until the
+      // DB-backed cache loads, and a stale mount-time snapshot would never
+      // pick that up — CanvasChrome's own poll reads it fresh for the same
+      // reason.
+      const viewpoints = listViewpoints();
       const { camera, viewport } = useCameraStore.getState();
       const current = nearestViewpoint(camera, viewpoints, viewport.width, viewport.height);
       setIsNearCollage(current?.key === "collage");

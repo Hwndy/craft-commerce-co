@@ -11,7 +11,10 @@ test.describe("list view", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     const regionLinks = page.locator("nav[aria-label='Regions'] a");
-    await expect(regionLinks).toHaveCount(6); // landing, gallery, collage, shop, about, contact
+    // landing, gallery, collage, shop, shop-wall, shop-floor, about, contact
+    // (Phase 3 T1, docs/decisions.md D-48: 'shop' is a non-guided overview
+    // anchor alongside the two real guided-path stops).
+    await expect(regionLinks).toHaveCount(8);
     await expect(page.getByRole("link", { name: "Gallery" })).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
@@ -39,7 +42,8 @@ test.describe("list view", () => {
 
   test("navigating from the index to a region and back works", async ({ page }) => {
     await page.goto("/list");
-    await page.getByRole("link", { name: "Shop" }).click();
+    // exact: "Shop (wall)"/"Shop (floor)" also match "Shop" as a substring.
+    await page.getByRole("link", { name: "Shop", exact: true }).click();
     await expect(page).toHaveURL(/\/list\/shop$/);
     await page.getByRole("link", { name: "Back to all regions" }).click();
     await expect(page).toHaveURL(/\/list$/);
