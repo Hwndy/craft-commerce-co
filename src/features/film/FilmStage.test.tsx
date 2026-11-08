@@ -21,8 +21,14 @@ const film: PublishedFilm = {
   },
 };
 
+// A mutable ref, not a fixed closure, so a test can simulate the film
+// query still being in flight (`undefined`, TanStack Query's own pending
+// value) and later "resolving" — needed for T6's auto-hide effect, which
+// must wait for that instant rather than judging a still-`undefined` film
+// as "nothing to watch" (found in review, Greptile, PR #3).
+const mockFilmData = vi.hoisted(() => ({ current: undefined as PublishedFilm | null | undefined }));
 vi.mock("./lib/useFilm", () => ({
-  useFilm: () => ({ data: film }),
+  useFilm: () => ({ data: mockFilmData.current }),
 }));
 
 const requestFullscreen = vi.fn().mockResolvedValue(undefined);
@@ -45,10 +51,12 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 
 describe("FilmStage", () => {
   beforeEach(() => {
+    mockFilmData.current = film;
     useFilmControllerStore.setState({
       videoElement: null,
       isPrimed: false,
       isRevealed: false,
+      isAutomaticReveal: false,
       fallback: "play-button",
     });
     useGateStore.setState({
@@ -172,41 +180,6 @@ describe("FilmStage", () => {
       expect(requestFullscreen).not.toHaveBeenCalled();
     });
 
-    // T6 (found via a real, reproducible e2e failure): Gallery.tsx's own
-    // reveal() runs unconditionally on every mount — a second, already-
-    // unlocked navigation straight into /gallery/contact (or any board
-    // content with nothing elevating it above FilmStage, unlike
-    // ProductOverlay's own Dialog) left the full-screen, fully-interactive
-    // revealed layer sitting on top of it, since nothing ever dismissed it
-    // once it turned out not to need watching.
-    it("auto-hides itself when revealed but already unlocked, instead of leaving a full-screen layer over the board", () => {
-      useGateStore.setState({ version: 1, isUnlocked: true });
-      render(<FilmStage />);
-
-      act(() => {
-        useFilmControllerStore.getState().reveal();
-      });
-
-      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
-    });
-
-    // The counterpart: a visitor who genuinely needs to watch (locked at
-    // reveal) must reach the deliberate Replay/Continue screen — watching
-    // through mid-playback (isUnlocked flipping true while still revealed)
-    // must not itself trigger this same auto-hide early.
-    it("does not auto-hide a visitor who is actually locked, even once they finish watching", () => {
-      render(<FilmStage />);
-      act(() => {
-        useFilmControllerStore.getState().reveal();
-      });
-      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
-
-      act(() => {
-        useGateStore.setState({ isUnlocked: true });
-      });
-      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
-    });
-
     it("exits fullscreen once isRevealed goes back to false (Continue, or leaving /gallery)", () => {
       render(<FilmStage />);
       act(() => {
@@ -218,6 +191,120 @@ describe("FilmStage", () => {
         useFilmControllerStore.getState().hide();
       });
       expect(exitFullscreenIfActive).toHaveBeenCalled();
+    });
+  });
+
+  // T6 (found via a real, reproducible e2e failure, then two more real
+  // gaps found in review on the first attempt at fixing it — Greptile,
+  // PR #3): Gallery.tsx's own revealAutomatically() runs unconditionally
+  // on every mount (T10/D-07) — a second, already-unlocked navigation
+  // straight into /gallery/contact (or any board content with nothing
+  // elevating it above FilmStage, unlike ProductOverlay's own Dialog)
+  // left the full-screen, fully-interactive revealed layer sitting on
+  // top of it, since nothing ever dismissed it once it turned out not to
+  // need watching.
+  describe("auto-hide when automatically revealed but not locked", () => {
+    it("hides itself once it's clear an automatic reveal doesn't need watching (already unlocked)", () => {
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+    });
+
+    it("hides itself when there is no film at all (data: null, not just not-yet-loaded)", () => {
+      mockFilmData.current = null;
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+    });
+
+    // The gate's own saved unlock is only read once film.version arrives
+    // (gateInitFor, above) — a returning visitor's isUnlocked can still
+    // read false for an instant while the film query is in flight. A
+    // first attempt at this fix was a one-shot effect keyed only on
+    // isRevealed, so it decided (wrongly) in that instant and never got
+    // another chance once the real data arrived (found in review,
+    // Greptile, PR #3).
+    it("waits for the film query to settle before deciding, rather than judging a still-loading film as needing to stay revealed", () => {
+      mockFilmData.current = undefined; // still loading
+      useGateStore.setState({ version: 1, isUnlocked: true }); // a returning, already-unlocked visitor
+      const { rerender } = render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+      // Still waiting on film — must not have given up and stayed revealed forever.
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+
+      // The query resolves — mockFilmData itself isn't reactive state React
+      // would notice changed on its own, so force the re-render a real
+      // useFilm() data update would have caused.
+      mockFilmData.current = film;
+      act(() => {
+        rerender(<FilmStage />);
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+    });
+
+    // The counterpart: an explicit, visitor-requested reveal (the Gallery
+    // board card, Replay) must never be silently cancelled just because
+    // the gate happens to already be unlocked — a first attempt at this
+    // fix couldn't tell an automatic reveal apart from an explicit one
+    // and broke re-watching (found in review, Greptile, PR #3).
+    it("never auto-hides an explicit reveal, even when already unlocked", () => {
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+    });
+
+    // The other counterpart: a visitor who genuinely needs to watch
+    // (locked at reveal) must reach the deliberate Replay/Continue screen
+    // — watching through mid-playback (isUnlocked flipping true while
+    // still revealed) must not itself trigger this same auto-hide early.
+    it("does not auto-hide a visitor who is actually locked, even once they finish watching", () => {
+      render(<FilmStage />);
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+
+      act(() => {
+        useGateStore.setState({ isUnlocked: true });
+      });
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+    });
+
+    // hide() alone only ever changed isRevealed — never responsible for
+    // pausing playback before, since by the time Continue is clickable
+    // the film has already ended on its own. This auto-hide path is the
+    // first time hide() can fire while the video might genuinely still
+    // be playing (found in review, Greptile, PR #3).
+    it("pauses any playback the separate start() effect may already have begun", () => {
+      const pause = vi.fn();
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      const { container } = render(<FilmStage />);
+      const video = container.querySelector("video") as HTMLVideoElement;
+      video.pause = pause;
+
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+
+      expect(pause).toHaveBeenCalled();
     });
   });
 });

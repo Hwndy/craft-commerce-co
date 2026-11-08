@@ -57,6 +57,7 @@ export function FilmStage() {
   const registerVideoElement = useFilmControllerStore((s) => s.registerVideoElement);
   const videoElement = useFilmControllerStore((s) => s.videoElement);
   const isRevealed = useFilmControllerStore((s) => s.isRevealed);
+  const isAutomaticReveal = useFilmControllerStore((s) => s.isAutomaticReveal);
   const isPrimed = useFilmControllerStore((s) => s.isPrimed);
   const fallback = useFilmControllerStore((s) => s.fallback);
   const start = useFilmControllerStore((s) => s.start);
@@ -218,33 +219,80 @@ export function FilmStage() {
   }, [isLocked]);
   useEffect(() => {
     if (isRevealed) {
-      if (isLockedRef.current && stageRef.current) {
-        void requestFullscreen(stageRef.current);
-      } else if (useGateStore.getState().isUnlocked) {
-        // T6 (found via a real, reproducible e2e failure — About/Contact's
-        // own form fields unclickable after a *second*, already-unlocked
-        // navigation straight into /gallery/contact): Gallery.tsx's own
-        // reveal() runs unconditionally on every mount, by design (T10/
-        // D-07, so the lock can show on a direct deep link) — but nothing
-        // ever dismissed the resulting layer again once it turned out
-        // *not* to need watching. Unlike the Fullscreen-API problem above
-        // (D-55), this is a plain CSS stacking issue: `revealedLayerStyle`
-        // is a full-screen, fully-interactive (z-index 50, no
-        // pointer-events override) layer, which previously went unnoticed
-        // because every other deep-linked board content (Shop, the photo
-        // viewer) opens in a Dialog elevated well above it — About/Contact
-        // are the first real board content with nothing elevating it.
-        // Reads the gate store directly (not a hook subscription) so this
-        // decides once, at the same isRevealed-transition instant as the
-        // fullscreen check right above it, not on every later isUnlocked
-        // change — watching through mid-playback must still reach the
-        // deliberate Replay/Continue screen, never auto-hide early.
-        useFilmControllerStore.getState().hide();
-      }
+      if (isLockedRef.current && stageRef.current) void requestFullscreen(stageRef.current);
     } else {
       void exitFullscreenIfActive();
     }
   }, [isRevealed]);
+
+  // Latches true the moment this reveal cycle is ever genuinely locked,
+  // and only resets once isRevealed drops — distinct from isLockedRef
+  // above (a one-time snapshot at the reveal transition, for fullscreen):
+  // the auto-hide effect below needs to stay reactive to isUnlocked
+  // settling in *before* it's known whether this is locked at all, but
+  // must never fire again once it's seen a genuine lock, even after
+  // isUnlocked later flips true from actually watching through — found in
+  // review (Greptile, PR #3): a version keyed on isLockedRef's own
+  // snapshot alone couldn't tell "started unlocked" apart from "started
+  // locked, now unlocked by watching," since both read as "not locked"
+  // the instant isUnlocked flips.
+  const wasLockedRef = useRef(false);
+  useEffect(() => {
+    if (!isRevealed) {
+      wasLockedRef.current = false;
+      return;
+    }
+    if (isLocked) wasLockedRef.current = true;
+  }, [isRevealed, isLocked]);
+
+  // T6 (found via a real, reproducible e2e failure — About/Contact's own
+  // form fields unclickable after a *second*, already-unlocked navigation
+  // straight into /gallery/contact): Gallery.tsx's own reveal() runs
+  // unconditionally on every mount (T10/D-07, by design, so the lock can
+  // show on a direct deep link) — but nothing ever dismissed the
+  // resulting layer again once it turned out not to need watching.
+  // Unlike the Fullscreen-API problem above (D-55), this is a plain CSS
+  // stacking issue: `revealedLayerStyle` is a full-screen, fully-
+  // interactive layer (z-index 50, no pointer-events override), which
+  // previously went unnoticed because every other deep-linked board
+  // content (Shop, the photo viewer) opens in a Dialog elevated well
+  // above it — About/Contact are the first real board content with
+  // nothing elevating it.
+  //
+  // Gated on `isAutomaticReveal`, not just `isRevealed`: an explicit,
+  // visitor-requested reveal (the Gallery board card, Replay) must never
+  // be silently cancelled just because the gate happens to already be
+  // unlocked — a first attempt at this fix conflated the two and broke
+  // re-watching (found in review, Greptile, PR #3).
+  //
+  // A genuinely reactive effect (not isRevealed-only, one-shot): `film`
+  // is network-loaded and `undefined` while pending, so a returning
+  // visitor whose gate-unlock hasn't finished reading from localStorage
+  // yet (gateInitFor only runs once film.version arrives, above) must
+  // not be judged "locked" from a still-`undefined` film — this effect
+  // simply waits (does nothing) until film settles one way or the other,
+  // then re-evaluates for real once it does (also found in review,
+  // Greptile, PR #3, on that same first attempt). `isUnlocked` is
+  // therefore a real dependency here too (not read once via `.getState()`)
+  // — but `!wasLockedRef.current` is what actually keeps that safe: once
+  // this reveal cycle has been genuinely locked even briefly, it stays
+  // that way for the rest of the cycle, so a later isUnlocked flip from
+  // actually watching through can never reach this branch again.
+  useEffect(() => {
+    if (!isRevealed || !isAutomaticReveal || wasLockedRef.current) return;
+    if (film === undefined) return; // still loading — re-runs once it resolves
+    if (film === null || isUnlocked) {
+      // Also stop any playback the separate start() effect may already
+      // have begun (it fires on every isRevealed, including an automatic
+      // one that turns out not locked, since a genuinely locked visitor
+      // needs it starting immediately) — hide() alone only changes
+      // isRevealed, it was never responsible for pausing the video
+      // (Continue never needed to: by the time it's clickable, the film
+      // has already ended on its own) — found in review, Greptile, PR #3.
+      videoRef.current?.pause();
+      useFilmControllerStore.getState().hide();
+    }
+  }, [isRevealed, isAutomaticReveal, film, isUnlocked]);
 
   return (
     <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">

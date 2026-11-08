@@ -13,6 +13,7 @@ beforeEach(() => {
     videoElement: null,
     isPrimed: false,
     isRevealed: false,
+    isAutomaticReveal: false,
     fallback: "autoplay",
   });
 });
@@ -144,6 +145,26 @@ describe("reveal / hide / reset", () => {
     expect(useFilmControllerStore.getState().isRevealed).toBe(true);
     useFilmControllerStore.getState().hide();
     expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+  });
+
+  // T6: FilmStage's auto-hide-when-already-unlocked logic only applies to
+  // Gallery.tsx's own unconditional mount-time reveal, never a visitor's
+  // explicit "watch the film" click — these two actions must stay
+  // distinguishable (found in review, Greptile, PR #3).
+  it("reveal() is explicit: isAutomaticReveal stays false", () => {
+    useFilmControllerStore.getState().reveal();
+    expect(useFilmControllerStore.getState()).toMatchObject({ isRevealed: true, isAutomaticReveal: false });
+  });
+
+  it("revealAutomatically() is automatic: isAutomaticReveal is true", () => {
+    useFilmControllerStore.getState().revealAutomatically();
+    expect(useFilmControllerStore.getState()).toMatchObject({ isRevealed: true, isAutomaticReveal: true });
+  });
+
+  it("hide() clears isAutomaticReveal along with isRevealed", () => {
+    useFilmControllerStore.getState().revealAutomatically();
+    useFilmControllerStore.getState().hide();
+    expect(useFilmControllerStore.getState()).toMatchObject({ isRevealed: false, isAutomaticReveal: false });
   });
 
   it("resets priming state without touching the registered element or isRevealed", () => {

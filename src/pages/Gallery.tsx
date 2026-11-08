@@ -89,7 +89,11 @@ export default function Gallery() {
   }, []);
 
   useEffect(() => {
-    useFilmControllerStore.getState().reveal();
+    // revealAutomatically(), not reveal(): T6 — FilmStage uses that
+    // distinction to dismiss itself once it's confirmed this reveal
+    // doesn't need watching, without ever doing the same to a visitor's
+    // own explicit "watch the film" click (RegionLabel's onClick below).
+    useFilmControllerStore.getState().revealAutomatically();
     return () => {
       // Leaving /gallery (back button, etc.) always drops the full-screen
       // layer — it has no business covering a different route. The gate's
