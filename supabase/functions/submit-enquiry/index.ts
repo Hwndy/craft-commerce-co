@@ -188,15 +188,38 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
 
 // error.name is just a mutable string property — nothing stops a thrown
 // Error from having it set to arbitrary text, so logging it directly
-// isn't actually safe against PII either (CodeRabbit review, PR #2
-// second pass). Only pass through something that looks like a real JS/
-// Postgrest error class name (short, alphanumeric); anything else — a
-// free-form string, someone's email stuffed into .name, whatever — logs
-// as "Unknown" instead.
-const SAFE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9]{0,39}$/;
+// isn't actually safe against PII either (CodeRabbit review, PR #2).
+// A shape-based regex isn't enough either — "AliceSmith" passes the same
+// alphanumeric shape as a real error class name (CodeRabbit's third
+// pass, correctly) — so this is a closed allow-list of the exact names
+// this function's own dependencies can actually throw (standard JS
+// errors, fetch/DOM abort/timeout errors, supabase-js's own error
+// classes), not a pattern. Anything not on it — a real name included —
+// logs as the fixed "Error" instead.
+const KNOWN_ERROR_NAMES = new Set([
+  "Error",
+  "TypeError",
+  "RangeError",
+  "SyntaxError",
+  "ReferenceError",
+  "EvalError",
+  "URIError",
+  "AggregateError",
+  "AbortError",
+  "TimeoutError",
+  "NetworkError",
+  "PostgrestError",
+  "AuthError",
+  "AuthApiError",
+  "FunctionsError",
+  "FunctionsHttpError",
+  "FunctionsRelayError",
+  "FunctionsFetchError",
+  "StorageError",
+]);
 
 export function errorKind(error: unknown): string {
-  if (error instanceof Error && SAFE_ERROR_NAME.test(error.name)) return error.name;
+  if (error instanceof Error && KNOWN_ERROR_NAMES.has(error.name)) return error.name;
   if (error instanceof Error) return "Error";
   return typeof error;
 }

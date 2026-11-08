@@ -185,7 +185,7 @@ Deno.test("errorKind passes through a real error class name", () => {
   assertEquals(errorKind(new RangeError("x")), "RangeError");
 });
 
-Deno.test("errorKind falls back to a generic label for a .name that doesn't look like a class name (possible PII)", () => {
+Deno.test("errorKind falls back to a generic label for a .name that isn't on the known-error allow-list (possible PII)", () => {
   const spoofed = new Error("x");
   spoofed.name = "jane@example.com leaked this";
   assertEquals(errorKind(spoofed), "Error");
@@ -193,6 +193,13 @@ Deno.test("errorKind falls back to a generic label for a .name that doesn't look
   const alsoSpoofed = new Error("x");
   alsoSpoofed.name = "";
   assertEquals(errorKind(alsoSpoofed), "Error");
+
+  // A shape-based check (alphanumeric, no spaces) isn't enough on its
+  // own — a real person's name can have exactly that shape too. Only an
+  // exact match against the known-error allow-list may pass through.
+  const nameShaped = new Error("x");
+  nameShaped.name = "AliceSmith";
+  assertEquals(errorKind(nameShaped), "Error");
 });
 
 Deno.test("errorKind reports the JS type for a non-Error throw", () => {
