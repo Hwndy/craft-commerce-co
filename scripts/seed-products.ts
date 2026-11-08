@@ -1,16 +1,25 @@
 /**
- * Seeds the Phase 3 dev/placeholder product — Sample Belt No.5, per
- * phases/PHASE-3-shop-and-enquiry.md's own "Owner inputs needed" fallback
- * — with WebP renditions (256/640/1280/2048px) and a blur placeholder,
- * uploaded to site-media, plus products/product_media/media rows.
+ * Seeds one product — by default the Phase 3 dev/placeholder "Sample Belt
+ * No.5" per phases/PHASE-3-shop-and-enquiry.md's own "Owner inputs needed"
+ * fallback — with WebP renditions (256/640/1280/2048px) and a blur
+ * placeholder, uploaded to site-media, plus products/product_media/media
+ * rows.
  *
- * Usage: npx tsx scripts/seed-products.ts <folder>
+ * Usage: npx tsx scripts/seed-products.ts <folder> [--slug=x --name="Y"
+ *   --price=40 --currency=GBP --description="..." --bullets="a|b"
+ *   --zone=wall|floor --region=shop-wall|shop-floor --sort-order=0
+ *   --node-x=N --node-y=N --node-width=N --node-height=N]
+ *
+ * With no flags, seeds exactly the original fixed dev product (unchanged
+ * CI/local-dev behaviour) — flags only override individual fields, so a
+ * second real product (e.g. the Shop Wall's own item) can reuse this same
+ * script rather than a near-duplicate one.
  *
  * <folder> must contain at least one image file (jpg/jpeg/png/webp) — its
  * first file in directory order is used as the product's poster and its
  * only picture. A real multi-picture/video catalogue is Phase 3's own
  * "owner inputs needed" item, not guessed here (AGENTS.md rule 10); this
- * script seeds one fixed dev product, not a general bulk importer like
+ * script seeds one product per run, not a general bulk importer like
  * seed-photos.ts (which genuinely needs to take many real shoots later).
  *
  * Reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env.local. Never
@@ -28,15 +37,25 @@ import sharp from "sharp";
 
 loadEnv({ path: ".env.local" });
 
-const [, , folder] = process.argv;
+const [, , folder, ...rest] = process.argv;
 
 if (!folder) {
-  console.error("Usage: npx tsx scripts/seed-products.ts <folder>");
+  console.error("Usage: npx tsx scripts/seed-products.ts <folder> [--key=value ...]");
   process.exit(1);
 }
 if (!existsSync(folder)) {
   console.error(`Folder not found: ${folder}`);
   process.exit(1);
+}
+
+const overrides = new Map<string, string>();
+for (const arg of rest) {
+  const match = /^--([a-z-]+)=(.*)$/.exec(arg);
+  if (!match) {
+    console.error(`Unrecognised argument: ${arg} (expected --key=value)`);
+    process.exit(1);
+  }
+  overrides.set(match[1], match[2]);
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -55,25 +74,34 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const RENDITION_WIDTHS = [256, 640, 1280, 2048] as const;
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
+// T2's two Shop regions both need at least one real product to render
+// against — 'floor' per phases/PHASE-3-shop-and-enquiry.md T2's own
+// description of it as the simpler, single-item-friendly layout ("items
+// laid out" vs the wall's "hung or framed" treatment) — the default here,
+// overridable via --zone/--region for a second run seeding the wall's own
+// item. Unlike the collage's generative phyllotaxis layout (a real product
+// display is curated, not algorithmic), so this script seeds the node's own
+// position directly — centred on supabase/seed.sql's 'shop-floor'
+// viewpoint (-2000, 1200). Taller than wide: ShopRegion.tsx stacks a poster
+// tile above the ProductLabel card within this one box.
 const SAMPLE_PRODUCT = {
-  slug: "sample-belt-no-5",
-  name: "Sample Belt No.5",
-  priceAmount: 40,
-  priceCurrency: "GBP",
-  description: "Black tyre belt with aluminium buckle.",
-  bullets: ["Belt made from repurposed bike tyre", "Buckle sand-cast using discarded aluminium"],
-  // T2's two Shop regions both need at least one real product to render
-  // against — 'floor' per phases/PHASE-3-shop-and-enquiry.md T2's own
-  // description of it as the simpler, single-item-friendly layout ("items
-  // laid out" vs the wall's "hung or framed" treatment).
-  zone: "floor" as const,
-  // Unlike the collage's generative phyllotaxis layout (a real product
-  // display is curated, not algorithmic), so this script seeds the node's
-  // own position directly — centred on supabase/seed.sql's 'shop-floor'
-  // viewpoint (-2000, 1200). Taller than wide: ShopRegion.tsx stacks a
-  // poster tile above the ProductLabel card within this one box.
-  region: "shop-floor",
-  node: { x: -2120, y: 1020, width: 240, height: 360 },
+  slug: overrides.get("slug") ?? "sample-belt-no-5",
+  name: overrides.get("name") ?? "Sample Belt No.5",
+  priceAmount: Number(overrides.get("price") ?? 40),
+  priceCurrency: overrides.get("currency") ?? "GBP",
+  description: overrides.get("description") ?? "Black tyre belt with aluminium buckle.",
+  bullets: overrides.has("bullets")
+    ? overrides.get("bullets")!.split("|")
+    : ["Belt made from repurposed bike tyre", "Buckle sand-cast using discarded aluminium"],
+  zone: (overrides.get("zone") ?? "floor") as "wall" | "floor",
+  region: overrides.get("region") ?? "shop-floor",
+  sortOrder: Number(overrides.get("sort-order") ?? 0),
+  node: {
+    x: Number(overrides.get("node-x") ?? -2120),
+    y: Number(overrides.get("node-y") ?? 1020),
+    width: Number(overrides.get("node-width") ?? 240),
+    height: Number(overrides.get("node-height") ?? 360),
+  },
 };
 
 async function uploadBuffer(destPath: string, buffer: Buffer, contentType: string) {
@@ -106,7 +134,7 @@ async function main() {
       bullets: SAMPLE_PRODUCT.bullets,
       zone: SAMPLE_PRODUCT.zone,
       published: true,
-      sort_order: 0,
+      sort_order: SAMPLE_PRODUCT.sortOrder,
     })
     .select()
     .single();
