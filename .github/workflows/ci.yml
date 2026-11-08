@@ -35,10 +35,23 @@ jobs:
           VITE_SUPABASE_URL: https://placeholder.supabase.co
           VITE_SUPABASE_ANON_KEY: placeholder-anon-key-for-ci-only
           VITE_OWNER_EMAIL: owner-ci@example.com
+          # Cloudflare's own public "always passes" test site key (.env.example).
+          VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
         run: |
           npm run typecheck
           npm run lint
           npm run test
+
+      # submit-enquiry (Phase 3 T5) is a Deno Edge Function, outside npm's
+      # own test run above — handleRequest takes every side effect as
+      # injected deps (index.test.ts), so these tests need no network, no
+      # database and no real Turnstile/Resend secrets.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Deno tests (submit-enquiry)
+        run: deno test --allow-env supabase/functions/submit-enquiry/
 
       # The e2e specs (entry sequence, first-watch gate, /gallery axe,
       # orientation) need a real published film to render anything
@@ -114,6 +127,7 @@ jobs:
           # comment); CI just needs a syntactically valid address for T4's
           # e2e specs to assert against.
           VITE_OWNER_EMAIL: owner-ci@example.com
+          VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
         run: npm run build
 
       - name: Install Playwright browsers

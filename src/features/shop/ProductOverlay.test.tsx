@@ -1,10 +1,21 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "@/lib/env";
 
 import type { ProductDetail, ProductMedia } from "./lib/queries";
 import { ProductOverlay } from "./ProductOverlay";
+
+// EnquiryForm (T5) has its own dedicated test file — stubbed here so these
+// tests only assert ProductOverlay's own job: which props it hands over,
+// and when it shows the form instead of the buy actions.
+vi.mock("@/features/enquiry/components/EnquiryForm", () => ({
+  EnquiryForm: ({ productId, productName }: { productId?: string; productName?: string }) => (
+    <div data-testid="enquiry-form-stub">
+      enquiry form for {productId} / {productName}
+    </div>
+  ),
+}));
 
 function media(overrides: Partial<ProductMedia> = {}): ProductMedia {
   return {
@@ -119,9 +130,37 @@ describe("ProductOverlay", () => {
       expect(writeText).toHaveBeenCalledWith(env.VITE_OWNER_EMAIL);
     });
 
-    it("'Use the form instead' is visible but disabled until T5 builds the real form", () => {
+    it("'Use the form instead' swaps the buy actions for the enquiry form, pre-filled with this product", () => {
       render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
-      expect(screen.getByRole("button", { name: "Use the form instead" })).toBeDisabled();
+      fireEvent.click(screen.getByRole("button", { name: "Use the form instead" }));
+
+      expect(screen.getByTestId("enquiry-form-stub")).toHaveTextContent("enquiry form for product-1 / Sample Belt No.5");
+      expect(screen.queryByRole("link", { name: "Buy / Enquire" })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "← Back" })).toBeInTheDocument();
+    });
+
+    it("'← Back' returns from the enquiry form to the buy actions", () => {
+      render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
+      fireEvent.click(screen.getByRole("button", { name: "Use the form instead" }));
+      fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+
+      expect(screen.getByRole("link", { name: "Buy / Enquire" })).toBeInTheDocument();
+      expect(screen.queryByTestId("enquiry-form-stub")).not.toBeInTheDocument();
+    });
+
+    // C3 (phases/PHASE-3-shop-and-enquiry.md): sold products don't offer Buy.
+    it("a sold product shows 'Ask about something similar' instead of Buy / Enquire", () => {
+      render(<ProductOverlay slug="sample-belt-no-5" product={product({ status: "sold" })} onClose={vi.fn()} />);
+
+      expect(screen.queryByRole("link", { name: "Buy / Enquire" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Use the form instead" })).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Ask about something similar" }));
+      expect(screen.getByTestId("enquiry-form-stub")).toBeInTheDocument();
+    });
+
+    it("a made-to-order product still offers Buy / Enquire", () => {
+      render(<ProductOverlay slug="sample-belt-no-5" product={product({ status: "made_to_order" })} onClose={vi.fn()} />);
+      expect(screen.getByRole("link", { name: "Buy / Enquire" })).toBeInTheDocument();
     });
   });
 });

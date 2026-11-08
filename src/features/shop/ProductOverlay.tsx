@@ -6,6 +6,7 @@ import { IconButton } from "@/components/brand/IconButton";
 import { formatGbp, STATUS_COPY, STATUS_VARIANT } from "@/components/brand/ProductLabel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EnquiryForm } from "@/features/enquiry/components/EnquiryForm";
 import { buildMailtoLink } from "@/features/enquiry/lib/mailto";
 import { attachHls } from "@/features/film/lib/hls";
 import { env } from "@/lib/env";
@@ -49,12 +50,14 @@ function prefersReducedData(): boolean {
 export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) {
   const [view, setView] = useState<"pictures" | "video">("pictures");
   const [pictureIndex, setPictureIndex] = useState(0);
+  const [showForm, setShowForm] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Reset to the gallery's first picture whenever a different product opens.
   useEffect(() => {
     setView("pictures");
     setPictureIndex(0);
+    setShowForm(false);
   }, [slug]);
 
   const hasVideo = !!product?.video?.hlsMaster && !prefersReducedData();
@@ -242,42 +245,64 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                     {product.description ?? product.name}
                   </DialogPrimitive.Description>
 
-                  {/* T4 (FR-5.1): purchase by email. T5 will wire a real
-                   * enquiry form in behind "Use the form instead" — kept
-                   * visibly present but inert until then (disabled, not a
-                   * dead link to nowhere), same "acceptable gap" precedent
-                   * ShopRegion's own onOpenProduct had for T3 before this
-                   * overlay existed. */}
-                  <div className="mt-5 flex flex-wrap items-center gap-2">
-                    <Button asChild variant="pill">
-                      <a
-                        href={buildMailtoLink({
-                          to: env.VITE_OWNER_EMAIL,
-                          productName: product.name,
-                          priceAmount: product.priceAmount,
-                          priceCurrency: product.priceCurrency,
-                          pageUrl: `${window.location.origin}/shop/${product.slug}`,
-                        })}
+                  {/* T4 (FR-5.1) mailto purchase + T5 (FR-5.2–5.4) fallback
+                   * form, toggled in place rather than a second nested
+                   * dialog — avoids stacking Radix focus traps for what's
+                   * still just one logical "purchase this" panel. C3
+                   * (phases/PHASE-3-shop-and-enquiry.md): a sold item drops
+                   * the mailto "Buy" action for "Ask about something
+                   * similar", which opens the same form instead. */}
+                  {showForm ? (
+                    <div className="mt-5">
+                      <button
+                        type="button"
+                        onClick={() => setShowForm(false)}
+                        className="mb-3 text-sm text-surface-light-foreground/70 underline underline-offset-2"
                       >
-                        Buy / Enquire
-                      </a>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="pill-outline"
-                      onClick={() => {
-                        navigator.clipboard
-                          .writeText(env.VITE_OWNER_EMAIL)
-                          .then(() => toast("Email address copied"))
-                          .catch(() => toast("Couldn't copy — the address is " + env.VITE_OWNER_EMAIL));
-                      }}
-                    >
-                      Copy email address
-                    </Button>
-                    <Button type="button" variant="pill-outline" disabled title="Coming soon">
-                      Use the form instead
-                    </Button>
-                  </div>
+                        ← Back
+                      </button>
+                      <EnquiryForm productId={product.id} productName={product.name} />
+                    </div>
+                  ) : (
+                    <div className="mt-5 flex flex-wrap items-center gap-2">
+                      {product.status === "sold" ? (
+                        <Button type="button" variant="pill" onClick={() => setShowForm(true)}>
+                          Ask about something similar
+                        </Button>
+                      ) : (
+                        <>
+                          <Button asChild variant="pill">
+                            <a
+                              href={buildMailtoLink({
+                                to: env.VITE_OWNER_EMAIL,
+                                productName: product.name,
+                                priceAmount: product.priceAmount,
+                                priceCurrency: product.priceCurrency,
+                                pageUrl: `${window.location.origin}/shop/${product.slug}`,
+                              })}
+                            >
+                              Buy / Enquire
+                            </a>
+                          </Button>
+                          <Button type="button" variant="pill-outline" onClick={() => setShowForm(true)}>
+                            Use the form instead
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        type="button"
+                        variant="pill-outline"
+                        onClick={() => {
+                          navigator.clipboard
+                            .writeText(env.VITE_OWNER_EMAIL)
+                            .then(() => toast("Email address copied"))
+                            .catch(() => toast("Couldn't copy — the address is " + env.VITE_OWNER_EMAIL));
+                        }}
+                      >
+                        Copy email address
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </>
             )}
