@@ -103,8 +103,8 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
         <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/80" />
         <DialogPrimitive.Content
           className={cn(
-            "fixed inset-x-0 bottom-0 z-[71] flex max-h-[90vh] flex-col overflow-hidden rounded-t-2xl bg-surface-light text-surface-light-foreground outline-none",
-            "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-[640px] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
+            "fixed inset-x-0 bottom-0 z-[71] flex max-h-[90dvh] flex-col overflow-hidden rounded-t-2xl bg-surface-light text-surface-light-foreground outline-none",
+            "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:w-[640px] sm:max-h-[85dvh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl"
           )}
         >
           {/* Drag-handle affordance — decorative only (nothing here is
@@ -120,7 +120,16 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
             </DialogPrimitive.Close>
           </div>
 
-          <div className="overflow-y-auto">
+          {/* flex-1 min-h-0 is load-bearing, not decorative: without an
+           * explicit min-height, a flex child's default min-height:auto
+           * stops it shrinking below its own content's natural size, so
+           * this div would grow to fit everything instead of clipping at
+           * the parent's max-h-[90dvh]/max-h-[85dvh] and scrolling
+           * internally — the dialog (and, because that overflow was
+           * making the whole document scrollable, the Board's own
+           * ResizeObserver-driven viewport measurement) visibly "wobbled"
+           * as a result (found in review). */}
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {product === undefined && (
               <div className="p-8 text-center">
                 {/* Radix requires Title/Description whenever Content is open
