@@ -27,7 +27,7 @@ export const STATUS_COPY: Record<ProductStatus, string> = {
 };
 
 /** badge.tsx's own variants — "outline" for made-to-order, "secondary" (muted) for sold. */
-const STATUS_VARIANT: Record<ProductStatus, "default" | "outline" | "secondary"> = {
+export const STATUS_VARIANT: Record<ProductStatus, "default" | "outline" | "secondary"> = {
   available: "default",
   made_to_order: "outline",
   sold: "secondary",

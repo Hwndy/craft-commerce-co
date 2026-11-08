@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
 import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
@@ -45,6 +45,20 @@ function ViewpointsBootstrap() {
   return null;
 }
 
+// docs/01-architecture.md documents /shop/:slug as a real, bookmarkable URL
+// for the product overlay (T3) — but it can't be a second <Route> rendering
+// <Gallery/> itself: that's exactly the same remount problem the comment
+// below /gallery/* already explains, just for a different entry point. A
+// bare /shop/:slug visit (a fresh page load from outside the app — nothing
+// to preserve) redirects once into the one real splat route instead, before
+// Gallery ever mounts; every in-app navigation (ShopRegion.tsx's own
+// onOpenProduct) already goes straight to /gallery/shop/:slug and never
+// hits this redirect at all.
+function ShopSlugRedirect() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/gallery/shop/${slug}`} replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -76,6 +90,7 @@ const App = () => (
               </Suspense>
             }
           />
+          <Route path="/shop/:slug" element={<ShopSlugRedirect />} />
           <Route
             path="/list"
             element={
