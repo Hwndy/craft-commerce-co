@@ -172,6 +172,41 @@ describe("FilmStage", () => {
       expect(requestFullscreen).not.toHaveBeenCalled();
     });
 
+    // T6 (found via a real, reproducible e2e failure): Gallery.tsx's own
+    // reveal() runs unconditionally on every mount — a second, already-
+    // unlocked navigation straight into /gallery/contact (or any board
+    // content with nothing elevating it above FilmStage, unlike
+    // ProductOverlay's own Dialog) left the full-screen, fully-interactive
+    // revealed layer sitting on top of it, since nothing ever dismissed it
+    // once it turned out not to need watching.
+    it("auto-hides itself when revealed but already unlocked, instead of leaving a full-screen layer over the board", () => {
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+
+      expect(useFilmControllerStore.getState().isRevealed).toBe(false);
+    });
+
+    // The counterpart: a visitor who genuinely needs to watch (locked at
+    // reveal) must reach the deliberate Replay/Continue screen — watching
+    // through mid-playback (isUnlocked flipping true while still revealed)
+    // must not itself trigger this same auto-hide early.
+    it("does not auto-hide a visitor who is actually locked, even once they finish watching", () => {
+      render(<FilmStage />);
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+
+      act(() => {
+        useGateStore.setState({ isUnlocked: true });
+      });
+      expect(useFilmControllerStore.getState().isRevealed).toBe(true);
+    });
+
     it("exits fullscreen once isRevealed goes back to false (Continue, or leaving /gallery)", () => {
       render(<FilmStage />);
       act(() => {

@@ -218,7 +218,29 @@ export function FilmStage() {
   }, [isLocked]);
   useEffect(() => {
     if (isRevealed) {
-      if (isLockedRef.current && stageRef.current) void requestFullscreen(stageRef.current);
+      if (isLockedRef.current && stageRef.current) {
+        void requestFullscreen(stageRef.current);
+      } else if (useGateStore.getState().isUnlocked) {
+        // T6 (found via a real, reproducible e2e failure — About/Contact's
+        // own form fields unclickable after a *second*, already-unlocked
+        // navigation straight into /gallery/contact): Gallery.tsx's own
+        // reveal() runs unconditionally on every mount, by design (T10/
+        // D-07, so the lock can show on a direct deep link) — but nothing
+        // ever dismissed the resulting layer again once it turned out
+        // *not* to need watching. Unlike the Fullscreen-API problem above
+        // (D-55), this is a plain CSS stacking issue: `revealedLayerStyle`
+        // is a full-screen, fully-interactive (z-index 50, no
+        // pointer-events override) layer, which previously went unnoticed
+        // because every other deep-linked board content (Shop, the photo
+        // viewer) opens in a Dialog elevated well above it — About/Contact
+        // are the first real board content with nothing elevating it.
+        // Reads the gate store directly (not a hook subscription) so this
+        // decides once, at the same isRevealed-transition instant as the
+        // fullscreen check right above it, not on every later isUnlocked
+        // change — watching through mid-playback must still reach the
+        // deliberate Replay/Continue screen, never auto-hide early.
+        useFilmControllerStore.getState().hide();
+      }
     } else {
       void exitFullscreenIfActive();
     }
