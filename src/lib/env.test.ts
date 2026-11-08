@@ -11,38 +11,38 @@ const envSchema = z.object({
     .default("true")
     .transform((value) => value !== "false"),
   VITE_TURNSTILE_SITE_KEY: z.string().optional(),
+  VITE_OWNER_EMAIL: z.string().email(),
 });
+
+const validConfig = {
+  VITE_SUPABASE_URL: "https://example.supabase.co",
+  VITE_SUPABASE_ANON_KEY: "anon-key",
+  VITE_OWNER_EMAIL: "owner@example.com",
+};
 
 describe("env schema", () => {
   it("accepts a valid configuration and defaults VITE_FILM_AUTOSTART to true", () => {
-    const parsed = envSchema.parse({
-      VITE_SUPABASE_URL: "https://example.supabase.co",
-      VITE_SUPABASE_ANON_KEY: "anon-key",
-    });
+    const parsed = envSchema.parse(validConfig);
     expect(parsed.VITE_FILM_AUTOSTART).toBe(true);
   });
 
   it("reads VITE_FILM_AUTOSTART=false as false", () => {
-    const parsed = envSchema.parse({
-      VITE_SUPABASE_URL: "https://example.supabase.co",
-      VITE_SUPABASE_ANON_KEY: "anon-key",
-      VITE_FILM_AUTOSTART: "false",
-    });
+    const parsed = envSchema.parse({ ...validConfig, VITE_FILM_AUTOSTART: "false" });
     expect(parsed.VITE_FILM_AUTOSTART).toBe(false);
   });
 
   it("rejects a missing VITE_SUPABASE_URL", () => {
-    expect(() =>
-      envSchema.parse({ VITE_SUPABASE_ANON_KEY: "anon-key" })
-    ).toThrow();
+    const { VITE_SUPABASE_URL: _omit, ...rest } = validConfig;
+    expect(() => envSchema.parse(rest)).toThrow();
   });
 
   it("rejects a non-URL VITE_SUPABASE_URL", () => {
-    expect(() =>
-      envSchema.parse({
-        VITE_SUPABASE_URL: "not-a-url",
-        VITE_SUPABASE_ANON_KEY: "anon-key",
-      })
-    ).toThrow();
+    expect(() => envSchema.parse({ ...validConfig, VITE_SUPABASE_URL: "not-a-url" })).toThrow();
+  });
+
+  it("rejects a missing or malformed VITE_OWNER_EMAIL", () => {
+    const { VITE_OWNER_EMAIL: _omit, ...rest } = validConfig;
+    expect(() => envSchema.parse(rest)).toThrow();
+    expect(() => envSchema.parse({ ...validConfig, VITE_OWNER_EMAIL: "not-an-email" })).toThrow();
   });
 });
