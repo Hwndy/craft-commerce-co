@@ -4,7 +4,7 @@
 // database, no real Turnstile/Resend secrets needed.
 import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 
-import { handleRequest, isAllowedOrigin, type Deps } from "./index.ts";
+import { errorKind, handleRequest, isAllowedOrigin, type Deps } from "./index.ts";
 
 const ALLOWED_ORIGIN = "https://www.alllifeworks.com";
 
@@ -174,6 +174,30 @@ Deno.test("an unexpected failure from insertEnquiry also returns a generic 500",
   });
   const res = await handleRequest(makeRequest(validBody), deps);
   assertEquals(res.status, 500);
+});
+
+// error.name is a plain mutable string property — nothing stops a thrown
+// Error from carrying PII there instead of (or as well as) in .message
+// (CodeRabbit review, PR #2 second pass). errorKind() must not pass
+// through anything that doesn't look like a real error class name.
+Deno.test("errorKind passes through a real error class name", () => {
+  assertEquals(errorKind(new TypeError("x")), "TypeError");
+  assertEquals(errorKind(new RangeError("x")), "RangeError");
+});
+
+Deno.test("errorKind falls back to a generic label for a .name that doesn't look like a class name (possible PII)", () => {
+  const spoofed = new Error("x");
+  spoofed.name = "jane@example.com leaked this";
+  assertEquals(errorKind(spoofed), "Error");
+
+  const alsoSpoofed = new Error("x");
+  alsoSpoofed.name = "";
+  assertEquals(errorKind(alsoSpoofed), "Error");
+});
+
+Deno.test("errorKind reports the JS type for a non-Error throw", () => {
+  assertEquals(errorKind("a plain string throw"), "string");
+  assertEquals(errorKind(42), "number");
 });
 
 Deno.test("CORS: preflight allows x-client-info, which supabase-js's functions.invoke() always sends", async () => {

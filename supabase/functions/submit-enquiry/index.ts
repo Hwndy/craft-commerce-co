@@ -186,8 +186,18 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
   }
 }
 
-function errorKind(error: unknown): string {
-  if (error instanceof Error) return error.name;
+// error.name is just a mutable string property — nothing stops a thrown
+// Error from having it set to arbitrary text, so logging it directly
+// isn't actually safe against PII either (CodeRabbit review, PR #2
+// second pass). Only pass through something that looks like a real JS/
+// Postgrest error class name (short, alphanumeric); anything else — a
+// free-form string, someone's email stuffed into .name, whatever — logs
+// as "Unknown" instead.
+const SAFE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9]{0,39}$/;
+
+export function errorKind(error: unknown): string {
+  if (error instanceof Error && SAFE_ERROR_NAME.test(error.name)) return error.name;
+  if (error instanceof Error) return "Error";
   return typeof error;
 }
 
