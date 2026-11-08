@@ -37,7 +37,11 @@ export function FilmControls({ video, spriteUrl, spriteMeta, captionsAvailable }
   // <video> is mounted once at the app root and never recreated, so a
   // visitor who enables CC, hits Continue, then reopens the film would
   // otherwise see the button start back at "off" while captions keep
-  // showing (found in review, independently, by two reviewers).
+  // showing (found in review, independently, by two reviewers). Also
+  // re-runs when captionsAvailable flips true: the <track> only mounts
+  // once film data has loaded, so a component that renders before that
+  // (common — reveal() can happen before useFilm() resolves) would
+  // otherwise never attach the listener at all (found in review).
   useEffect(() => {
     const track = video?.textTracks[0];
     if (!track) {
@@ -49,7 +53,7 @@ export function FilmControls({ video, spriteUrl, spriteMeta, captionsAvailable }
     const onChange = () => setCaptionsOn(track.mode === "showing");
     tracks.addEventListener("change", onChange);
     return () => tracks.removeEventListener("change", onChange);
-  }, [video]);
+  }, [video, captionsAvailable]);
 
   const toggleCaptions = useCallback(() => {
     const track = video?.textTracks[0];
