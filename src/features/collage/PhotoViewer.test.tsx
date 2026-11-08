@@ -71,7 +71,9 @@ describe("PhotoViewer", () => {
 
   it("tapping the image toggles the nav arrows out of the tab order and back in", () => {
     render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={vi.fn()} />);
-    const img = screen.getByAltText("");
+    // Not getByAltText(""): the filmstrip's own thumbnails are also real
+    // alt="" <img>s (D-45) once a fixture's renditions include "256".
+    const img = screen.getByTestId("photo-viewer-image");
     const next = screen.getByRole("button", { name: "Next photo" });
     expect(next).toHaveAttribute("tabindex", "0");
 
@@ -106,7 +108,7 @@ describe("PhotoViewer", () => {
   it("resets the chrome to visible when a different photo opens", () => {
     const { rerender } = render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={vi.fn()} />);
     const next = screen.getByRole("button", { name: "Next photo" });
-    fireEvent.click(screen.getByAltText(""));
+    fireEvent.click(screen.getByTestId("photo-viewer-image"));
     expect(next).toHaveAttribute("tabindex", "-1");
 
     rerender(<PhotoViewer photos={photos} openId="b" onClose={vi.fn()} onNavigate={vi.fn()} />);

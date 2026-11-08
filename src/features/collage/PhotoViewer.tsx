@@ -150,6 +150,11 @@ export function PhotoViewer({ photos, openId, onClose, onNavigate }: PhotoViewer
               <img
                 src={src}
                 alt=""
+                // The filmstrip's own thumbnails are also real alt="" <img>s
+                // now (D-45) — this marks the one real main image so
+                // locators (tests included) don't have to disambiguate by
+                // CSS class or DOM position.
+                data-testid="photo-viewer-image"
                 onClick={() => setChromeVisible((visible) => !visible)}
                 className="max-h-[70vh] max-w-[90vw] cursor-pointer object-contain"
               />

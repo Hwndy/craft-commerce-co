@@ -178,14 +178,11 @@ test.describe("photo viewer", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    // A CSS (not role) locator, since aria-hidden removes an element from
-    // the accessibility tree role queries search — exactly the state this
-    // test is checking. Scoped to the dialog: the collage thumbnails
-    // behind it (PhotoThumbnail.tsx) also use `alt=""`, and with several
-    // of them culled into view at once, a bare page-wide `img[alt=""]`
-    // locator can resolve to more than one element — only the dialog's
+    // data-testid, not a bare `img[alt=""]`: the collage thumbnails behind
+    // this dialog (PhotoThumbnail.tsx) and the filmstrip strip inside it
+    // (PhotoViewer.tsx, D-45) both also use `alt=""` — only the dialog's
     // own full-size image is what this test means to click.
-    const image = dialog.locator('img[alt=""]');
+    const image = dialog.getByTestId("photo-viewer-image");
     const nextButton = dialog.locator('button[aria-label="Next photo"]');
     await expect(nextButton).toHaveAttribute("aria-hidden", "false");
 
