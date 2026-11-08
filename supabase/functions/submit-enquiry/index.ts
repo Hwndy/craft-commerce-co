@@ -171,15 +171,24 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
     } catch (sendError) {
       // Never log names/emails/message bodies (docs/03-data-and-security.md
       // §6) — only that a send failed. The row is already stored above, so
-      // the enquiry itself isn't lost even if this leg fails.
-      console.error("submit-enquiry: owner email send failed", sendError instanceof Error ? sendError.message : sendError);
+      // the enquiry itself isn't lost even if this leg fails. Logging the
+      // error's own *type* (not its message) still gives useful shape for
+      // debugging without risking PII a thrown error could be carrying —
+      // a Postgres/network error's message can itself echo back the
+      // values that caused it (CodeRabbit review, PR #2).
+      console.error("submit-enquiry: owner email send failed", errorKind(sendError));
     }
 
     return json({ ok: true }, 200, origin, deps.env.allowedOrigins);
   } catch (error) {
-    console.error("submit-enquiry: unexpected failure", error instanceof Error ? error.message : error);
+    console.error("submit-enquiry: unexpected failure", errorKind(error));
     return json({ error: "Something went wrong. Please try again." }, 500, origin, deps.env.allowedOrigins);
   }
+}
+
+function errorKind(error: unknown): string {
+  if (error instanceof Error) return error.name;
+  return typeof error;
 }
 
 function readEnv(): Env {
