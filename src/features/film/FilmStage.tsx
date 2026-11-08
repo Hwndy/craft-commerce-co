@@ -466,8 +466,18 @@ export function FilmStage() {
                     // (viewpoints.ts) centres the landing camera for exactly
                     // these two keys — a no-op for "collage" itself, so its
                     // own already-tested landing position is unchanged.
-                    const destinationKey =
-                      location.pathname === "/gallery/about"
+                    //
+                    // Gated on isAutomaticReveal too (found in review,
+                    // CodeRabbit, PR #3): the board never updates the URL as
+                    // the camera pans, so a visitor who landed on
+                    // /gallery/contact, panned away and later triggered an
+                    // *explicit* rewatch (Gallery's own "watch" card) would
+                    // still read a stale /gallery/contact here and get flown
+                    // straight back to Contact instead of this button's
+                    // normal explicit-rewatch-to-collage handoff.
+                    const destinationKey = !isAutomaticReveal
+                      ? "collage"
+                      : location.pathname === "/gallery/about"
                         ? "about"
                         : location.pathname === "/gallery/contact"
                           ? "contact"

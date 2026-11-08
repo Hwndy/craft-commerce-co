@@ -1,7 +1,10 @@
-import { render as rtlRender } from "@testing-library/react";
+import { fireEvent, render as rtlRender } from "@testing-library/react";
 import { act } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useCameraStore } from "@/canvas/store";
+import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
 
 import { useGateStore } from "./gateStore";
 import type { PublishedFilm } from "./lib/queries";
@@ -47,6 +50,12 @@ import { FilmStage } from "./FilmStage";
 // same reason ListRegion.test.tsx/Contact.test.tsx already wrap in one.
 function render(ui: Parameters<typeof rtlRender>[0]) {
   return rtlRender(ui, { wrapper: MemoryRouter });
+}
+
+function renderAtPath(path: string, ui: Parameters<typeof rtlRender>[0]) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <MemoryRouter initialEntries={[path]}>{children}</MemoryRouter>,
+  });
 }
 
 describe("FilmStage", () => {
@@ -339,6 +348,66 @@ describe("FilmStage", () => {
       });
 
       expect(pause).toHaveBeenCalled();
+    });
+  });
+
+  // Found in review (CodeRabbit, PR #3): the board never updates the URL as
+  // the camera pans (onOpenProduct/onOpenPhoto are the only navigate()
+  // calls — panning the board to a region card is not one of them), so
+  // location.pathname alone can't tell an about-to-rewatch visitor's
+  // *current* intent apart from wherever they happened to land originally.
+  describe("Continue's About/Contact handoff", () => {
+    function endTheFilm(container: HTMLElement) {
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      const video = container.querySelector("video") as HTMLVideoElement;
+      act(() => {
+        video.dispatchEvent(new Event("ended"));
+      });
+    }
+
+    afterEach(() => {
+      useCameraStore.setState({ camera: { x: 0, y: 0, zoom: 1 }, viewport: { width: 0, height: 0 }, isFlying: false });
+    });
+
+    it("honours the URL for an automatic (deep-link) reveal of /gallery/contact", () => {
+      const { container, getByRole } = renderAtPath("/gallery/contact", <FilmStage />);
+      act(() => {
+        useFilmControllerStore.getState().revealAutomatically();
+      });
+      endTheFilm(container);
+
+      const flyTo = vi.spyOn(useCameraStore.getState(), "flyTo");
+      act(() => {
+        fireEvent.click(getByRole("button", { name: "Continue" }));
+      });
+
+      expect(flyTo).toHaveBeenCalledWith(
+        cameraForViewpoint(getViewpoint("contact"), useCameraStore.getState().viewport),
+        expect.anything()
+      );
+    });
+
+    // The bug itself: an explicit rewatch (not a fresh deep-link reveal)
+    // triggered from Gallery's own "watch" card, while the URL still
+    // happens to read /gallery/contact from the original deep link, must
+    // still hand off to the collage like every other explicit rewatch —
+    // not fly the visitor straight back to Contact.
+    it("hands off to the collage for an explicit rewatch, even with a stale /gallery/contact URL", () => {
+      const { container, getByRole } = renderAtPath("/gallery/contact", <FilmStage />);
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+      endTheFilm(container);
+
+      const flyTo = vi.spyOn(useCameraStore.getState(), "flyTo");
+      act(() => {
+        fireEvent.click(getByRole("button", { name: "Continue" }));
+      });
+
+      expect(flyTo).toHaveBeenCalledWith(
+        cameraForViewpoint(getViewpoint("collage"), useCameraStore.getState().viewport),
+        expect.anything()
+      );
     });
   });
 });
