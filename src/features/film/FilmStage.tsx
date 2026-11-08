@@ -207,7 +207,13 @@ export function FilmStage() {
   // (elementFromPoint/click on an unrelated sibling button resolving to
   // the fullscreen element instead, every time, until exited).
   const isLockedRef = useRef(isLocked);
-  isLockedRef.current = isLocked;
+  // Written from an effect, not during render (React can replay or discard
+  // a render, which must stay pure — CodeRabbit review, PR #2) — declared
+  // before the reveal effect below so effect-declaration order guarantees
+  // it's updated first whenever both fire in the same commit.
+  useEffect(() => {
+    isLockedRef.current = isLocked;
+  }, [isLocked]);
   useEffect(() => {
     if (isRevealed) {
       if (isLockedRef.current && stageRef.current) void requestFullscreen(stageRef.current);
