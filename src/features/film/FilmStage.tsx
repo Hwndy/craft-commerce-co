@@ -178,176 +178,206 @@ export function FilmStage() {
   }, [isRevealed]);
 
   return (
-    <div
-      ref={stageRef}
-      style={isRevealed ? revealedLayerStyle : hiddenLayerStyle}
-      aria-hidden={!isRevealed}
-      className="font-body text-sm text-white"
-    >
-      {isRevealed && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 p-4">
-          <div className="flex items-baseline gap-2">
-            <span className="font-heading text-sm font-bold uppercase tracking-wider">Gallery</span>
-            <span className="text-xs text-white/60">/ Film</span>
-          </div>
-          {/* Stays mounted whenever the film is revealed, locked or not —
-           * only its visibility and text change — rather than mounting
-           * fresh at the moment it locks. Many screen readers only
-           * announce an aria-live region's later content changes, not one
-           * that mounts already showing the text (found in review). The
-           * watched-percent is deliberately left out of this live content:
-           * it ticks on every timeupdate, which would otherwise announce
-           * on every percentage point instead of just the lock state. */}
-          <div
-            aria-live="polite"
-            className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
-            style={{ visibility: isLocked ? "visible" : "hidden" }}
-          >
-            <span aria-hidden="true">🔒</span>
-            <span>{isLocked ? "Watch once to unlock the gallery" : ""}</span>
-          </div>
-        </div>
-      )}
+    <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">
+      {/* Always mounted from this component's very first render (it's
+       * mounted once at the app root, well before any navigation to
+       * /gallery) and never a descendant of the aria-hidden wrapper below
+       * — a screen reader has therefore already "seen" this exact
+       * element, empty, before its text can ever change. Nesting it under
+       * that wrapper (as a previous version of this fix did) doesn't
+       * actually solve the timing problem: isRevealed and isLocked can
+       * both already be true on the very first render a visitor's screen
+       * reader processes, so the wrapper's own aria-hidden flips to false
+       * in the same tick the text would appear — AT can still miss it
+       * (found in review, docs/decisions.md D-50). Kept inside `stageRef`
+       * itself (not a true sibling of it) rather than hoisted further
+       * out: the Fullscreen API stops rendering anything outside the
+       * fullscreen element's own subtree, and `stageRef` is exactly what
+       * gets requestFullscreen()'d below — a sibling further out would go
+       * silent during fullscreen, exactly when the lock matters most.
+       * `sr-only` clips visually without `display:none`/`visibility:
+       * hidden`, both of which (like aria-hidden) would also pull it from
+       * the accessibility tree. The watched-percent is deliberately left
+       * out of this content: it ticks on every timeupdate, which would
+       * otherwise announce on every percentage point instead of just the
+       * lock state. */}
+      <div aria-live="polite" className="sr-only">
+        {isRevealed && isLocked ? "Watch once to unlock the gallery" : ""}
+      </div>
 
-      <video
-        ref={videoRef}
-        playsInline
-        poster={posterUrl}
-        style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }}
-        tabIndex={isRevealed ? 0 : -1}
-        aria-label={film?.title}
-      >
-        {captionsUrl && (
-          <track kind="captions" src={captionsUrl} srcLang="en" label="English" />
-        )}
-      </video>
-
-      {isRevealed && isBuffering && fallback === "autoplay" && !fatalError && (
-        <div style={{ ...centeredOverlayStyle, pointerEvents: "none" }}>
-          <div className="buffering-ring" aria-hidden="true" />
-        </div>
-      )}
-
-      {isRevealed && fallback === "muted" && (
-        <div
-          className="absolute left-1/2 z-10 -translate-x-1/2"
-          style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
-        >
-          <Button
-            type="button"
-            variant="pill"
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              video.muted = false;
-              void video.play();
-            }}
-          >
-            <span aria-hidden="true">🔊</span> Tap for sound
-          </Button>
-        </div>
-      )}
-
-      {isRevealed && fallback === "play-button" && !fatalError && (
-        <div style={centeredOverlayStyle}>
-          <button
-            type="button"
-            onClick={() => {
-              const video = videoRef.current;
-              if (!video) return;
-              video.muted = isPrimed ? video.muted : false;
-              video.play().catch(() => {
-                video.muted = true;
-                void video.play();
-              });
-            }}
-            aria-label="Play the film"
-            className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-white bg-black/40 text-3xl text-white"
-          >
-            ▶
-          </button>
-        </div>
-      )}
-
-      {isRevealed && !fatalError && (fallback === "autoplay" || fallback === "muted") && (
-        <FilmControls
-          video={videoElement}
-          spriteUrl={spriteUrl}
-          spriteMeta={spriteMeta}
-          captionsAvailable={captionsUrl != null}
-        />
-      )}
-
-      {isRevealed && hasEnded && isUnlocked && (
-        <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }}>
-          <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-background/80 p-6 backdrop-blur-sm">
-            <span className="font-body text-xs font-medium uppercase tracking-wider text-white/60">
-              After the first full watch
-            </span>
-            <div className="flex items-center gap-3">
-              <Button
-                type="button"
-                variant="pill-outline"
-                onClick={() => {
-                  const video = videoRef.current;
-                  if (!video) return;
-                  video.currentTime = 0;
-                  setHasEnded(false);
-                  void video.play();
-                }}
-              >
-                Replay
-              </Button>
-              <Button
-                type="button"
-                variant="pill"
-                onClick={() => {
-                  // T10: once unlocked, Continue hands the visitor straight to
-                  // the collage rather than leaving them wherever Explore-mode
-                  // panning happened to be — flyTo (not setCamera) so this reads
-                  // as a deliberate hand-off, same as Guided mode's Next/
-                  // Previous, and respects prefers-reduced-motion the same way.
-                  const reducedMotion =
-                    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-                  void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
-                  useFilmControllerStore.getState().hide();
-                }}
-              >
-                Continue
-              </Button>
+      {/* Everything below is purely visual chrome + the video itself, so
+       * it's fine for this whole subtree to drop out of the accessibility
+       * tree while not revealed — unlike the live region above, nothing
+       * here needs to exist pre-emptively. `position: absolute; inset: 0`
+       * keeps this wrapper's box identical to `stageRef`'s own (its
+       * nearest positioned ancestor), so every existing absolutely-
+       * positioned child below still resolves exactly as it did when they
+       * were direct children of `stageRef`. */}
+      <div aria-hidden={!isRevealed} style={{ position: "absolute", inset: 0 }}>
+        {isRevealed && (
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-start justify-between gap-3 p-4">
+            <div className="flex items-baseline gap-2">
+              <span className="font-heading text-sm font-bold uppercase tracking-wider">Gallery</span>
+              <span className="text-xs text-white/60">/ Film</span>
+            </div>
+            {/* Purely decorative now that the sr-only live region above owns
+             * the actual announcement — stays plain visible text (not
+             * aria-live) so it isn't double-announced on every change.
+             * data-testid, not getByText, is what e2e/gate.spec.ts scopes
+             * to: once two elements can contain this exact string, a bare
+             * text locator is ambiguous (the same class of issue already
+             * fixed once in this PR for the photo-viewer filmstrip). */}
+            <div
+              data-testid="film-lock-pill"
+              className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
+              style={{ visibility: isLocked ? "visible" : "hidden" }}
+            >
+              <span aria-hidden="true">🔒</span>
+              <span>{isLocked ? "Watch once to unlock the gallery" : ""}</span>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/*
-       * Excludes hasEnded && isUnlocked: once a viewer has genuinely
-       * watched through and unlocked the gate, a fatal hls.js error from
-       * this point on (e.g. a late buffering/network blip) must not trap
-       * them behind an error overlay that sits on top of — and blocks
-       * clicks on — the Replay/Continue screen below. Replaying re-attaches
-       * HLS from scratch (via retryToken) and can surface a fresh error
-       * then if it recurs.
-       */}
-      {isRevealed && fatalError != null && !(hasEnded && isUnlocked) && (
-        <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }} role="alert">
-          <p>Playback failed.</p>
-          {/*
-           * Small, low-contrast diagnostic detail — not alarming copy for a
-           * regular visitor, but real signal if this is ever screenshotted
-           * and reported (which is all we had for D-38/D-39's incidents —
-           * the full detail is also always console.error'd, see hls.ts).
-           */}
-          {fatalError.detail && (
-            <p style={{ fontSize: 11, opacity: 0.5, maxWidth: 320 }}>
-              {fatalError.reason} · {fatalError.detail}
-            </p>
+        <video
+          ref={videoRef}
+          playsInline
+          poster={posterUrl}
+          style={{ width: "100%", height: "100%", display: "block", objectFit: "contain" }}
+          tabIndex={isRevealed ? 0 : -1}
+          aria-label={film?.title}
+        >
+          {captionsUrl && (
+            <track kind="captions" src={captionsUrl} srcLang="en" label="English" />
           )}
-          <Button type="button" variant="pill-outline" onClick={() => setRetryToken((t) => t + 1)}>
-            Retry
-          </Button>
-        </div>
-      )}
+        </video>
+
+        {isRevealed && isBuffering && fallback === "autoplay" && !fatalError && (
+          <div style={{ ...centeredOverlayStyle, pointerEvents: "none" }}>
+            <div className="buffering-ring" aria-hidden="true" />
+          </div>
+        )}
+
+        {isRevealed && fallback === "muted" && (
+          <div
+            className="absolute left-1/2 z-10 -translate-x-1/2"
+            style={{ bottom: "calc(24px + env(safe-area-inset-bottom))" }}
+          >
+            <Button
+              type="button"
+              variant="pill"
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                video.muted = false;
+                void video.play();
+              }}
+            >
+              <span aria-hidden="true">🔊</span> Tap for sound
+            </Button>
+          </div>
+        )}
+
+        {isRevealed && fallback === "play-button" && !fatalError && (
+          <div style={centeredOverlayStyle}>
+            <button
+              type="button"
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                video.muted = isPrimed ? video.muted : false;
+                video.play().catch(() => {
+                  video.muted = true;
+                  void video.play();
+                });
+              }}
+              aria-label="Play the film"
+              className="flex h-[72px] w-[72px] items-center justify-center rounded-full border-2 border-white bg-black/40 text-3xl text-white"
+            >
+              ▶
+            </button>
+          </div>
+        )}
+
+        {isRevealed && !fatalError && (fallback === "autoplay" || fallback === "muted") && (
+          <FilmControls
+            video={videoElement}
+            spriteUrl={spriteUrl}
+            spriteMeta={spriteMeta}
+            captionsAvailable={captionsUrl != null}
+          />
+        )}
+
+        {isRevealed && hasEnded && isUnlocked && (
+          <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }}>
+            <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-background/80 p-6 backdrop-blur-sm">
+              <span className="font-body text-xs font-medium uppercase tracking-wider text-white/60">
+                After the first full watch
+              </span>
+              <div className="flex items-center gap-3">
+                <Button
+                  type="button"
+                  variant="pill-outline"
+                  onClick={() => {
+                    const video = videoRef.current;
+                    if (!video) return;
+                    video.currentTime = 0;
+                    setHasEnded(false);
+                    void video.play();
+                  }}
+                >
+                  Replay
+                </Button>
+                <Button
+                  type="button"
+                  variant="pill"
+                  onClick={() => {
+                    // T10: once unlocked, Continue hands the visitor straight to
+                    // the collage rather than leaving them wherever Explore-mode
+                    // panning happened to be — flyTo (not setCamera) so this reads
+                    // as a deliberate hand-off, same as Guided mode's Next/
+                    // Previous, and respects prefers-reduced-motion the same way.
+                    const reducedMotion =
+                      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+                    void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
+                    useFilmControllerStore.getState().hide();
+                  }}
+                >
+                  Continue
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/*
+         * Excludes hasEnded && isUnlocked: once a viewer has genuinely
+         * watched through and unlocked the gate, a fatal hls.js error from
+         * this point on (e.g. a late buffering/network blip) must not trap
+         * them behind an error overlay that sits on top of — and blocks
+         * clicks on — the Replay/Continue screen below. Replaying re-attaches
+         * HLS from scratch (via retryToken) and can surface a fresh error
+         * then if it recurs.
+         */}
+        {isRevealed && fatalError != null && !(hasEnded && isUnlocked) && (
+          <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }} role="alert">
+            <p>Playback failed.</p>
+            {/*
+             * Small, low-contrast diagnostic detail — not alarming copy for a
+             * regular visitor, but real signal if this is ever screenshotted
+             * and reported (which is all we had for D-38/D-39's incidents —
+             * the full detail is also always console.error'd, see hls.ts).
+             */}
+            {fatalError.detail && (
+              <p style={{ fontSize: 11, opacity: 0.5, maxWidth: 320 }}>
+                {fatalError.reason} · {fatalError.detail}
+              </p>
+            )}
+            <Button type="button" variant="pill-outline" onClick={() => setRetryToken((t) => t + 1)}>
+              Retry
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
