@@ -233,6 +233,27 @@ Deno.test("a selected product's name and link are included in the owner's email,
   assertEquals(emailed.product, { name: "Sample Belt No.5", slug: "sample-belt-no-5" });
 });
 
+// Greptile review, PR #2: lookupProduct originally ran outside any
+// try/catch, so a failure there (after the row was already saved) hit
+// the outer catch and returned 500 — a visitor would see a failure for
+// an enquiry that had, in fact, already succeeded, and a well-meaning
+// retry would save a second row and spend another rate-limit slot.
+Deno.test("success path: a product lookup failure is swallowed — the already-saved enquiry still succeeds", async () => {
+  const productId = "11111111-1111-1111-1111-111111111111";
+  const deps = makeDeps({
+    lookupProduct: () => Promise.reject(new Error("db error")),
+  });
+  const res = await handleRequest(makeRequest({ ...validBody, productId }), deps);
+  assertEquals(res.status, 200);
+  const body = await res.json();
+  assertEquals(body, { ok: true });
+  assertEquals(deps.inserted.length, 1);
+  // The email still goes out — just without product details, rather than
+  // not at all.
+  assertEquals(deps.emailed.length, 1);
+  assertEquals((deps.emailed[0] as { product: unknown }).product, null);
+});
+
 Deno.test("success path: an email send failure is swallowed — the visitor still sees ok:true", async () => {
   const deps = makeDeps({
     sendOwnerEmail: () => Promise.reject(new Error("Resend is down")),

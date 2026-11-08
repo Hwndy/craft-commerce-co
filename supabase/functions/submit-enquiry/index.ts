@@ -164,7 +164,20 @@ export async function handleRequest(req: Request, deps: Deps): Promise<Response>
       return json({ error: "Too many requests. Please try again later." }, 429, origin, deps.env.allowedOrigins);
     }
 
-    const product = input.productId ? await deps.lookupProduct(input.productId) : null;
+    // From here on, the enquiry is already durably stored — nothing below
+    // may turn into a 500 the visitor sees, or a retry would save a
+    // second row and spend another slot of their hourly rate-limit cap
+    // for something that already succeeded (Greptile review, PR #2:
+    // lookupProduct originally wasn't covered by this same guarantee,
+    // only sendOwnerEmail was). Both best-effort legs degrade quietly —
+    // a failed lookup just means the owner's email won't name the
+    // product, not that the visitor sees a failure.
+    let product: ProductSummary | null = null;
+    try {
+      product = input.productId ? await deps.lookupProduct(input.productId) : null;
+    } catch (lookupError) {
+      console.error("submit-enquiry: product lookup failed", errorKind(lookupError));
+    }
 
     try {
       await deps.sendOwnerEmail({ name: input.name, email: input.email, message: input.message, product });
