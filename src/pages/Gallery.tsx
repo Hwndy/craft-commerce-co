@@ -14,11 +14,13 @@ import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
+import { useProduct } from "@/features/shop/lib/useProducts";
+import { ProductOverlay } from "@/features/shop/ProductOverlay";
 import { ShopChrome } from "@/features/shop/ShopChrome";
 import { ShopRegion } from "@/features/shop/ShopRegion";
 import { siteMediaUrl } from "@/lib/storage";
 
-import { photoIdFromSplat } from "./galleryRoute";
+import { photoIdFromSplat, productSlugFromSplat } from "./galleryRoute";
 
 /**
  * Despite the name/route, this page now hosts the *whole* spatial board —
@@ -55,6 +57,7 @@ export default function Gallery() {
   const navigate = useNavigate();
   const params = useParams();
   const requestedPhotoId = photoIdFromSplat(params["*"]);
+  const requestedProductSlug = productSlugFromSplat(params["*"]);
   const isUnlocked = useGateStore((s) => s.isUnlocked);
   const isFilmRevealed = useFilmControllerStore((s) => s.isRevealed);
   // T10 (D-07): a direct /gallery/photo/:id visit still has to earn the
@@ -63,8 +66,13 @@ export default function Gallery() {
   // closed until isUnlocked catches up. The URL (and therefore which photo
   // is requested) is left alone, so the moment the gate opens — either now
   // or from actually watching — the viewer opens on exactly the photo the
-  // link pointed at, with no redirect needed.
+  // link pointed at, with no redirect needed. A direct /shop/:slug deep
+  // link (T3) is gated the same way, for the same reason: the film's
+  // full-screen locked layer already covers the whole page regardless of
+  // which content the URL points at.
   const openPhotoId = !film || isUnlocked ? requestedPhotoId : null;
+  const openProductSlug = !film || isUnlocked ? requestedProductSlug : null;
+  const { data: product } = useProduct(openProductSlug ?? "");
 
   useEffect(() => {
     useCameraStore.getState().setCamera(getViewpoint("gallery"));
@@ -117,23 +125,26 @@ export default function Gallery() {
         {/* Phase 3 T2 — Shop regions live on the same persistent Board as
          * Gallery/Collage, same reasoning as Collage's own comment above:
          * Explore-mode panning and Guided-mode Next/Previous move between
-         * every region without a route change. The product overlay itself
-         * (T3) isn't built yet — onOpenProduct still routes to /shop/:slug,
-         * which 404s until then, same acceptable gap PhotoViewer had for
-         * its own deep link before T9 existed. */}
+         * every region without a route change. onOpenProduct navigates
+         * within this same /gallery/* splat (T3's ProductOverlay reads the
+         * slug back out via productSlugFromSplat) rather than to a real
+         * top-level /shop/:slug route, for the exact same remount reason
+         * the photo viewer's own deep link does (App.tsx's comment) — a
+         * bare /shop/:slug link (bookmarked/shared) still works, via
+         * App.tsx's redirect into this same splat before Gallery mounts. */}
         <ShopRegion
           region="shop-wall"
           title="Shop (wall)"
           centerX={getViewpoint("shop-wall").x}
           centerY={getViewpoint("shop-wall").y}
-          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
+          onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
         />
         <ShopRegion
           region="shop-floor"
           title="Shop (floor)"
           centerX={getViewpoint("shop-floor").x}
           centerY={getViewpoint("shop-floor").y}
-          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
+          onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
         />
 
         <PhotoViewer
@@ -141,6 +152,12 @@ export default function Gallery() {
           openId={openPhotoId}
           onClose={() => navigate("/gallery", { replace: true })}
           onNavigate={(id) => navigate(`/gallery/photo/${id}`, { replace: true })}
+        />
+
+        <ProductOverlay
+          slug={openProductSlug}
+          product={openProductSlug ? product : null}
+          onClose={() => navigate("/gallery", { replace: true })}
         />
       </Board>
 
