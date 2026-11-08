@@ -1,6 +1,7 @@
 import { Instagram, Link2, Youtube } from "lucide-react";
 
 import { Region } from "@/canvas/Region";
+import { useFittedPanelSize } from "@/canvas/useFittedPanelSize";
 import { IconButton } from "@/components/brand/IconButton";
 import { formatGbp } from "@/components/brand/ProductLabel";
 import { contactIntro, socialLinks, type SocialLink } from "@/content/contact";
@@ -13,8 +14,8 @@ export interface ContactProps {
   centerY: number;
 }
 
-const WIDTH = 760;
-const HEIGHT = 760;
+const MAX_WIDTH = 760;
+const MAX_HEIGHT = 760;
 
 const SOCIAL_ICONS: Record<SocialLink["icon"], typeof Instagram> = {
   instagram: Instagram,
@@ -31,6 +32,12 @@ const SOCIAL_ICONS: Record<SocialLink["icon"], typeof Instagram> = {
  * `productOptions`, so a visitor here can say which product they mean
  * the way the mockup's own "About a product" dropdown does, which
  * ProductOverlay's own usage never needs (it already knows the product).
+ *
+ * Sized via useFittedPanelSize, not a fixed 760×760 — found via a real CI
+ * failure (mobile-chrome only): a Pixel 7's 412px-wide viewport is
+ * narrower than a fixed 760px panel, so once the camera centred on it,
+ * the left-aligned "Send enquiry" button sat permanently outside the
+ * viewport (PR #3) — see that hook's own comment.
  */
 export function Contact({ centerX, centerY }: ContactProps) {
   const { data: products } = useProducts();
@@ -38,9 +45,10 @@ export function Contact({ centerX, centerY }: ContactProps) {
     id: p.id,
     label: `${p.name} — ${formatGbp(p.priceAmount, p.priceCurrency)}`,
   }));
+  const { width, height } = useFittedPanelSize(MAX_WIDTH, MAX_HEIGHT);
 
   return (
-    <Region id="contact" title="Contact" x={centerX - WIDTH / 2} y={centerY - HEIGHT / 2} width={WIDTH} height={HEIGHT}>
+    <Region id="contact" title="Contact" x={centerX - width / 2} y={centerY - height / 2} width={width} height={height}>
       <div className="flex h-full w-full flex-col gap-5 overflow-y-auto rounded-2xl bg-surface-light p-8 text-surface-light-foreground">
         <div>
           <h2 className="font-heading text-3xl font-bold uppercase tracking-wide">Contact</h2>

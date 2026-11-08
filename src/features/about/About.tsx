@@ -1,4 +1,5 @@
 import { Region } from "@/canvas/Region";
+import { useFittedPanelSize } from "@/canvas/useFittedPanelSize";
 import { Badge } from "@/components/ui/badge";
 import { aboutContent } from "@/content/about";
 
@@ -7,8 +8,8 @@ export interface AboutProps {
   centerY: number;
 }
 
-const WIDTH = 760;
-const HEIGHT = 760;
+const MAX_WIDTH = 760;
+const MAX_HEIGHT = 760;
 
 /**
  * The About region (T6, FR-6.1) — a dark panel directly on the board, same
@@ -20,10 +21,16 @@ const HEIGHT = 760;
  * `src/content/about.ts`, a typed stand-in for Phase 4's `pages` table —
  * see that file's own header for why `brandStory` is deliberately not
  * real copy.
+ *
+ * Sized via useFittedPanelSize, not a fixed 760×760 — see that hook's own
+ * comment: a world-space-fixed panel wider than a narrow mobile viewport
+ * leaves itself only partially on screen once the camera centres on it,
+ * found via a real CI failure on Contact's own identical pattern (PR #3).
  */
 export function About({ centerX, centerY }: AboutProps) {
+  const { width, height } = useFittedPanelSize(MAX_WIDTH, MAX_HEIGHT);
   return (
-    <Region id="about" title="About" x={centerX - WIDTH / 2} y={centerY - HEIGHT / 2} width={WIDTH} height={HEIGHT}>
+    <Region id="about" title="About" x={centerX - width / 2} y={centerY - height / 2} width={width} height={height}>
       <div className="flex h-full w-full flex-col gap-6 overflow-y-auto rounded-2xl border border-white/10 bg-card p-8 text-foreground">
         <div className="flex items-center gap-4">
           <img
