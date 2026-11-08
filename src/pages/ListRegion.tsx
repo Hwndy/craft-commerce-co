@@ -2,7 +2,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
 import { listViewpoints } from "@/canvas/viewpoints";
-import { formatGbp } from "@/components/brand/ProductLabel";
+import { formatGbp, STATUS_COPY } from "@/components/brand/ProductLabel";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { useFilm } from "@/features/film/lib/useFilm";
 import { useRegionNodes } from "@/features/list/lib/useRegionNodes";
@@ -78,7 +78,8 @@ export default function ListRegion() {
           <ul>
             {productNodes.map(({ nodeId, product }) => (
               <li key={nodeId}>
-                {product.name} — {formatGbp(product.priceAmount, product.priceCurrency)}
+                {product.name} — {formatGbp(product.priceAmount, product.priceCurrency)} —{" "}
+                {STATUS_COPY[product.status]}
                 {product.onSale ? " (Sale)" : ""}
               </li>
             ))}

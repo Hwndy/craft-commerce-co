@@ -20,7 +20,7 @@ export interface ProductLabelProps {
   className?: string;
 }
 
-const STATUS_COPY: Record<ProductStatus, string> = {
+export const STATUS_COPY: Record<ProductStatus, string> = {
   available: "Available",
   made_to_order: "Made to order",
   sold: "Sold",

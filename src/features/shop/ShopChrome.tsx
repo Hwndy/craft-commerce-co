@@ -18,6 +18,12 @@ const SHOP_REGION_KEYS = new Set(["shop-wall", "shop-floor"]);
  * collage, Shop has nothing equivalent to add (positions are curated, not
  * a layout mode to switch between), so this chrome stays deliberately
  * small.
+ *
+ * Sits at `top-20`, not `top-0` — CanvasChrome's own top bar (logo +
+ * Guided/Explore + List view) already occupies the full-width `inset-x-0
+ * top-0` band at all times, so stacking this breadcrumb row directly on
+ * top of it overlapped both ends (found in review, same "clear
+ * CanvasChrome's fixed elements" rule CollageChrome's own comment states).
  */
 export function ShopChrome() {
   const [isNearShop, setIsNearShop] = useState(false);
@@ -39,7 +45,7 @@ export function ShopChrome() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
-      <div data-shop-chrome className="pointer-events-auto absolute inset-x-0 top-0 flex items-start justify-between gap-3 p-4">
+      <div data-shop-chrome className="pointer-events-auto absolute inset-x-0 top-20 flex items-start justify-between gap-3 px-4">
         <div className="flex items-baseline gap-2">
           <span className="font-heading text-sm font-bold uppercase tracking-wider">Shop</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">
