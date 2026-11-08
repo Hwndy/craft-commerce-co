@@ -24,6 +24,13 @@ vi.mock("./lib/useFilm", () => ({
   useFilm: () => ({ data: film }),
 }));
 
+const requestFullscreen = vi.fn().mockResolvedValue(undefined);
+const exitFullscreenIfActive = vi.fn().mockResolvedValue(undefined);
+vi.mock("./lib/fullscreen", () => ({
+  requestFullscreen: (...args: unknown[]) => requestFullscreen(...args),
+  exitFullscreenIfActive: (...args: unknown[]) => exitFullscreenIfActive(...args),
+}));
+
 import { useFilmControllerStore } from "./filmControllerStore";
 import { FilmStage } from "./FilmStage";
 
@@ -45,6 +52,8 @@ describe("FilmStage", () => {
 
   afterEach(() => {
     window.localStorage.clear();
+    requestFullscreen.mockClear();
+    exitFullscreenIfActive.mockClear();
   });
 
   function liveRegion(container: HTMLElement) {
@@ -122,5 +131,49 @@ describe("FilmStage", () => {
     useFilmControllerStore.setState({ isRevealed: true });
     const { container } = render(<FilmStage />);
     expect(liveRegion(container).textContent).toBe("Watch once to unlock the gallery");
+  });
+
+  // Found via a real, reproducible e2e failure: an already-unlocked visit
+  // (a deep link straight into the Board/Shop) still called reveal() —
+  // requesting Fullscreen API on stageRef regardless made stageRef the
+  // browser's actual top-layer element, which silently swallows every
+  // click outside its own subtree (a Dialog portaled to body included,
+  // whatever its own CSS z-index), reproduced directly via
+  // document.elementFromPoint before this fix.
+  describe("Fullscreen API", () => {
+    it("requests fullscreen when revealed while the film genuinely needs watching (locked)", () => {
+      render(<FilmStage />);
+      expect(requestFullscreen).not.toHaveBeenCalled();
+
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+
+      expect(requestFullscreen).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not request fullscreen when revealed but already unlocked (e.g. a deep link visit)", () => {
+      useGateStore.setState({ version: 1, isUnlocked: true });
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+
+      expect(requestFullscreen).not.toHaveBeenCalled();
+    });
+
+    it("exits fullscreen once isRevealed goes back to false (Continue, or leaving /gallery)", () => {
+      render(<FilmStage />);
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+      expect(requestFullscreen).toHaveBeenCalledTimes(1);
+
+      act(() => {
+        useFilmControllerStore.getState().hide();
+      });
+      expect(exitFullscreenIfActive).toHaveBeenCalled();
+    });
   });
 });

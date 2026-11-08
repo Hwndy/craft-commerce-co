@@ -186,9 +186,31 @@ export function FilmStage() {
   // document.fullscreenEnabled is false — the fixed/100dvh layer already
   // looks full-screen there without handing control to iOS's native video
   // player chrome (T11).
+  //
+  // Only requested when the film actually needs watching (isLocked at the
+  // moment isRevealed turns true) — an already-unlocked visitor (a direct
+  // deep link into Gallery.tsx's own Board/Shop/etc., which also calls
+  // reveal() unconditionally so the lock can show if needed) has nothing
+  // here worth taking over the whole browser window for. isLockedRef, not
+  // isLocked itself, is read deliberately: this must decide once, at the
+  // isRevealed transition, not re-fire fullscreen's entry check on every
+  // later isLocked flip (watching through mid-playback shouldn't itself
+  // trigger an exit before Replay/Continue — exit still only follows
+  // isRevealed, i.e. Continue or leaving /gallery). Found while tracing a
+  // real, reproducible e2e failure (ProductOverlay's Close/Copy-email
+  // buttons silently swallowing every click): a deep-linked, already-
+  // unlocked visit was still requesting fullscreen on `stageRef` — and
+  // once an element is the Fullscreen API's actual top-layer element,
+  // every click anywhere outside its own subtree (including a Dialog
+  // portaled to body, with a *higher* CSS z-index) stops hit-testing
+  // entirely, confirmed by reproducing the identical symptom in isolation
+  // (elementFromPoint/click on an unrelated sibling button resolving to
+  // the fullscreen element instead, every time, until exited).
+  const isLockedRef = useRef(isLocked);
+  isLockedRef.current = isLocked;
   useEffect(() => {
     if (isRevealed) {
-      if (stageRef.current) void requestFullscreen(stageRef.current);
+      if (isLockedRef.current && stageRef.current) void requestFullscreen(stageRef.current);
     } else {
       void exitFullscreenIfActive();
     }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EnquiryForm } from "@/features/enquiry/components/EnquiryForm";
 import { buildMailtoLink } from "@/features/enquiry/lib/mailto";
 import { attachHls } from "@/features/film/lib/hls";
+import { exitFullscreenIfActive } from "@/features/film/lib/fullscreen";
 import { env } from "@/lib/env";
 import { siteMediaUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
@@ -58,6 +59,19 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
     setView("pictures");
     setPictureIndex(0);
     setShowForm(false);
+  }, [slug]);
+
+  // Defensive, not just a FilmStage-side fix: a Dialog portaled to body
+  // (any z-index) can't be interacted with while the browser is in actual
+  // Fullscreen-API mode on a *different* element — fullscreen content sits
+  // in the browser's own top layer, above everything else regardless of
+  // CSS stacking, so every click here would silently fail to hit-test at
+  // all until it's exited. FilmStage no longer requests fullscreen for an
+  // already-unlocked visit, but this guards the remaining real case too
+  // (a genuine first watch, Continue clicked, fullscreen mid-exit) rather
+  // than trusting that exit's own timing always wins the race.
+  useEffect(() => {
+    if (slug) void exitFullscreenIfActive();
   }, [slug]);
 
   const hasVideo = !!product?.video?.hlsMaster && !prefersReducedData();
@@ -117,7 +131,17 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
             <div className="h-1 w-10 rounded-full bg-surface-light-foreground/20" />
           </div>
 
-          <div className="absolute right-3 top-3">
+          {/* z-10: without an explicit stacking order, this absolutely
+           * positioned wrapper and the picture area below it
+           * (`position: relative`, for its own pagination-dot/toggle
+           * overlays) are both "positioned, z-index: auto" — CSS stacks
+           * those in DOM order, so the picture area (declared later)
+           * painted over this button and silently ate every click/tap on
+           * it, close-overlay keyboard/Escape still worked, X/tap did not
+           * (found by reproducing a real CI e2e failure locally: Close
+           * never actually received the click, elementFromPoint at its
+           * center resolved to the picture div instead). */}
+          <div className="absolute right-3 top-3 z-10">
             <DialogPrimitive.Close asChild>
               <IconButton aria-label="Close">×</IconButton>
             </DialogPrimitive.Close>

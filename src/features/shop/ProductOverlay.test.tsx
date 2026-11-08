@@ -17,6 +17,11 @@ vi.mock("@/features/enquiry/components/EnquiryForm", () => ({
   ),
 }));
 
+const exitFullscreenIfActive = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/features/film/lib/fullscreen", () => ({
+  exitFullscreenIfActive: (...args: unknown[]) => exitFullscreenIfActive(...args),
+}));
+
 function media(overrides: Partial<ProductMedia> = {}): ProductMedia {
   return {
     id: "media-1",
@@ -53,6 +58,18 @@ describe("ProductOverlay", () => {
   it("renders nothing when no slug is open", () => {
     const { container } = render(<ProductOverlay slug={null} product={null} onClose={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  // A real, reproducible e2e finding: a Dialog portaled to body can't be
+  // clicked at all while the browser is genuinely in Fullscreen-API mode
+  // on some other element (FilmStage's stageRef) — fullscreen content sits
+  // in the browser's top layer, above everything else regardless of CSS
+  // z-index. FilmStage no longer requests fullscreen for an already-
+  // unlocked visit, but this guards the still-possible race (fullscreen
+  // mid-exit after Continue) defensively, rather than trusting timing.
+  it("proactively exits any lingering fullscreen state when it opens", () => {
+    render(<ProductOverlay slug="sample-belt-no-5" product={undefined} onClose={vi.fn()} />);
+    expect(exitFullscreenIfActive).toHaveBeenCalled();
   });
 
   it("shows a loading state (with its own accessible title) while the product query is still in flight", () => {
