@@ -242,6 +242,11 @@ function buildDeps(): Deps {
       // per ip_hash via an advisory lock — see that migration's own
       // comment for why the two separate calls this replaced couldn't be
       // made atomic any other way from here.
+      // The client is created with no Database generic (no generated types
+      // for this standalone Deno function), so .rpc(...).single() types
+      // its result `unknown` rather than inferring the SQL function's own
+      // return shape — the explicit generic here is what Deno's stricter
+      // type-check (vs. this repo's main tsconfig) caught as missing.
       const { data, error } = await supabase
         .rpc("insert_enquiry_rate_limited", {
           p_product_id: row.productId,
@@ -252,14 +257,18 @@ function buildDeps(): Deps {
           p_rate_limit_max: RATE_LIMIT_MAX,
           p_rate_limit_window: `${RATE_LIMIT_WINDOW_MS / 1000} seconds`,
         })
-        .single();
+        .single<{ id: string | null; rate_limited: boolean }>();
       if (error) throw error;
       if (data.rate_limited) return { ok: false, reason: "rate_limited" };
       return { ok: true };
     },
 
     lookupProduct: async (productId) => {
-      const { data, error } = await supabase.from("products").select("name, slug").eq("id", productId).maybeSingle();
+      const { data, error } = await supabase
+        .from("products")
+        .select("name, slug")
+        .eq("id", productId)
+        .maybeSingle<ProductSummary>();
       if (error) throw error;
       return data;
     },
