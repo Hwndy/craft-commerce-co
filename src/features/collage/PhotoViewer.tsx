@@ -1,7 +1,9 @@
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useGesture } from "@use-gesture/react";
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
+import { IconButton } from "@/components/brand/IconButton";
+import { cn } from "@/lib/utils";
 import { siteMediaUrl } from "@/lib/storage";
 
 import type { CollagePhoto } from "./lib/queries";
@@ -17,6 +19,7 @@ export interface PhotoViewerProps {
 const SWIPE_DISTANCE_THRESHOLD_PX = 60;
 const SWIPE_VELOCITY_THRESHOLD = 0.5;
 const PRELOAD_COUNT = 2;
+const FILMSTRIP_RENDITION = "256";
 
 function usePreferredRendition() {
   const [width, setWidth] = useState(() => (typeof window !== "undefined" ? window.innerWidth : 1280));
@@ -26,22 +29,6 @@ function usePreferredRendition() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
   return renditionForScreenWidth(width);
-}
-
-function navButtonStyle(side: "left" | "right"): CSSProperties {
-  return {
-    position: "absolute",
-    [side]: 16,
-    top: "50%",
-    transform: "translateY(-50%)",
-    background: "none",
-    border: "none",
-    color: "#fff",
-    fontSize: 40,
-    lineHeight: 1,
-    cursor: "pointer",
-    padding: 16,
-  };
 }
 
 /**
@@ -60,6 +47,14 @@ function navButtonStyle(side: "left" | "right"): CSSProperties {
  * never bubble through Board's element tree — which is what satisfies
  * "pinch inside the viewer doesn't move the board underneath" with no
  * stopPropagation needed.
+ *
+ * DialogPrimitive.Title/Description still provide the dialog's real
+ * accessible name/description (Radix requires them), but are positioned at
+ * the bottom-left per the mockup (docs/decisions.md D-45) — their DOM
+ * position has no bearing on that. The "n / total · Shoot" counter above
+ * them is purely decorative (aria-hidden): screen reader users already get
+ * the equivalent via the dialog's own accessible name/description and the
+ * Next/Previous buttons' names.
  */
 export function PhotoViewer({ photos, openId, onClose, onNavigate }: PhotoViewerProps) {
   const ids = photos.map((p) => p.id);
@@ -116,106 +111,108 @@ export function PhotoViewer({ photos, openId, onClose, onNavigate }: PhotoViewer
   return (
     <DialogPrimitive.Root open onOpenChange={(open) => !open && onClose()}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 70 }} />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-[70] bg-black/90" />
         <DialogPrimitive.Content
           ref={containerRef}
           onKeyDown={handleKeyDown}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 71,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            outline: "none",
-          }}
+          className="fixed inset-0 z-[71] flex flex-col font-body text-white outline-none"
         >
-          <DialogPrimitive.Title style={{ position: "absolute", top: 16, left: 24, color: "#fff", fontSize: 16, margin: 0 }}>
-            {photo.title}
-          </DialogPrimitive.Title>
-          <DialogPrimitive.Description
-            style={
-              !photo.takenOn
-                // No date for this photo — Radix still wants an accessible
-                // description (aria-describedby), so this stays in the a11y
-                // tree without a visible, empty-looking caption line.
-                ? { position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }
-                : {
-                    position: "absolute",
-                    top: 40,
-                    left: 24,
-                    color: "#ccc",
-                    fontSize: 13,
-                    margin: 0,
-                    opacity: chromeVisible ? 1 : 0,
-                    transition: "opacity 200ms",
-                  }
-            }
-          >
-            {photo.takenOn ?? photo.title}
-          </DialogPrimitive.Description>
-
-          <DialogPrimitive.Close
-            aria-label="Close"
-            style={{
-              position: "absolute",
-              top: 16,
-              right: 16,
-              background: "none",
-              border: "none",
-              color: "#fff",
-              fontSize: 28,
-              lineHeight: 1,
-              cursor: "pointer",
-            }}
-          >
-            ×
-          </DialogPrimitive.Close>
-
           {photos.length > 1 && (
-            <button
-              type="button"
-              aria-label="Previous photo"
-              aria-hidden={!chromeVisible}
-              tabIndex={chromeVisible ? 0 : -1}
-              onClick={() => goTo(-1)}
-              style={{
-                ...navButtonStyle("left"),
-                opacity: chromeVisible ? 1 : 0,
-                pointerEvents: chromeVisible ? "auto" : "none",
-                transition: "opacity 200ms",
-              }}
-            >
-              ‹
-            </button>
+            <p aria-hidden="true" className="absolute left-6 top-4 text-xs tracking-wide text-white/70">
+              {index + 1} / {photos.length} · {photo.shoot.title}
+            </p>
           )}
 
-          {src && (
-            <img
-              src={src}
-              alt=""
-              onClick={() => setChromeVisible((visible) => !visible)}
-              style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", cursor: "pointer" }}
-            />
-          )}
+          <div className="absolute right-4 top-4">
+            <DialogPrimitive.Close asChild>
+              <IconButton aria-label="Close">×</IconButton>
+            </DialogPrimitive.Close>
+          </div>
 
-          {photos.length > 1 && (
-            <button
-              type="button"
-              aria-label="Next photo"
-              aria-hidden={!chromeVisible}
-              tabIndex={chromeVisible ? 0 : -1}
-              onClick={() => goTo(1)}
-              style={{
-                ...navButtonStyle("right"),
-                opacity: chromeVisible ? 1 : 0,
-                pointerEvents: chromeVisible ? "auto" : "none",
-                transition: "opacity 200ms",
-              }}
-            >
-              ›
-            </button>
-          )}
+          <div className="flex flex-1 items-center justify-center px-4">
+            {photos.length > 1 && (
+              <IconButton
+                aria-label="Previous photo"
+                aria-hidden={!chromeVisible}
+                tabIndex={chromeVisible ? 0 : -1}
+                onClick={() => goTo(-1)}
+                size="lg"
+                className={cn(
+                  "absolute left-4 top-1/2 -translate-y-1/2 transition-opacity duration-200",
+                  chromeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                )}
+              >
+                ‹
+              </IconButton>
+            )}
+
+            {src && (
+              <img
+                src={src}
+                alt=""
+                onClick={() => setChromeVisible((visible) => !visible)}
+                className="max-h-[70vh] max-w-[90vw] cursor-pointer object-contain"
+              />
+            )}
+
+            {photos.length > 1 && (
+              <IconButton
+                aria-label="Next photo"
+                aria-hidden={!chromeVisible}
+                tabIndex={chromeVisible ? 0 : -1}
+                onClick={() => goTo(1)}
+                size="lg"
+                className={cn(
+                  "absolute right-4 top-1/2 -translate-y-1/2 transition-opacity duration-200",
+                  chromeVisible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+                )}
+              >
+                ›
+              </IconButton>
+            )}
+          </div>
+
+          <div className="flex items-end justify-between gap-3 p-4 pb-[calc(16px+env(safe-area-inset-bottom))]">
+            <div>
+              <DialogPrimitive.Title className="m-0 font-heading text-lg font-bold">{photo.title}</DialogPrimitive.Title>
+              <DialogPrimitive.Description
+                className={cn(
+                  "m-0 text-sm text-white/60 transition-opacity duration-200",
+                  // No date for this photo — Radix still wants an accessible
+                  // description (aria-describedby), so it falls back to the
+                  // title as the described-by text, but stays out of view
+                  // (sr-only) rather than visibly repeating the title line
+                  // right under itself.
+                  photo.takenOn ? (chromeVisible ? "opacity-100" : "opacity-0") : "sr-only"
+                )}
+              >
+                {photo.takenOn ?? photo.title}
+              </DialogPrimitive.Description>
+            </div>
+
+            {photos.length > 1 && (
+              <div className="hidden items-center gap-1.5 overflow-x-auto sm:flex" aria-hidden="true">
+                {photos.map((p) => {
+                  const thumbSrc = p.media.renditions[FILMSTRIP_RENDITION];
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      tabIndex={-1}
+                      onClick={() => onNavigate(p.id)}
+                      className={cn(
+                        "h-12 w-12 shrink-0 overflow-hidden rounded border-2 bg-black/40 bg-cover bg-center transition-colors",
+                        p.id === photo.id ? "border-primary" : "border-transparent hover:border-white/30"
+                      )}
+                      style={thumbSrc ? { backgroundImage: `url(${siteMediaUrl(thumbSrc)})` } : undefined}
+                    />
+                  );
+                })}
+              </div>
+            )}
+
+            <p className="hidden shrink-0 text-xs text-white/50 md:block">Swipe or ← → · Esc to close</p>
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

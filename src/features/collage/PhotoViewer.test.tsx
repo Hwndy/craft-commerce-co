@@ -84,6 +84,25 @@ describe("PhotoViewer", () => {
     expect(next).toHaveAttribute("aria-hidden", "false");
   });
 
+  it("filmstrip: clicking a different thumbnail navigates to it, and doesn't render for a single-photo set", () => {
+    const onNavigate = vi.fn();
+    const { rerender } = render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={onNavigate} />);
+
+    // The filmstrip's own thumbnail buttons aren't individually labelled
+    // (decorative/aria-hidden — the real accessible navigation is Next/
+    // Previous and the route itself), so they're queried by position
+    // rather than role+name. Dialog content renders into a portal on
+    // document.body, not the render() container.
+    const thumbnails = () => document.querySelectorAll('[aria-hidden="true"] button');
+    expect(thumbnails()).toHaveLength(photos.length);
+
+    fireEvent.click(thumbnails()[2]);
+    expect(onNavigate).toHaveBeenCalledWith("c");
+
+    rerender(<PhotoViewer photos={[photo("only", "Only photo")]} openId="only" onClose={vi.fn()} onNavigate={vi.fn()} />);
+    expect(thumbnails()).toHaveLength(0);
+  });
+
   it("resets the chrome to visible when a different photo opens", () => {
     const { rerender } = render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={vi.fn()} />);
     const next = screen.getByRole("button", { name: "Next photo" });
