@@ -34,11 +34,8 @@ export function PhotoThumbnail({ photo, lod, onOpen }: PhotoThumbnailProps) {
       onClick={onOpen}
       aria-label={label}
       data-photo-id={photo.id}
+      className="h-full w-full border-0 p-0 outline-none ring-2 ring-transparent ring-offset-2 ring-offset-background transition-[box-shadow] focus-visible:ring-primary"
       style={{
-        width: "100%",
-        height: "100%",
-        border: "none",
-        padding: 0,
         cursor: onOpen ? "pointer" : "default",
         backgroundColor: "#111",
         backgroundImage: photo.media.blurDataUrl ? `url(${photo.media.blurDataUrl})` : undefined,

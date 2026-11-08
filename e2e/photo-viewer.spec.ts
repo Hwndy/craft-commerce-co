@@ -52,17 +52,23 @@ function boxesOverlap(
 }
 
 /**
- * Clicks a seeded photo thumbnail, skipping any that CanvasChrome's fixed
- * top-left corner (minimap/Home/Guided controls — correctly screen-
- * anchored since docs/decisions.md D-44) happens to sit on top of. Each
- * photo's seeded id is random per CI run, so exactly which one the
- * phyllotaxis layout places nearest that corner isn't something `.first()`
- * can assume is always clickable — Continue's own flyTo (T10) already
- * centres the camera on collage at zoom 1, so no extra panning/zooming is
- * needed here just to reach a clickable photo.
+ * Clicks a seeded photo thumbnail, skipping any that one of CanvasChrome's
+ * or CollageChrome's fixed regions (top bar, minimap, bottom bar, Home;
+ * the Circle/Diagonal toggle, shoot chips, zoom + Recentre — D-45) happens
+ * to sit on top of — both are screen-anchored (D-44) and both render at
+ * the same time once Continue hands off to the collage. Each photo's
+ * seeded id is random per CI run, so exactly which one the phyllotaxis
+ * layout places nearest a chrome region isn't something `.first()` can
+ * assume is always clickable — Continue's own flyTo (T10) already centres
+ * the camera on collage at zoom 1, so no extra panning/zooming is needed
+ * here just to reach a clickable photo.
  */
 async function clickAnUnobstructedPhoto(page: Page) {
-  const chromeBox = await page.locator("[data-canvas-chrome]").boundingBox();
+  const chromeBoxes = (
+    await Promise.all(
+      (await page.locator("[data-canvas-chrome], [data-collage-chrome]").all()).map((el) => el.boundingBox())
+    )
+  ).filter((box): box is NonNullable<typeof box> => box !== null);
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
@@ -80,7 +86,7 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    if (!box || (chromeBox && boxesOverlap(box, chromeBox))) continue;
+    if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
     // phyllotaxis cluster's radius can exceed half the viewport width.
@@ -172,14 +178,11 @@ test.describe("photo viewer", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
 
-    // A CSS (not role) locator, since aria-hidden removes an element from
-    // the accessibility tree role queries search — exactly the state this
-    // test is checking. Scoped to the dialog: the collage thumbnails
-    // behind it (PhotoThumbnail.tsx) also use `alt=""`, and with several
-    // of them culled into view at once, a bare page-wide `img[alt=""]`
-    // locator can resolve to more than one element — only the dialog's
+    // data-testid, not a bare `img[alt=""]`: the collage thumbnails behind
+    // this dialog (PhotoThumbnail.tsx) and the filmstrip strip inside it
+    // (PhotoViewer.tsx, D-45) both also use `alt=""` — only the dialog's
     // own full-size image is what this test means to click.
-    const image = dialog.locator('img[alt=""]');
+    const image = dialog.getByTestId("photo-viewer-image");
     const nextButton = dialog.locator('button[aria-label="Next photo"]');
     await expect(nextButton).toHaveAttribute("aria-hidden", "false");
 

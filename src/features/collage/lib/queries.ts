@@ -6,6 +6,9 @@ export interface CollagePhoto {
   id: string;
   title: string;
   takenOn: string | null;
+  /** The photo_set ("shoot") this photo belongs to (FR-3.8) — drives the
+   * Collage's shoot-filter chips (docs/decisions.md D-45). */
+  shoot: { id: string; title: string };
   media: {
     id: string;
     width: number | null;
@@ -50,6 +53,7 @@ export async function fetchCollagePhotos(): Promise<CollagePhoto[]> {
 
   const mediaById = new Map((media ?? []).map((m) => [m.id, m]));
   const setOrderById = new Map(sets.map((s, index) => [s.id, index]));
+  const setById = new Map(sets.map((s) => [s.id, s]));
 
   return photos
     .filter((photo) => mediaById.has(photo.media_id))
@@ -61,10 +65,12 @@ export async function fetchCollagePhotos(): Promise<CollagePhoto[]> {
     })
     .map((photo) => {
       const media = mediaById.get(photo.media_id)!;
+      const set = setById.get(photo.set_id)!;
       return {
         id: photo.id,
         title: photo.title,
         takenOn: photo.taken_on,
+        shoot: { id: set.id, title: set.title },
         media: {
           id: media.id,
           width: media.width,

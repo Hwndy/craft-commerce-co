@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { formatGbp, ProductLabel } from "./ProductLabel";
 
@@ -33,5 +33,20 @@ describe("ProductLabel", () => {
   ] as const)("shows the right status copy for %s", (status, copy) => {
     render(<ProductLabel name="Belt" price={10} status={status} />);
     expect(screen.getByText(copy)).toBeInTheDocument();
+  });
+
+  it("shows a Sale badge only when onSale is true (FR-4.7)", () => {
+    const { rerender } = render(<ProductLabel name="Belt" price={10} status="available" />);
+    expect(screen.queryByText("Sale")).not.toBeInTheDocument();
+
+    rerender(<ProductLabel name="Belt" price={10} status="available" onSale />);
+    expect(screen.getByText("Sale")).toBeInTheDocument();
+  });
+
+  it("calls onClick when provided, and is a real button either way", () => {
+    const onClick = vi.fn();
+    render(<ProductLabel name="Belt" price={10} status="available" onClick={onClick} />);
+    fireEvent.click(screen.getByRole("button", { name: /Belt/ }));
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });

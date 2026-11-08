@@ -1,3 +1,11 @@
+// Normally generated: `npx supabase gen types typescript --local > src/lib/database.types.ts`.
+// The `enquiries`/`product_media`/`products` tables and `product_status`/
+// `product_zone` enums (migration 0003_shop_and_enquiries) were added by
+// hand instead — this sandbox has no local Supabase to regenerate against
+// (docs/decisions.md D-47) — by matching the existing entries' exact shape
+// against that migration's SQL. Re-run the real generator once a Supabase
+// connection is available, to replace this manual edit with the genuine
+// output.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
@@ -74,6 +82,48 @@ export type Database = {
           zoom_min?: number;
         };
         Relationships: [];
+      };
+      enquiries: {
+        Row: {
+          created_at: string;
+          email: string;
+          id: string;
+          ip_hash: string | null;
+          message: string;
+          name: string;
+          product_id: string | null;
+          status: string;
+        };
+        ComputedFields: never;
+        Insert: {
+          created_at?: string;
+          email: string;
+          id?: string;
+          ip_hash?: string | null;
+          message: string;
+          name: string;
+          product_id?: string | null;
+          status?: string;
+        };
+        Update: {
+          created_at?: string;
+          email?: string;
+          id?: string;
+          ip_hash?: string | null;
+          message?: string;
+          name?: string;
+          product_id?: string | null;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "enquiries_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       gallery_film: {
         Row: {
@@ -243,6 +293,119 @@ export type Database = {
           },
         ];
       };
+      product_media: {
+        Row: {
+          id: string;
+          kind: string;
+          media_id: string;
+          product_id: string;
+          sort_order: number;
+        };
+        ComputedFields: never;
+        Insert: {
+          id?: string;
+          kind: string;
+          media_id: string;
+          product_id: string;
+          sort_order?: number;
+        };
+        Update: {
+          id?: string;
+          kind?: string;
+          media_id?: string;
+          product_id?: string;
+          sort_order?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "product_media_media_id_fkey";
+            columns: ["media_id"];
+            isOneToOne: false;
+            referencedRelation: "media";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "product_media_product_id_fkey";
+            columns: ["product_id"];
+            isOneToOne: false;
+            referencedRelation: "products";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      products: {
+        Row: {
+          bullets: NonNullable<Json>;
+          created_at: string;
+          description: string | null;
+          id: string;
+          name: string;
+          on_sale: boolean;
+          poster_media_id: string | null;
+          price_amount: number;
+          price_currency: string;
+          published: boolean;
+          slug: string;
+          sort_order: number;
+          status: Database["public"]["Enums"]["product_status"];
+          updated_at: string;
+          video_media_id: string | null;
+          zone: Database["public"]["Enums"]["product_zone"];
+        };
+        ComputedFields: never;
+        Insert: {
+          bullets?: NonNullable<Json>;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name: string;
+          on_sale?: boolean;
+          poster_media_id?: string | null;
+          price_amount: number;
+          price_currency?: string;
+          published?: boolean;
+          slug: string;
+          sort_order?: number;
+          status?: Database["public"]["Enums"]["product_status"];
+          updated_at?: string;
+          video_media_id?: string | null;
+          zone?: Database["public"]["Enums"]["product_zone"];
+        };
+        Update: {
+          bullets?: NonNullable<Json>;
+          created_at?: string;
+          description?: string | null;
+          id?: string;
+          name?: string;
+          on_sale?: boolean;
+          poster_media_id?: string | null;
+          price_amount?: number;
+          price_currency?: string;
+          published?: boolean;
+          slug?: string;
+          sort_order?: number;
+          status?: Database["public"]["Enums"]["product_status"];
+          updated_at?: string;
+          video_media_id?: string | null;
+          zone?: Database["public"]["Enums"]["product_zone"];
+        };
+        Relationships: [
+          {
+            foreignKeyName: "products_poster_media_id_fkey";
+            columns: ["poster_media_id"];
+            isOneToOne: false;
+            referencedRelation: "media";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "products_video_media_id_fkey";
+            columns: ["video_media_id"];
+            isOneToOne: false;
+            referencedRelation: "media";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       viewpoints: {
         Row: {
           in_guided_path: boolean;
@@ -284,6 +447,8 @@ export type Database = {
     Enums: {
       media_kind: "image" | "video" | "hls";
       media_status: "processing" | "ready" | "failed";
+      product_status: "available" | "sold" | "made_to_order";
+      product_zone: "wall" | "floor";
     };
     CompositeTypes: {
       [_ in never]: never;
@@ -404,6 +569,8 @@ export const Constants = {
     Enums: {
       media_kind: ["image", "video", "hls"],
       media_status: ["processing", "ready", "failed"],
+      product_status: ["available", "sold", "made_to_order"],
+      product_zone: ["wall", "floor"],
     },
   },
 } as const;

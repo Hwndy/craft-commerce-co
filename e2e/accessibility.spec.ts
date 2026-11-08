@@ -69,4 +69,41 @@ test.describe("accessibility", () => {
       []
     );
   });
+
+  // D-45: PhotoViewer's reskin added real new UI (the counter line, the
+  // filmstrip) — never axe-checked before. Deep-links straight to a photo
+  // rather than clicking a collage thumbnail, so this doesn't need
+  // photo-viewer.spec.ts's own chrome-overlap avoidance logic just to open
+  // the dialog.
+  test("the open photo viewer has no serious or critical violations", async ({ page, browserName }) => {
+    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    await page.goto("/gallery");
+    const video = page.locator("video").last();
+    await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
+
+    await video.evaluate((el: HTMLVideoElement) => {
+      const duration = el.duration;
+      el.currentTime = 0;
+      el.dispatchEvent(new Event("timeupdate"));
+      for (let t = 0.5; t <= duration; t += 0.5) {
+        el.currentTime = t;
+        el.dispatchEvent(new Event("timeupdate"));
+      }
+      el.currentTime = duration;
+      el.pause();
+      el.dispatchEvent(new Event("ended"));
+    });
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    const photoId = await page.locator("[data-photo-id]").first().getAttribute("data-photo-id");
+    expect(photoId).toBeTruthy();
+    await page.goto(`/gallery/photo/${photoId}`);
+    await expect(page.getByRole("dialog")).toBeVisible();
+
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(seriousOrCritical(results.violations), JSON.stringify(results.violations, null, 2)).toEqual(
+      []
+    );
+  });
 });

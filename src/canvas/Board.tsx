@@ -85,6 +85,29 @@ export function Board({ children, className }: BoardProps) {
     return () => observer.disconnect();
   }, [setViewport]);
 
+  // Keeps data-camera-* immediately accurate even if the rAF loop below
+  // stalls under heavy load — confirmed root cause of e2e/canvas-gestures.
+  // spec.ts's CI flakiness: an interaction (wheel/drag/keypress) updates
+  // the camera store synchronously, but previously these attributes only
+  // got painted on the loop's next tick, which real CI can delay past even
+  // a 15s test timeout under parallel-worker CPU contention. Subscribes
+  // directly to the store (zustand's vanilla subscribe, not the React
+  // hook), so this never triggers a React re-render — same "no per-frame
+  // React update" rule the rAF loop itself follows below, just immediate
+  // instead of once-per-frame. The rAF loop still separately owns the
+  // world transform and frameTimeMs; this only makes the e2e-observability
+  // attributes it already wrote (see that loop's own comment) resilient to
+  // paint timing.
+  useEffect(() => {
+    return useCameraStore.subscribe((state) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      viewport.dataset.cameraX = String(state.camera.x);
+      viewport.dataset.cameraY = String(state.camera.y);
+      viewport.dataset.cameraZoom = String(state.camera.zoom);
+    });
+  }, []);
+
   useEffect(() => {
     let frame: number;
     let lastFrameTime: number | null = null;

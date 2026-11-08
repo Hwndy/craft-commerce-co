@@ -10,10 +10,17 @@ export interface ProductLabelProps {
   currency?: string;
   description?: string;
   status: ProductStatus;
+  /** FR-4.7: an optional "sale" display flag, independent of `status` — see
+   * docs/decisions.md D-46. */
+  onSale?: boolean;
+  /** Opens the product overlay (T3) — a plain <button> (not a <div>) like
+   * RegionLabel, since every real use is clickable; omit for a
+   * non-interactive, read-only card. */
+  onClick?: () => void;
   className?: string;
 }
 
-const STATUS_COPY: Record<ProductStatus, string> = {
+export const STATUS_COPY: Record<ProductStatus, string> = {
   available: "Available",
   made_to_order: "Made to order",
   sold: "Sold",
@@ -36,17 +43,35 @@ export function formatGbp(amount: number, currency = "GBP"): string {
  * phases/PHASE-3-shop-and-enquiry.md T2's own spec. Cream surface, dark
  * text — the one real new token from D-45 (--surface-light).
  */
-export function ProductLabel({ name, price, currency = "GBP", description, status, className }: ProductLabelProps) {
+export function ProductLabel({
+  name,
+  price,
+  currency = "GBP",
+  description,
+  status,
+  onSale,
+  onClick,
+  className,
+}: ProductLabelProps) {
   return (
-    <div className={cn("rounded-xl bg-surface-light p-4 text-surface-light-foreground", className)}>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-xl bg-surface-light p-4 text-left text-surface-light-foreground",
+        onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
+        className
+      )}
+    >
       <div className="flex items-baseline justify-between gap-2">
         <span className="font-heading font-bold">{name}</span>
         <span className="font-heading font-bold">{formatGbp(price, currency)}</span>
       </div>
       {description && <p className="mt-1 text-sm text-surface-light-foreground/70">{description}</p>}
-      <Badge variant={STATUS_VARIANT[status]} className="mt-2">
-        {STATUS_COPY[status]}
-      </Badge>
-    </div>
+      <div className="mt-2 flex items-center gap-1.5">
+        <Badge variant={STATUS_VARIANT[status]}>{STATUS_COPY[status]}</Badge>
+        {onSale && <Badge variant="outline">Sale</Badge>}
+      </div>
+    </button>
   );
 }

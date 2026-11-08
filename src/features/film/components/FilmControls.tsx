@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 
+import { Button } from "@/components/ui/button";
+
 import { formatTime } from "../lib/formatTime";
 import { actionForKey } from "../lib/keyboardShortcuts";
+import { nextPlaybackRate } from "../lib/playbackRate";
 import { useVideoState } from "../lib/useVideoState";
 import { ScrubBar, type SpriteMeta } from "./ScrubBar";
 
@@ -9,20 +12,56 @@ export interface FilmControlsProps {
   video: HTMLVideoElement | null;
   spriteUrl?: string | null;
   spriteMeta?: SpriteMeta | null;
+  /** Whether a <track kind="captions"> is actually mounted on `video` — the
+   * CC button has nothing to toggle otherwise (docs/decisions.md D-45). */
+  captionsAvailable?: boolean;
 }
 
 const AUTO_HIDE_MS = 3000;
 
 /**
  * The custom control bar: play/pause, mute + volume (hidden where volume
- * writes don't stick, e.g. iOS), a scrub bar, and the keyboard shortcuts
- * from phases/PHASE-1-entry-to-film.md T9. Auto-hides after 3s of
- * inactivity, reappears on pointer movement/activity or a keypress.
+ * writes don't stick, e.g. iOS), a scrub bar, captions and speed (D-45),
+ * and the keyboard shortcuts from phases/PHASE-1-entry-to-film.md T9.
+ * Auto-hides after 3s of inactivity, reappears on pointer movement/
+ * activity or a keypress.
  */
-export function FilmControls({ video, spriteUrl, spriteMeta }: FilmControlsProps) {
+export function FilmControls({ video, spriteUrl, spriteMeta, captionsAvailable }: FilmControlsProps) {
   const controls = useVideoState(video);
   const [visible, setVisible] = useState(true);
+  const [captionsOn, setCaptionsOn] = useState(() => video?.textTracks[0]?.mode === "showing");
   const hideTimerRef = useRef<number | null>(null);
+
+  // Reads the track's real mode, both on mount and whenever it changes —
+  // not just after this component's own toggleCaptions() call. FilmStage's
+  // <video> is mounted once at the app root and never recreated, so a
+  // visitor who enables CC, hits Continue, then reopens the film would
+  // otherwise see the button start back at "off" while captions keep
+  // showing (found in review, independently, by two reviewers). Also
+  // re-runs when captionsAvailable flips true: the <track> only mounts
+  // once film data has loaded, so a component that renders before that
+  // (common — reveal() can happen before useFilm() resolves) would
+  // otherwise never attach the listener at all (found in review).
+  useEffect(() => {
+    const track = video?.textTracks[0];
+    if (!track) {
+      setCaptionsOn(false);
+      return;
+    }
+    setCaptionsOn(track.mode === "showing");
+    const tracks = video.textTracks;
+    const onChange = () => setCaptionsOn(track.mode === "showing");
+    tracks.addEventListener("change", onChange);
+    return () => tracks.removeEventListener("change", onChange);
+  }, [video, captionsAvailable]);
+
+  const toggleCaptions = useCallback(() => {
+    const track = video?.textTracks[0];
+    if (!track) return;
+    track.mode = track.mode === "showing" ? "hidden" : "showing";
+    // captionsOn updates via the "change" listener above, the single
+    // source of truth for this state — not set directly here.
+  }, [video]);
 
   const scheduleHide = useCallback(() => {
     if (hideTimerRef.current !== null) window.clearTimeout(hideTimerRef.current);
@@ -77,17 +116,13 @@ export function FilmControls({ video, spriteUrl, spriteMeta }: FilmControlsProps
       onPointerMove={showControls}
       onPointerDown={showControls}
       onKeyDown={handleKeyDown}
-      style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", justifyContent: "flex-end" }}
+      className="absolute inset-0 flex flex-col justify-end"
     >
       <div
+        className="flex flex-col gap-2 bg-gradient-to-t from-black/70 to-transparent p-4 transition-opacity duration-300"
         style={{
-          padding: "12px 16px calc(12px + env(safe-area-inset-bottom))",
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-          background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+          paddingBottom: "calc(16px + env(safe-area-inset-bottom))",
           opacity: visible ? 1 : 0,
-          transition: "opacity 300ms ease",
           pointerEvents: visible ? "auto" : "none",
         }}
       >
@@ -99,12 +134,12 @@ export function FilmControls({ video, spriteUrl, spriteMeta }: FilmControlsProps
           spriteUrl={spriteUrl}
           spriteMeta={spriteMeta}
         />
-        <div style={{ display: "flex", alignItems: "center", gap: 12, color: "#fff" }}>
+        <div className="flex items-center gap-3 text-white">
           <button
             type="button"
             onClick={controls.togglePlay}
             aria-label={controls.isPlaying ? "Pause" : "Play"}
-            style={{ background: "none", border: "none", color: "#fff", fontSize: 18, cursor: "pointer" }}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-base text-black"
           >
             {controls.isPlaying ? "⏸" : "▶"}
           </button>
@@ -112,7 +147,7 @@ export function FilmControls({ video, spriteUrl, spriteMeta }: FilmControlsProps
             type="button"
             onClick={controls.toggleMute}
             aria-label={controls.muted ? "Unmute" : "Mute"}
-            style={{ background: "none", border: "none", color: "#fff", fontSize: 18, cursor: "pointer" }}
+            className="flex h-8 w-8 shrink-0 items-center justify-center bg-transparent text-lg"
           >
             {controls.muted || controls.volume === 0 ? "🔇" : "🔊"}
           </button>
@@ -125,12 +160,34 @@ export function FilmControls({ video, spriteUrl, spriteMeta }: FilmControlsProps
               value={controls.muted ? 0 : controls.volume}
               onChange={(event) => controls.setVolume(Number(event.target.value))}
               aria-label="Volume"
-              style={{ width: 80 }}
+              className="w-20 accent-primary"
             />
           )}
-          <span style={{ fontVariantNumeric: "tabular-nums", fontSize: 14 }}>
+          <span className="font-body text-xs tabular-nums text-white/80 sm:text-sm">
             {formatTime(controls.currentTime)} / {formatTime(controls.duration)}
           </span>
+
+          <div className="ml-auto flex items-center gap-2">
+            {captionsAvailable && (
+              <Button
+                type="button"
+                variant={captionsOn ? "pill" : "pill-outline"}
+                size="sm"
+                aria-pressed={captionsOn}
+                onClick={toggleCaptions}
+              >
+                CC
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant="pill-outline"
+              size="sm"
+              onClick={() => controls.setPlaybackRate(nextPlaybackRate(controls.playbackRate))}
+            >
+              Speed {controls.playbackRate}×
+            </Button>
+          </div>
         </div>
       </div>
     </div>

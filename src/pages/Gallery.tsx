@@ -6,22 +6,34 @@ import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
 import { getViewpoint } from "@/canvas/viewpoints";
+import { RegionLabel } from "@/components/brand/RegionLabel";
 import { Collage } from "@/features/collage/Collage";
+import { CollageChrome } from "@/features/collage/CollageChrome";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
+import { ShopChrome } from "@/features/shop/ShopChrome";
+import { ShopRegion } from "@/features/shop/ShopRegion";
 import { siteMediaUrl } from "@/lib/storage";
 
 import { photoIdFromSplat } from "./galleryRoute";
 
 /**
- * The Gallery region (the film) plus the Collage region (T8), both on the
- * same persistent Board so Explore-mode panning and Guided-mode Next/
- * Previous move between them without a route change — "gallery" and
- * "collage" are two distinct viewpoints (supabase/seed.sql) within the
- * one product-brief "Gallery" area (film + photo collage). The film itself
+ * Despite the name/route, this page now hosts the *whole* spatial board —
+ * Gallery (film), Collage, and (Phase 3 T2) both Shop regions — all on the
+ * same persistent `<Board>`, because App.tsx only mounts one `<Board>`
+ * anywhere, under `/gallery/*`; there's no separate always-mounted board
+ * for every route to share. Each area's own viewpoint (supabase/seed.sql)
+ * is what Explore-mode panning and Guided-mode Next/Previous actually move
+ * between, with no route change needed. Renaming this page/route is a
+ * reasonable future cleanup as more regions land here (About/Contact, T6)
+ * but is out of scope for any one task to do incidentally.
+ *
+ * The Gallery region (the film) plus the Collage region (T8) specifically:
+ * "gallery" and "collage" are two distinct viewpoints within the one
+ * product-brief "Gallery" area (film + photo collage). The film itself
  * renders via FilmStage's globally-mounted full-screen layer (T8 of
  * Phase 1), not inside this component — reveal()/hide() here just toggle
  * that layer on/off, so the single <video> element is never recreated by
@@ -72,18 +84,26 @@ export default function Gallery() {
     <>
       <Board>
         <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
-          <button
-            type="button"
+          {/* Board quadrant card (docs/decisions.md D-45) — the region's
+              poster image fills the card's own background rather than
+              sitting in RegionLabel's icon tile, so the whole 800x600
+              region stays one large, clickable poster as before.
+              aria-label must still contain the card's own visible text
+              ("Gallery", "Film · Collage"), not just replace it with "Play
+              X" — WCAG 2.5.3/axe's label-content-name-mismatch: a voice-
+              control user who sees "GALLERY" on screen and says "click
+              Gallery" needs that word in the accessible name too. */}
+          <RegionLabel
             onClick={() => useFilmControllerStore.getState().reveal()}
-            aria-label={film ? `Play ${film.title}` : "Film"}
+            aria-label={`Gallery, Film · Collage — ${film ? `play ${film.title}` : "play the film"}`}
+            title="Gallery"
+            subtitle="Film · Collage"
+            className="h-full w-full justify-end bg-cover bg-center"
             style={{
-              width: "100%",
-              height: "100%",
-              border: "none",
-              cursor: "pointer",
-              background: posterUrl
-                ? `#000 url(${posterUrl}) center / cover no-repeat`
-                : "#111",
+              backgroundImage: posterUrl
+                ? `linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0.1) 60%), url(${posterUrl})`
+                : undefined,
+              backgroundColor: posterUrl ? undefined : "#111",
             }}
           />
         </Region>
@@ -92,6 +112,28 @@ export default function Gallery() {
           centerX={getViewpoint("collage").x}
           centerY={getViewpoint("collage").y}
           onOpenPhoto={(id) => navigate(`/gallery/photo/${id}`)}
+        />
+
+        {/* Phase 3 T2 — Shop regions live on the same persistent Board as
+         * Gallery/Collage, same reasoning as Collage's own comment above:
+         * Explore-mode panning and Guided-mode Next/Previous move between
+         * every region without a route change. The product overlay itself
+         * (T3) isn't built yet — onOpenProduct still routes to /shop/:slug,
+         * which 404s until then, same acceptable gap PhotoViewer had for
+         * its own deep link before T9 existed. */}
+        <ShopRegion
+          region="shop-wall"
+          title="Shop (wall)"
+          centerX={getViewpoint("shop-wall").x}
+          centerY={getViewpoint("shop-wall").y}
+          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
+        />
+        <ShopRegion
+          region="shop-floor"
+          title="Shop (floor)"
+          centerX={getViewpoint("shop-floor").x}
+          centerY={getViewpoint("shop-floor").y}
+          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
         />
 
         <PhotoViewer
@@ -113,17 +155,23 @@ export default function Gallery() {
        * once Continue calls hide()), so gating on it alone — rather than
        * re-deriving isLocked here too — is both correct and simpler.
        *
-       * Rendered as a SIBLING of <Board>, not a child: CanvasChrome's own
-       * `position: fixed` chrome needs the real viewport as its containing
-       * block. Board's own world div carries a `transform` (its rAF camera
-       * loop) and `will-change: transform`, either of which redefines the
-       * containing block for any `position: fixed` descendant — nesting
-       * CanvasChrome inside <Board>'s children would silently move it
-       * with the camera instead of keeping it screen-anchored. DevCanvas.tsx
-       * already established this exact sibling placement; this just
-       * follows it.
+       * Rendered as a SIBLING of <Board>, not a child: CanvasChrome's (and
+       * CollageChrome's, D-45) own `position: fixed` chrome needs the real
+       * viewport as its containing block. Board's own world div carries a
+       * `transform` (its rAF camera loop) and `will-change: transform`,
+       * either of which redefines the containing block for any
+       * `position: fixed` descendant — nesting this chrome inside <Board>'s
+       * children would silently move it with the camera instead of keeping
+       * it screen-anchored. DevCanvas.tsx already established this exact
+       * sibling placement; this just follows it.
        */}
-      {!isFilmRevealed && <CanvasChrome />}
+      {!isFilmRevealed && (
+        <>
+          <CanvasChrome />
+          <CollageChrome />
+          <ShopChrome />
+        </>
+      )}
     </>
   );
 }

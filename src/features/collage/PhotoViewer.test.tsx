@@ -9,6 +9,7 @@ function photo(id: string, title: string, takenOn: string | null = null): Collag
     id,
     title,
     takenOn,
+    shoot: { id: "set-a", title: "Studio" },
     media: { id: `${id}-media`, width: 2000, height: 1500, blurDataUrl: null, renditions: { "1280": `p/${id}/1280.webp` } },
   };
 }
@@ -70,7 +71,9 @@ describe("PhotoViewer", () => {
 
   it("tapping the image toggles the nav arrows out of the tab order and back in", () => {
     render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={vi.fn()} />);
-    const img = screen.getByAltText("");
+    // Not getByAltText(""): the filmstrip's own thumbnails are also real
+    // alt="" <img>s (D-45) once a fixture's renditions include "256".
+    const img = screen.getByTestId("photo-viewer-image");
     const next = screen.getByRole("button", { name: "Next photo" });
     expect(next).toHaveAttribute("tabindex", "0");
 
@@ -83,10 +86,29 @@ describe("PhotoViewer", () => {
     expect(next).toHaveAttribute("aria-hidden", "false");
   });
 
+  it("filmstrip: clicking a different thumbnail navigates to it, and doesn't render for a single-photo set", () => {
+    const onNavigate = vi.fn();
+    const { rerender } = render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={onNavigate} />);
+
+    // The filmstrip's own thumbnail buttons aren't individually labelled
+    // (decorative/aria-hidden — the real accessible navigation is Next/
+    // Previous and the route itself), so they're queried by position
+    // rather than role+name. Dialog content renders into a portal on
+    // document.body, not the render() container.
+    const thumbnails = () => document.querySelectorAll('[aria-hidden="true"] button');
+    expect(thumbnails()).toHaveLength(photos.length);
+
+    fireEvent.click(thumbnails()[2]);
+    expect(onNavigate).toHaveBeenCalledWith("c");
+
+    rerender(<PhotoViewer photos={[photo("only", "Only photo")]} openId="only" onClose={vi.fn()} onNavigate={vi.fn()} />);
+    expect(thumbnails()).toHaveLength(0);
+  });
+
   it("resets the chrome to visible when a different photo opens", () => {
     const { rerender } = render(<PhotoViewer photos={photos} openId="a" onClose={vi.fn()} onNavigate={vi.fn()} />);
     const next = screen.getByRole("button", { name: "Next photo" });
-    fireEvent.click(screen.getByAltText(""));
+    fireEvent.click(screen.getByTestId("photo-viewer-image"));
     expect(next).toHaveAttribute("tabindex", "-1");
 
     rerender(<PhotoViewer photos={photos} openId="b" onClose={vi.fn()} onNavigate={vi.fn()} />);

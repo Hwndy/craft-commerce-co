@@ -3,9 +3,9 @@ import { useEffect } from "react";
 import { screenToWorld } from "./math";
 import { useCameraStore } from "./store";
 import { getViewpoint } from "./viewpoints";
+import { zoomAtViewportCenter, ZOOM_STEP_FACTOR } from "./zoomControl";
 
 const PAN_STEP_SCREEN_PX = 80;
-const ZOOM_STEP_FACTOR = 1.3;
 
 /**
  * Keyboard control for the board (docs/02-canvas-spec.md §4): arrows pan,
@@ -35,19 +35,6 @@ export function useBoardKeyboard(viewportRef: React.RefObject<HTMLElement>) {
       setCamera({ ...camera, x: camera.x + dx / camera.zoom, y: camera.y + dy / camera.zoom });
     }
 
-    function zoomAtCenter(factor: number) {
-      const { camera, setCamera, viewport, zoomLimits } = useCameraStore.getState();
-      const sx = viewport.width / 2;
-      const sy = viewport.height / 2;
-      const before = screenToWorld(camera, sx, sy);
-      const targetZoom = Math.min(zoomLimits.max, Math.max(zoomLimits.min, camera.zoom * factor));
-      setCamera({
-        x: before.x - sx / targetZoom,
-        y: before.y - sy / targetZoom,
-        zoom: targetZoom,
-      });
-    }
-
     function handleKeyDown(event: KeyboardEvent) {
       const { flyTo } = useCameraStore.getState();
       const reducedMotion =
@@ -74,12 +61,12 @@ export function useBoardKeyboard(viewportRef: React.RefObject<HTMLElement>) {
         case "+":
         case "=":
           event.preventDefault();
-          zoomAtCenter(ZOOM_STEP_FACTOR);
+          zoomAtViewportCenter(ZOOM_STEP_FACTOR);
           break;
         case "-":
         case "_":
           event.preventDefault();
-          zoomAtCenter(1 / ZOOM_STEP_FACTOR);
+          zoomAtViewportCenter(1 / ZOOM_STEP_FACTOR);
           break;
         case "0":
           event.preventDefault();
@@ -87,7 +74,7 @@ export function useBoardKeyboard(viewportRef: React.RefObject<HTMLElement>) {
           break;
         case "Escape":
           event.preventDefault();
-          zoomAtCenter(0.5);
+          zoomAtViewportCenter(0.5);
           break;
         default:
           break;
