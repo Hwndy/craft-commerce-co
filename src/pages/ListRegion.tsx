@@ -2,9 +2,11 @@ import { Link, useParams } from "react-router-dom";
 
 import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
 import { listViewpoints } from "@/canvas/viewpoints";
+import { formatGbp } from "@/components/brand/ProductLabel";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { useFilm } from "@/features/film/lib/useFilm";
 import { useRegionNodes } from "@/features/list/lib/useRegionNodes";
+import { useProductNodes } from "@/features/shop/lib/useProducts";
 
 /**
  * /list/:region — plain semantic HTML for one region's content
@@ -21,6 +23,8 @@ import { useRegionNodes } from "@/features/list/lib/useRegionNodes";
  * synchronous listViewpoints() snapshot — see ListIndex.tsx's comment for
  * why a component needs the reactive query, not a one-off synchronous read.
  */
+const SHOP_REGION_KEYS = new Set(["shop-wall", "shop-floor"]);
+
 export default function ListRegion() {
   const { region } = useParams<{ region: string }>();
   const { data: viewpoints } = useViewpointsQuery();
@@ -28,8 +32,18 @@ export default function ListRegion() {
   const { data: nodes } = useRegionNodes(region ?? "");
   const { data: film } = useFilm();
   const { data: photos } = useCollagePhotos();
-  const realNodes = (nodes ?? []).filter((node) => node.nodeType !== "region-label");
-  const hasAnyContent = realNodes.length > 0 || (region === "gallery" && !!film) || (region === "collage" && !!photos?.length);
+  const isShopRegion = !!region && SHOP_REGION_KEYS.has(region);
+  const { data: productNodes } = useProductNodes(isShopRegion ? region : "");
+  // 'region-label' is always internal; 'product' gets its own section below
+  // (real name/price/status, not a bare node-type label) for shop regions.
+  const realNodes = (nodes ?? []).filter(
+    (node) => node.nodeType !== "region-label" && !(isShopRegion && node.nodeType === "product")
+  );
+  const hasAnyContent =
+    realNodes.length > 0 ||
+    (region === "gallery" && !!film) ||
+    (region === "collage" && !!photos?.length) ||
+    (isShopRegion && !!productNodes?.length);
 
   if (!region) return null;
 
@@ -53,6 +67,19 @@ export default function ListRegion() {
               <li key={photo.id}>
                 {photo.title}
                 {photo.takenOn ? ` — ${photo.takenOn}` : ""}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {isShopRegion && productNodes && productNodes.length > 0 && (
+        <section aria-label="Products">
+          <ul>
+            {productNodes.map(({ nodeId, product }) => (
+              <li key={nodeId}>
+                {product.name} — {formatGbp(product.priceAmount, product.priceCurrency)}
+                {product.onSale ? " (Sale)" : ""}
               </li>
             ))}
           </ul>

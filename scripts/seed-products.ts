@@ -70,9 +70,10 @@ const SAMPLE_PRODUCT = {
   // Unlike the collage's generative phyllotaxis layout (a real product
   // display is curated, not algorithmic), so this script seeds the node's
   // own position directly — centred on supabase/seed.sql's 'shop-floor'
-  // viewpoint (-2000, 1200).
+  // viewpoint (-2000, 1200). Taller than wide: ShopRegion.tsx stacks a
+  // poster tile above the ProductLabel card within this one box.
   region: "shop-floor",
-  node: { x: -2140, y: 1060, width: 280, height: 280 },
+  node: { x: -2120, y: 1020, width: 240, height: 360 },
 };
 
 async function uploadBuffer(destPath: string, buffer: Buffer, contentType: string) {

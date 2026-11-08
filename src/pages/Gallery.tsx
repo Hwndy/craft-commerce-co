@@ -14,16 +14,26 @@ import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
+import { ShopChrome } from "@/features/shop/ShopChrome";
+import { ShopRegion } from "@/features/shop/ShopRegion";
 import { siteMediaUrl } from "@/lib/storage";
 
 import { photoIdFromSplat } from "./galleryRoute";
 
 /**
- * The Gallery region (the film) plus the Collage region (T8), both on the
- * same persistent Board so Explore-mode panning and Guided-mode Next/
- * Previous move between them without a route change — "gallery" and
- * "collage" are two distinct viewpoints (supabase/seed.sql) within the
- * one product-brief "Gallery" area (film + photo collage). The film itself
+ * Despite the name/route, this page now hosts the *whole* spatial board —
+ * Gallery (film), Collage, and (Phase 3 T2) both Shop regions — all on the
+ * same persistent `<Board>`, because App.tsx only mounts one `<Board>`
+ * anywhere, under `/gallery/*`; there's no separate always-mounted board
+ * for every route to share. Each area's own viewpoint (supabase/seed.sql)
+ * is what Explore-mode panning and Guided-mode Next/Previous actually move
+ * between, with no route change needed. Renaming this page/route is a
+ * reasonable future cleanup as more regions land here (About/Contact, T6)
+ * but is out of scope for any one task to do incidentally.
+ *
+ * The Gallery region (the film) plus the Collage region (T8) specifically:
+ * "gallery" and "collage" are two distinct viewpoints within the one
+ * product-brief "Gallery" area (film + photo collage). The film itself
  * renders via FilmStage's globally-mounted full-screen layer (T8 of
  * Phase 1), not inside this component — reveal()/hide() here just toggle
  * that layer on/off, so the single <video> element is never recreated by
@@ -104,6 +114,28 @@ export default function Gallery() {
           onOpenPhoto={(id) => navigate(`/gallery/photo/${id}`)}
         />
 
+        {/* Phase 3 T2 — Shop regions live on the same persistent Board as
+         * Gallery/Collage, same reasoning as Collage's own comment above:
+         * Explore-mode panning and Guided-mode Next/Previous move between
+         * every region without a route change. The product overlay itself
+         * (T3) isn't built yet — onOpenProduct still routes to /shop/:slug,
+         * which 404s until then, same acceptable gap PhotoViewer had for
+         * its own deep link before T9 existed. */}
+        <ShopRegion
+          region="shop-wall"
+          title="Shop (wall)"
+          centerX={getViewpoint("shop-wall").x}
+          centerY={getViewpoint("shop-wall").y}
+          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
+        />
+        <ShopRegion
+          region="shop-floor"
+          title="Shop (floor)"
+          centerX={getViewpoint("shop-floor").x}
+          centerY={getViewpoint("shop-floor").y}
+          onOpenProduct={(slug) => navigate(`/shop/${slug}`)}
+        />
+
         <PhotoViewer
           photos={photos ?? []}
           openId={openPhotoId}
@@ -137,6 +169,7 @@ export default function Gallery() {
         <>
           <CanvasChrome />
           <CollageChrome />
+          <ShopChrome />
         </>
       )}
     </>

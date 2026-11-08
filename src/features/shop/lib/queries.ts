@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 
 export const PRODUCTS_QUERY_KEY = ["shop", "products"] as const;
 export const PRODUCT_QUERY_KEY = (slug: string) => ["shop", "product", slug] as const;
+export const PRODUCT_NODES_QUERY_KEY = (region: string) => ["shop", "product-nodes", region] as const;
 
 const mediaSchema = z.object({
   id: z.string(),
@@ -153,6 +154,52 @@ export async function fetchProduct(slug: string): Promise<ProductDetail | null> 
     pictures,
     video: mapMedia(row.video_media_id ? mediaById.get(row.video_media_id) : undefined),
   });
+}
+
+export interface ProductNode {
+  nodeId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+  product: Product;
+}
+
+/**
+ * The real, curated `product`-type canvas_nodes for one Shop region (wall
+ * or floor) — positions placed by hand (scripts/seed-products.ts), not
+ * computed like the collage's generative layout (docs/decisions.md D-48).
+ * Nodes whose product doesn't exist or isn't published are silently
+ * skipped, same spirit as fetchProduct()'s "ready" media filter.
+ */
+export async function fetchProductNodes(region: string): Promise<ProductNode[]> {
+  const [{ data: nodes, error: nodesError }, products] = await Promise.all([
+    supabase
+      .from("canvas_nodes")
+      .select("*")
+      .eq("region", region)
+      .eq("node_type", "product")
+      .eq("published", true)
+      .order("layer")
+      .order("id"),
+    fetchProducts(),
+  ]);
+  if (nodesError) throw nodesError;
+  if (!nodes || nodes.length === 0) return [];
+
+  const productById = new Map(products.map((p) => [p.id, p]));
+  return nodes
+    .filter((node) => node.ref_id != null && productById.has(node.ref_id))
+    .map((node) => ({
+      nodeId: node.id,
+      x: node.x,
+      y: node.y,
+      width: node.width,
+      height: node.height,
+      rotation: node.rotation,
+      product: productById.get(node.ref_id!)!,
+    }));
 }
 
 async function fetchMediaByIds(ids: string[]): Promise<Map<string, MediaRow>> {
