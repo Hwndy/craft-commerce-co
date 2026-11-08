@@ -63,6 +63,6 @@ No `vercel.json` exists yet (added in T2). The repo has no CI workflow yet (adde
 ## Owner follow-ups opened by this audit
 
 - No "finer luminous form" asset exists; T6 will use a CSS-based treatment unless the owner supplies a dedicated asset or 3D model (see Phase 1 brief's risk note on the ~24–40 extra creative-dev hours if a new asset is needed).
-- No board-label serif font exists; confirm with the owner before introducing a new family (per `docs/04-design-and-motion.md` §2).
-- Real brand tokens (near-black `hsl(0 0% 8%)`, gold `hsl(51 100% 50%)`) differ from the build kit's placeholder hex values; recommend updating `docs/04-design-and-motion.md` once the owner confirms these are final.
+- ~~No board-label serif font exists; confirm with the owner before introducing a new family~~ — **Resolved (D-45)**: the owner's design upload confirms Roboto Slab. See `docs/04-design-and-motion.md` §2.
+- ~~Real brand tokens... differ from the build kit's placeholder hex values; recommend updating `docs/04-design-and-motion.md` once the owner confirms these are final~~ — **Resolved (D-45)**: the owner's design mockup's real computed colours match these exact values (near-black `hsl(0 0% 8%)`, gold `hsl(51 100% 50%)`), confirming them as final; `docs/04-design-and-motion.md` §2 updated accordingly.
 - Lighthouse mobile baseline still needs to be run and recorded once a reachable preview URL exists (e.g. after the Vercel preview deploy in T14, or manually against localhost before then).

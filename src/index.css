@@ -42,7 +42,12 @@
     --brand-yellow: 51 100% 50%;
     --brand-black: 0 0% 8%;
     --brand-gray: 0 0% 15%;
-    
+
+    /* Warm light surface — product cards, Contact panel (docs/04-design-and-motion.md D-45).
+       Additive: --card/--popover stay the existing dark surface used elsewhere. */
+    --surface-light: 45 32% 93%;
+    --surface-light-foreground: 0 0% 10%;
+
     /* Gradients */
     --gradient-brand: linear-gradient(135deg, hsl(var(--brand-yellow)), hsl(51 100% 60%));
     --gradient-dark: linear-gradient(180deg, hsl(var(--brand-black)), hsl(0 0% 12%));
@@ -51,8 +56,9 @@
     --shadow-brand: 0 20px 50px -10px hsl(var(--brand-yellow) / 0.3);
     --shadow-card: 0 8px 30px -5px hsl(0 0% 0% / 0.4);
     
-    /* Typography */
-    --font-heading: 'Inter', system-ui, sans-serif;
+    /* Typography — confirmed per the owner's design upload (D-45):
+       Roboto Slab for headings/board labels, Inter for body/UI text. */
+    --font-heading: 'Roboto Slab', Georgia, serif;
     --font-body: 'Inter', system-ui, sans-serif;
 
     --sidebar-background: 0 0% 98%;
@@ -117,7 +123,16 @@
   }
 
   body {
-    @apply bg-background text-foreground font-[var(--font-body)];
+    /* Pre-existing bug fixed here (D-45): Tailwind's arbitrary `font-[...]`
+       utility is ambiguous between font-family and font-weight, and was
+       resolving this to `font-weight: var(--font-body)` — invalid, silently
+       ignored, so no custom font was ever actually applied. `font-body`
+       (tailwind.config.ts's fontFamily.body) is the unambiguous utility. */
+    @apply bg-background text-foreground font-body;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
   }
 }
 

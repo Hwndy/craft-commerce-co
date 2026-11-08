@@ -6,18 +6,20 @@
 
 ## 2. Tokens
 
-Extract the real values from the existing landing page (`docs/landing-audit.md` records them) and keep them as CSS variables. Until that audit exists, use these placeholders and mark them for owner approval:
+**Confirmed (D-45)** — the owner supplied a full design mockup covering every screen (board, gallery, shop, about/contact, mobile). Its computed colours (extracted via Playwright, not eyeballed) match what was already live in `src/index.css` almost exactly, resolving the placeholders below:
 
-| Token | Placeholder |
-|---|---|
-| `--bg` | `#000000` |
-| `--ink` | `#F5F1E6` |
-| `--gold` | `#C9A64B` |
-| `--light` | `#FFFFFF` |
-| `--accent-cyan` | `#7FD8E6` (board accents) |
-| Radius | 12 px for cards, 999 px for pills |
+| Token | Real value | CSS variable |
+|---|---|---|
+| `--bg` | `hsl(0 0% 8%)` ≈ `#141414` | `--background` |
+| `--ink` | `hsl(0 0% 98%)` ≈ `#FAFAFA` | `--foreground` |
+| `--gold` | `hsl(51 100% 50%)` = `#FFD900` | `--primary` / `--accent` |
+| `--light` | `#FFFFFF` | (unchanged) |
+| Warm card surface (new) | `hsl(45 32% 93%)` ≈ `#F2EFE6` | `--surface-light` / `--surface-light-foreground` — product cards, the Contact panel |
+| Radius | 12 px for cards, 999 px for pills | `--radius` (0.75rem) |
 
-Type: use the landing page's fonts. For board labels the concept board used a heavy slab serif; confirm with the owner before introducing a new family. Keep to two families at most, self-hosted or loaded with `font-display: swap`.
+`--accent-cyan` (`#7FD8E6`) does not appear anywhere in the confirmed design — dropped, not used.
+
+Type: **confirmed** — Roboto Slab for headings/board labels (`--font-heading`), Inter for body/UI text (`--font-body`), both loaded via Google Fonts in `index.html` with `font-display: swap`.
 
 ## 3. Entry sequence timing (Phase 1)
 
