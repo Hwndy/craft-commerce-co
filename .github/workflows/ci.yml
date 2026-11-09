@@ -124,6 +124,26 @@ jobs:
           scripts/generate-placeholder-photos.sh assets/test-product-photos 1
           npx tsx scripts/seed-products.ts assets/test-product-photos
 
+      # A second placeholder product for Shop (wall) — found in review
+      # (CodeRabbit, PR #4): without one, the wall region's e2e assertions
+      # only ever exercised its empty-rect fallback, never a real product
+      # card that could actually be cropped. Reuses the same source photos
+      # and this script's own documented "second real product... reuse
+      # this same script" extension point (its own header comment),
+      # matching docs/decisions.md D-51's identical production precedent.
+      # node-x/node-y centre the default 240x360 node on shop-wall's own
+      # viewpoint (-2000, 0), the same convention the script's default
+      # (floor) values already use for shop-floor's (-2000, 1200).
+      - name: Seed a second placeholder product for the Shop wall
+        env:
+          SUPABASE_URL: ${{ env.API_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ env.SERVICE_ROLE_KEY }}
+        run: |
+          npx tsx scripts/seed-products.ts assets/test-product-photos \
+            --slug=sample-belt-no-2 --name="Sample Belt No.2" \
+            --zone=wall --region=shop-wall --sort-order=1 \
+            --node-x=-2120 --node-y=-180
+
       - name: Build (against the local Supabase stack)
         env:
           VITE_SUPABASE_URL: ${{ env.API_URL }}

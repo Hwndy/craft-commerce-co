@@ -180,20 +180,34 @@ test.describe("canvas gestures", () => {
     // centred on its own viewpoint coordinate (scripts/seed-products.ts),
     // so landing with that coordinate as the camera's raw top-left cropped
     // roughly half the card instead. Computed from the real viewport, not
-    // hardcoded, since the centred camera depends on it.
+    // hardcoded, since the centred camera depends on it. Asserts the real
+    // seeded product card's own bounding box, not just the region section
+    // being present — found in review (CodeRabbit, PR #4): the CI workflow
+    // only ever seeded a floor product, so the wall assertion previously
+    // only ever exercised the region's empty-rect fallback, never a real
+    // card that could actually be cropped (now seeded in ci.yml too).
     const viewport = page.viewportSize();
     if (!viewport) throw new Error("expected a real viewport size");
+
+    async function expectFullyInViewport(locator: ReturnType<Page["getByRole"]>) {
+      const box = await locator.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.y).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
+    }
 
     await page.getByRole("button", { name: "Next: Shop (wall)" }).click();
     await expect
       .poll(() => getCamera(page))
       .toEqual({ x: -2000 - viewport.width / 2, y: 0 - viewport.height / 2, zoom: 1 });
-    await expect(page.locator('section[data-region-id="shop-wall"]')).toBeVisible();
+    await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.2/ }));
 
     await page.getByRole("button", { name: "Next: Shop (floor)" }).click();
     await expect
       .poll(() => getCamera(page))
       .toEqual({ x: -2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
-    await expect(page.locator('section[data-region-id="shop-floor"]')).toBeVisible();
+    await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.5/ }));
   });
 });
