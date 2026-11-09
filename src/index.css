@@ -215,6 +215,12 @@
      from-less rotate(360deg) keyframe visibly jumped back to each photo's
      own nonzero tilt at the end of every loop). */
   .collage-spin {
+    /* Base transform so the static tilt still renders even when the
+       animation below is disabled (prefers-reduced-motion) — otherwise
+       reduced-motion visitors would see every circular photo perfectly
+       upright instead of with its own tilt (found in review, CodeRabbit,
+       PR #5). */
+    transform: rotate(var(--collage-tilt, 0deg));
     animation: collage-spin-turn 48s linear infinite;
   }
 
