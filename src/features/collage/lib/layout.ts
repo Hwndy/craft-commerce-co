@@ -25,13 +25,25 @@ export const DEFAULT_BASE_SIZE = 220;
 export const DEFAULT_TILT_RANGE_DEG = 8;
 export const DEFAULT_SIZE_JITTER = 0.12;
 
-export const DEFAULT_ITEMS_PER_STRIP = 5;
-export const DEFAULT_STRIP_TILT_DEG = -6;
-export const DEFAULT_STRIP_TILT_JITTER_DEG = 3;
-// Same non-overlap reasoning as DEFAULT_RADIUS_STEP above.
-export const DEFAULT_COL_SPACING = 300;
-export const DEFAULT_ROW_SPACING = 260;
-export const DEFAULT_ROW_OFFSET_X = 60;
+// "strips" mode groups photos into cascading, overlapping stacks — the
+// owner's own Freeform sketch ("IDEA 1 for PICTURE LAYOUT"): roughly six
+// stacks of ~20 photos each, fanned out diagonally so each stack reads as
+// one dense pile, not an evenly-spaced grid (found from the owner's own
+// walkthrough recording, not guessed — see docs/decisions.md D-62).
+export const DEFAULT_ITEMS_PER_STACK = 20;
+export const DEFAULT_STACK_TILT_DEG = -6;
+export const DEFAULT_STACK_TILT_JITTER_DEG = 3;
+// Small per-card offset within a stack — deliberately *less* than baseSize
+// so consecutive cards overlap (a fanned-deck look), unlike
+// DEFAULT_RADIUS_STEP above, which is tuned for the opposite (no overlap).
+export const DEFAULT_STACK_OFFSET_X = 16;
+export const DEFAULT_STACK_OFFSET_Y = 12;
+// Stacks themselves are arranged in a simple grid, spaced far enough apart
+// that one stack's fanned footprint (baseSize + (itemsPerStack-1)*offset)
+// never reaches its neighbour's.
+export const DEFAULT_STACKS_PER_ROW = 3;
+export const DEFAULT_STACK_COL_SPACING = 650;
+export const DEFAULT_STACK_ROW_SPACING = 560;
 
 export type CollageLayoutMode = "circular" | "strips";
 
@@ -60,11 +72,13 @@ export interface CollageLayoutOptions {
   radiusStep?: number;
   tiltRangeDeg?: number;
   /** strips only */
-  itemsPerStrip?: number;
-  stripTiltDeg?: number;
-  colSpacing?: number;
-  rowSpacing?: number;
-  rowOffsetX?: number;
+  itemsPerStack?: number;
+  stackTiltDeg?: number;
+  stackOffsetX?: number;
+  stackOffsetY?: number;
+  stacksPerRow?: number;
+  stackColSpacing?: number;
+  stackRowSpacing?: number;
 }
 
 /**
@@ -118,7 +132,14 @@ export function phyllotaxisLayout(
   });
 }
 
-/** FR-3.1's alternate layout setting ("Idea 1"): diagonally offset rows. */
+/**
+ * FR-3.1's alternate layout setting ("Idea 1"): photos grouped into
+ * cascading, overlapping stacks — each stack a diagonal fan of up to
+ * `itemsPerStack` cards, stacks themselves arranged in a grid. Later cards
+ * in a stack get a later array index, so they paint over earlier ones in
+ * `NodeLayer`'s own DOM-order stacking (no explicit z-index needed) — the
+ * fanned-deck look depends on that painting order.
+ */
 export function stripsLayout(
   photos: CollageLayoutPhoto[],
   options: CollageLayoutOptions = {}
@@ -128,23 +149,29 @@ export function stripsLayout(
     centerY = 0,
     baseSize = DEFAULT_BASE_SIZE,
     sizeJitter = DEFAULT_SIZE_JITTER,
-    itemsPerStrip = DEFAULT_ITEMS_PER_STRIP,
-    stripTiltDeg = DEFAULT_STRIP_TILT_DEG,
-    colSpacing = DEFAULT_COL_SPACING,
-    rowSpacing = DEFAULT_ROW_SPACING,
-    rowOffsetX = DEFAULT_ROW_OFFSET_X,
+    itemsPerStack = DEFAULT_ITEMS_PER_STACK,
+    stackTiltDeg = DEFAULT_STACK_TILT_DEG,
+    stackOffsetX = DEFAULT_STACK_OFFSET_X,
+    stackOffsetY = DEFAULT_STACK_OFFSET_Y,
+    stacksPerRow = DEFAULT_STACKS_PER_ROW,
+    stackColSpacing = DEFAULT_STACK_COL_SPACING,
+    stackRowSpacing = DEFAULT_STACK_ROW_SPACING,
   } = options;
 
   return photos.map((photo, index) => {
-    const row = Math.floor(index / itemsPerStrip);
-    const col = index % itemsPerStrip;
+    const stackIndex = Math.floor(index / itemsPerStack);
+    const withinStack = index % itemsPerStack;
+    const stackCol = stackIndex % stacksPerRow;
+    const stackRow = Math.floor(stackIndex / stacksPerRow);
 
     const sizeFactor = 1 + (hashUnitInterval(photo.id, "size") * 2 - 1) * sizeJitter;
     const { width, height } = sizeFromAspect(photo.aspectRatio, baseSize * sizeFactor);
 
-    const cx = centerX + col * colSpacing + row * rowOffsetX;
-    const cy = centerY + row * rowSpacing;
-    const tiltJitter = (hashUnitInterval(photo.id, "tilt") * 2 - 1) * DEFAULT_STRIP_TILT_JITTER_DEG;
+    const stackOriginX = centerX + stackCol * stackColSpacing;
+    const stackOriginY = centerY + stackRow * stackRowSpacing;
+    const cx = stackOriginX + withinStack * stackOffsetX;
+    const cy = stackOriginY + withinStack * stackOffsetY;
+    const tiltJitter = (hashUnitInterval(photo.id, "tilt") * 2 - 1) * DEFAULT_STACK_TILT_JITTER_DEG;
 
     return {
       id: photo.id,
@@ -152,7 +179,7 @@ export function stripsLayout(
       y: cy - height / 2,
       width,
       height,
-      rotation: stripTiltDeg + tiltJitter,
+      rotation: stackTiltDeg + tiltJitter,
     };
   });
 }

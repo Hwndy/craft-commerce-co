@@ -22,6 +22,18 @@ vi.mock("@/features/film/lib/fullscreen", () => ({
   exitFullscreenIfActive: (...args: unknown[]) => exitFullscreenIfActive(...args),
 }));
 
+// The real attachHls() points the <video> at a fake master.m3u8 path —
+// jsdom can't load it, so it fires a real error immediately, which the
+// video effect's own onFatalError handler reads as "this video is broken"
+// and flips back to the picture view before any assertion can run. Mocked
+// here the same way exitFullscreenIfActive is, since these tests only need
+// to know the overlay *asked* to show the video, not that real HLS
+// playback succeeded (that's attachHls's own test file's job).
+const attachHls = vi.fn().mockReturnValue({ destroy: vi.fn() });
+vi.mock("@/features/film/lib/hls", () => ({
+  attachHls: (...args: unknown[]) => attachHls(...args),
+}));
+
 function media(overrides: Partial<ProductMedia> = {}): ProductMedia {
   return {
     id: "media-1",
@@ -115,6 +127,24 @@ describe("ProductOverlay", () => {
     );
     expect(screen.getByRole("button", { name: "Pictures" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Video" })).toBeInTheDocument();
+  });
+
+  // The owner's own walkthrough (docs/decisions.md D-62): "what we show is
+  // the still image and then when they click on it the video now starts
+  // playing" — clicking the picture itself switches to the video, not just
+  // the Pictures/Video pills (kept additive alongside those).
+  it("clicking the picture switches to the turntable video, when one exists", () => {
+    render(
+      <ProductOverlay
+        slug="sample-belt-no-5"
+        product={product({ video: media({ id: "video-1", hlsMaster: "products/p1/video-1/master.m3u8" }) })}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector("video")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Play the turntable video" }));
+    expect(document.querySelector("video")).toBeInTheDocument();
   });
 
   it("calls onClose when the close button is activated", async () => {

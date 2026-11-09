@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCameraStore } from "@/canvas/store";
 
-import { Collage } from "./Collage";
+import { Collage, RISE_DURATION_MS } from "./Collage";
 import { useCollageViewStore } from "./collageViewStore";
 
 // useCollagePhotos() calls the real fetchCollagePhotos(), which hits
@@ -92,6 +92,47 @@ describe("Collage", () => {
     });
     const firstAfterFilter = screen.getByRole("button", { name: "The first cast, 2026-03-14" });
     expect(firstAfterFilter.parentElement?.style.left).toBe(firstLeft);
+  });
+
+  // The owner's own "strips" sketch (docs/decisions.md D-62): clicking a
+  // photo should visibly rise out of its stack before the viewer opens.
+  it("in strips mode, rises the clicked photo for RISE_DURATION_MS before calling onOpenPhoto", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        fireEvent.click(node);
+      });
+      expect(onOpenPhoto).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS);
+      });
+      expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("in strips mode, skips the rise delay and opens immediately when reduced motion is preferred", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const matchMediaSpy = vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: true,
+    } as MediaQueryList);
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    act(() => {
+      fireEvent.click(node);
+    });
+    expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+
+    matchMediaSpy.mockRestore();
   });
 
   it("renders no photo nodes and doesn't crash when nothing is published yet", async () => {

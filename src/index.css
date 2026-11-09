@@ -202,4 +202,20 @@
       animation: none;
     }
   }
+
+  /* Collage "circular" mode only (docs/decisions.md D-62) — the owner's own
+     "it would be cool if all the pictures in the globe were rotating
+     around... as if they're spinning" flair from his walkthrough. Slow and
+     subtle (48s per turn) so it reads as gentle ambient motion, not a
+     distraction from actually looking at or clicking a photo. Reuses
+     buffering-spin's own rotate(360deg) keyframe, just a different speed. */
+  .collage-spin {
+    animation: buffering-spin 48s linear infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .collage-spin {
+      animation: none;
+    }
+  }
 }
