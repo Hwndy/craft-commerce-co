@@ -7,10 +7,10 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
-import { getSession, requestPasswordReset, signInWithPassword } from "./lib/auth";
-import { challengeAndVerifySignIn, getVerifiedTotpFactorId, needsMfaChallenge } from "./lib/mfa";
+import { requestPasswordReset, signInWithPassword } from "./lib/auth";
+import { getVerifiedTotpFactorId, needsMfaChallenge } from "./lib/mfa";
+import { MfaChallengeStep } from "./components/MfaChallengeStep";
 import { NoIndex } from "./components/NoIndex";
 
 const credentialsSchema = z.object({
@@ -150,56 +150,5 @@ export default function AdminLogin() {
         </div>
       </div>
     </>
-  );
-}
-
-function MfaChallengeStep({
-  factorId,
-  onVerified,
-}: {
-  factorId: string;
-  onVerified: () => void;
-}) {
-  const [code, setCode] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function onSubmit() {
-    setSubmitting(true);
-    setError(null);
-    try {
-      await challengeAndVerifySignIn(factorId, code);
-      // getSession() isn't strictly needed here, but confirms the session
-      // the caller is about to trust is actually there before navigating.
-      await getSession();
-      onVerified();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Incorrect code.");
-      setCode("");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="space-y-4 text-center">
-      <p className="text-sm text-muted-foreground">
-        Enter the 6-digit code from your authenticator app.
-      </p>
-      <InputOTP
-        maxLength={6}
-        value={code}
-        onChange={setCode}
-        onComplete={onSubmit}
-        disabled={submitting}
-      >
-        <InputOTPGroup>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <InputOTPSlot key={i} index={i} />
-          ))}
-        </InputOTPGroup>
-      </InputOTP>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-    </div>
   );
 }

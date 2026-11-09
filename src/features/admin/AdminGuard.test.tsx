@@ -1,10 +1,11 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getSessionMock, onAuthStateChangeMock } = vi.hoisted(() => ({
+const { getSessionMock, onAuthStateChangeMock, signOutMock } = vi.hoisted(() => ({
   getSessionMock: vi.fn(),
   onAuthStateChangeMock: vi.fn(),
+  signOutMock: vi.fn(),
 }));
 vi.mock("./lib/auth", async () => {
   const actual = await vi.importActual<typeof import("./lib/auth")>("./lib/auth");
@@ -12,8 +13,25 @@ vi.mock("./lib/auth", async () => {
     ...actual,
     getSession: getSessionMock,
     onAuthStateChange: onAuthStateChangeMock,
+    signOut: signOutMock,
   };
 });
+
+// Found in review (Greptile, PR #7, security): is_admin() now requires
+// aal2 once a verified MFA factor is enrolled (docs/decisions.md D-65) —
+// AdminGuard has to check this too, not just the role claim, so it's
+// mocked explicitly here rather than relying on the real client's
+// behaviour with no genuine session in jsdom.
+const { needsMfaChallengeMock, getVerifiedTotpFactorIdMock, challengeAndVerifySignInMock } = vi.hoisted(() => ({
+  needsMfaChallengeMock: vi.fn(),
+  getVerifiedTotpFactorIdMock: vi.fn(),
+  challengeAndVerifySignInMock: vi.fn(),
+}));
+vi.mock("./lib/mfa", () => ({
+  needsMfaChallenge: needsMfaChallengeMock,
+  getVerifiedTotpFactorId: getVerifiedTotpFactorIdMock,
+  challengeAndVerifySignIn: challengeAndVerifySignInMock,
+}));
 
 import { AdminGuard } from "./AdminGuard";
 
@@ -40,12 +58,14 @@ function renderGuard() {
 }
 
 describe("AdminGuard", () => {
-  // Every test gets this default unsubscribe-returning implementation
-  // *before* its own body runs, so a test that wants its own (e.g. the
-  // sign-out one, to capture the callback) can override it afterwards
-  // without this clobbering that override back.
+  // Every test gets these defaults *before* its own body runs, so a test
+  // that wants its own override (e.g. the sign-out one, to capture the
+  // auth-state callback) can set it afterwards without this clobbering it
+  // back. needsMfaChallenge defaults to false — most tests here aren't
+  // about MFA at all.
   beforeEach(() => {
     onAuthStateChangeMock.mockReturnValue(vi.fn());
+    needsMfaChallengeMock.mockResolvedValue(false);
   });
 
   afterEach(() => {
@@ -76,9 +96,51 @@ describe("AdminGuard", () => {
     expect(screen.queryByText("Login screen")).not.toBeInTheDocument();
   });
 
-  it("renders the protected content for an admin session", async () => {
-    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+  // Found in review (Greptile, PR #7): a denied user had no way to sign
+  // out short of manually finding /admin/login.
+  it("lets a denied non-admin sign out from the 'No access' screen", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "editor" }));
     renderGuard();
+    await waitFor(() => screen.getByText("No access"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(signOutMock).toHaveBeenCalled());
+  });
+
+  it("renders the protected content for an admin session with no MFA required", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockResolvedValue(false);
+    renderGuard();
+    await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+  });
+
+  // Found in review (Greptile, PR #7, security): a lingering aal1 session
+  // on an account with a verified factor must be asked to finish MFA
+  // here, not waved through.
+  it("shows the MFA challenge step, not the protected content, when a verified factor needs completing", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockResolvedValue(true);
+    getVerifiedTotpFactorIdMock.mockResolvedValue("factor-1");
+    renderGuard();
+
+    await waitFor(() =>
+      expect(screen.getByText("Enter the 6-digit code from your authenticator app.")).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("renders the protected content once the MFA challenge verifies", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockResolvedValue(true);
+    getVerifiedTotpFactorIdMock.mockResolvedValue("factor-1");
+    challengeAndVerifySignInMock.mockResolvedValue(undefined);
+    renderGuard();
+    await waitFor(() => screen.getByText("Enter the 6-digit code from your authenticator app."));
+
+    const hiddenInput = document.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
+    fireEvent.change(hiddenInput, { target: { value: "123456" } });
+
+    await waitFor(() => expect(challengeAndVerifySignInMock).toHaveBeenCalledWith("factor-1", "123456"));
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
   });
 

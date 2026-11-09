@@ -14,15 +14,31 @@ import { enrollTotp, hasVerifiedTotpFactor, verifyEnrollment, type TotpEnrollmen
  * purpose, so it's safe to ship ahead of that answer.
  */
 export default function AdminMfaSetup() {
-  const [alreadyEnrolled, setAlreadyEnrolled] = useState<boolean | null>(null);
+  const [alreadyEnrolled, setAlreadyEnrolled] = useState<boolean | "loading" | "failed">("loading");
   const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
+  // Found in review (Greptile, PR #7): this effect never caught a lookup
+  // failure, so alreadyEnrolled stayed "loading" forever — a blank page,
+  // no explanation, no way to retry short of a full reload. retryCount is
+  // only ever bumped by the retry button below, re-running this effect.
   useEffect(() => {
-    hasVerifiedTotpFactor().then(setAlreadyEnrolled);
-  }, []);
+    let active = true;
+    setAlreadyEnrolled("loading");
+    hasVerifiedTotpFactor()
+      .then((result) => {
+        if (active) setAlreadyEnrolled(result);
+      })
+      .catch(() => {
+        if (active) setAlreadyEnrolled("failed");
+      });
+    return () => {
+      active = false;
+    };
+  }, [retryCount]);
 
   async function startEnrollment() {
     setError(null);
@@ -45,7 +61,19 @@ export default function AdminMfaSetup() {
     }
   }
 
-  if (alreadyEnrolled === null) return null;
+  if (alreadyEnrolled === "loading") return null;
+
+  if (alreadyEnrolled === "failed") {
+    return (
+      <div className="mx-auto max-w-sm space-y-4 p-6">
+        <h1 className="text-2xl font-heading">Two-factor authentication</h1>
+        <p className="text-sm text-destructive">Couldn't check your two-factor status.</p>
+        <Button variant="pill-outline" onClick={() => setRetryCount((n) => n + 1)}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-sm space-y-4 p-6">

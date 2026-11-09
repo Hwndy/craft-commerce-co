@@ -80,4 +80,20 @@ describe("AdminMfaSetup", () => {
     await waitFor(() => expect(screen.getByText("Incorrect code.")).toBeInTheDocument());
     expect(screen.queryByText("Two-factor authentication is set up on this account.")).not.toBeInTheDocument();
   });
+
+  // Found in review (Greptile, PR #7): the original effect never caught a
+  // lookup failure, so the page stayed blank forever with no explanation
+  // and no way to recover short of a full reload.
+  it("shows a retry option, not a blank page, when checking enrollment status fails", async () => {
+    hasVerifiedTotpFactorMock.mockRejectedValueOnce(new Error("network error"));
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => expect(screen.getByText("Couldn't check your two-factor status.")).toBeInTheDocument());
+    expect(screen.queryByText("Set up two-factor authentication")).not.toBeInTheDocument();
+
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(screen.getByText("Set up two-factor authentication")).toBeInTheDocument());
+  });
 });
