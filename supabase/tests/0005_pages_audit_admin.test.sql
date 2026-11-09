@@ -202,8 +202,14 @@ values (
   now()
 );
 
-insert into auth.mfa_factors (id, user_id, status, factor_type, friendly_name)
-values ('00000000-0000-0000-0000-000000000070', '00000000-0000-0000-0000-000000000071', 'verified', 'totp', 'pgtap-test factor');
+-- Found in review (real CI failure, not a bot finding this time):
+-- auth.mfa_factors.created_at/updated_at are not-null with no default on
+-- the version CI runs — omitting them (as this insert originally did)
+-- fails with "null value in column \"created_at\" ... violates not-null
+-- constraint", not the FK error the auth.users fixture above was already
+-- added for.
+insert into auth.mfa_factors (id, user_id, status, factor_type, friendly_name, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000070', '00000000-0000-0000-0000-000000000071', 'verified', 'totp', 'pgtap-test factor', now(), now());
 
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000071","aal":"aal1","app_metadata":{"role":"admin"}}';

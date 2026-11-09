@@ -390,6 +390,8 @@ Consequences: every existing RLS policy across every admin-gated table (`product
 - An unrelated `reset role;`, added when the products-audit-trigger test (D-64's own update) was inserted right before this MFA test, left every assertion between it and this one running as `postgres` (the table owner, which bypasses RLS entirely) — the direct `audit_log` insert a few lines above this one would have wrongly *succeeded* instead of raising `42501`, failing its own `throws_ok`. Removed the stray reset; nothing in that stretch needed a different identity from the admin role already set.
 - `auth.mfa_factors.user_id` references `auth.users.id` — inserting the factor fixture with no parent user row fails on the foreign key before either MFA assertion runs. Added a minimal `auth.users` insert first, same transaction, same id.
 
+**Update (same day, real CI failure on `679d4e2`, not a bot finding):** exactly the "narrow, separate thing to fix next" flagged above in the original entry. CI's `auth.mfa_factors` (Postgres 17, the version `supabase/setup-cli` actually runs) has `created_at`/`updated_at` as `not null` with no default — the fixture insert only supplied `id`, `user_id`, `status`, `factor_type`, `friendly_name`, so CI failed with `null value in column "created_at" ... violates not-null constraint` (the FK fix above was real and necessary, just not sufficient). Added `created_at`, `updated_at` (`now()`, `now()`) to the same insert.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
