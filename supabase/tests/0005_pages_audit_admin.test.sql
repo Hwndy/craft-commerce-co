@@ -3,8 +3,13 @@
 -- audit_log: no public/non-admin access at all; admin reads only (writes
 -- come only from the trigger functions, which bypass RLS as security
 -- definer) — proven by showing even admin's own direct insert is rejected.
--- The audit trigger itself: proven by making an admin change to products
--- and checking a matching audit_log row actually appears.
+-- The audit trigger itself: proven both ways — audit_log_trigger_pages()
+-- via an admin change to pages, and the separate, shared
+-- audit_log_trigger() (products/photo_sets/photos) via an admin change to
+-- products (found in review, Greptile + CodeRabbit, PR #6: the original
+-- version of this file only ever exercised the pages-specific function,
+-- so a real bug in the generic one would have blocked every admin write
+-- to those three tables with nothing here to catch it).
 --
 -- All fixtures and assertions are scoped to a 'pgtap-test-%' marker rather
 -- than counting/comparing whole tables — these tables may also carry real
@@ -13,7 +18,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(16);
+select plan(17);
 
 -- Fixture data, inserted as postgres (bypasses RLS: table owner).
 insert into public.pages (key, title, body_markdown)
@@ -35,12 +40,20 @@ select throws_ok(
   'anon: pages insert is rejected'
 );
 
-select throws_ok(
-  $$ update public.pages set title = 'x' where key = 'pgtap-test-page' $$,
-  '42501',
-  null,
-  'anon: pages update is rejected'
+-- Found in review (Greptile P1 + CodeRabbit, PR #6): UPDATE against a row
+-- invisible under RLS silently affects 0 rows, no exception — throws_ok
+-- here would itself fail (nothing is thrown), blocking CI's
+-- `supabase test db` step. Same pattern migration 0001's own test file
+-- already established: run the bare statement as the role, reset to the
+-- table owner, then check the row wasn't actually changed.
+update public.pages set title = 'pgtap-test: anon tried this' where key = 'pgtap-test-page';
+reset role;
+select is(
+  (select title from public.pages where key = 'pgtap-test-page'),
+  'pgtap-test: page',
+  'anon: pages update does not change the row (not visible under RLS)'
 );
+set local role anon;
 
 select is_empty(
   $$ select id from public.audit_log where entity_id = 'pgtap-test-page' $$,
@@ -60,12 +73,15 @@ reset role;
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
 
-select throws_ok(
-  $$ update public.pages set title = 'x' where key = 'pgtap-test-page' $$,
-  '42501',
-  null,
-  'non-admin authenticated: pages update is rejected'
+update public.pages set title = 'pgtap-test: non-admin tried this' where key = 'pgtap-test-page';
+reset role;
+select is(
+  (select title from public.pages where key = 'pgtap-test-page'),
+  'pgtap-test: page',
+  'non-admin authenticated: pages update does not change the row'
 );
+set local role authenticated;
+set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
 
 select is_empty(
   $$ select id from public.audit_log where entity_id = 'pgtap-test-page' $$,
@@ -121,6 +137,20 @@ select cmp_ok(
   '>=',
   2,
   'admin: the pages delete above produced a third audit_log row for the same entity_id (insert + delete, at least)'
+);
+
+-- The separate, generic audit_log_trigger() (products/photo_sets/photos)
+-- — a real products row (migration 0003), not pages, so this proves the
+-- *other* trigger function actually works too, not just pages' own.
+select lives_ok(
+  $$ insert into public.products (slug, name, price_amount) values ('pgtap-test-audit-product', 'pgtap-test: audit product', 1) $$,
+  'admin: products insert succeeds'
+);
+
+select results_eq(
+  $$ select action from public.audit_log where entity = 'products' and entity_id = (select id::text from public.products where slug = 'pgtap-test-audit-product') $$,
+  $$ values ('insert') $$,
+  'admin: the products insert above produced a matching audit_log row via the shared audit_log_trigger(), not just the pages-specific one'
 );
 
 -- Deliberate: even admin cannot insert into audit_log directly — only the
