@@ -14,7 +14,7 @@ interface AdminGuardProps {
   children: ReactNode;
 }
 
-type MfaState = "checking" | "not-required" | { factorId: string };
+type MfaState = "checking" | "not-required" | "failed" | { factorId: string };
 
 /**
  * Wraps every /admin/* route except /admin/login itself. Client-side only
@@ -36,6 +36,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
   const location = useLocation();
   const [session, setSession] = useState<Session | null | "loading">("loading");
   const [mfa, setMfa] = useState<MfaState>("checking");
+  const [mfaRetryCount, setMfaRetryCount] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -57,6 +58,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
       return;
     }
     let active = true;
+    setMfa("checking");
     (async () => {
       if (!(await needsMfaChallenge())) {
         if (active) setMfa("not-required");
@@ -64,11 +66,13 @@ export function AdminGuard({ children }: AdminGuardProps) {
       }
       const factorId = await getVerifiedTotpFactorId();
       if (active) setMfa(factorId ? { factorId } : "not-required");
-    })();
+    })().catch(() => {
+      if (active) setMfa("failed");
+    });
     return () => {
       active = false;
     };
-  }, [session]);
+  }, [session, mfaRetryCount]);
 
   async function onSignOut() {
     await signOut();
@@ -100,6 +104,29 @@ export function AdminGuard({ children }: AdminGuardProps) {
   }
 
   if (mfa === "checking") return null;
+
+  if (mfa === "failed") {
+    return (
+      <>
+        <NoIndex />
+        <div className="flex min-h-screen items-center justify-center p-6 text-center">
+          <div>
+            <h1 className="text-xl font-heading">Couldn't check two-factor status</h1>
+            <p className="mt-2 text-sm text-destructive">
+              Something went wrong while checking this account's two-factor setup.
+            </p>
+            <Button
+              variant="pill-outline"
+              className="mt-4"
+              onClick={() => setMfaRetryCount((n) => n + 1)}
+            >
+              Retry
+            </Button>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   if (mfa !== "not-required") {
     return (

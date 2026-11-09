@@ -144,6 +144,29 @@ describe("AdminGuard", () => {
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
   });
 
+  // Found in review (Greptile P2, PR #7): a failed MFA lookup (e.g. a
+  // network error) left `mfa` stuck on "checking" forever — a blank page,
+  // no explanation, no way to retry short of a full reload.
+  it("shows a retry screen, not a blank page, when the MFA lookup fails", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockRejectedValue(new Error("network error"));
+    renderGuard();
+
+    await waitFor(() => expect(screen.getByText("Couldn't check two-factor status")).toBeInTheDocument());
+    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+  });
+
+  it("re-runs the MFA lookup and recovers when Retry is clicked", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockRejectedValueOnce(new Error("network error"));
+    needsMfaChallengeMock.mockResolvedValueOnce(false);
+    renderGuard();
+    await waitFor(() => screen.getByText("Couldn't check two-factor status"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+  });
+
   it("reacts to a later sign-out by switching to the login redirect", async () => {
     getSessionMock.mockResolvedValue(session({ role: "admin" }));
     let onChange: ((session: unknown) => void) | undefined;

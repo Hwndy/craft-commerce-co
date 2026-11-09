@@ -376,6 +376,12 @@ Two T7 checklist sub-items deliberately left as gaps rather than guessed at: a d
 
 Consequences: Phase 3 is accepted as done against its own checklist and acceptance criteria, with the two T7 gaps and the owner-input blockers (T5's last item, the real product catalogue, the real About story, the real social URLs) explicitly carried forward rather than hidden. Do not start Phase 4 from this pass alone — per `/finish-phase`'s own scope, that's a separate `/start-phase 4` decision for the owner.
 
+### D-64: `AdminGuard`'s MFA-status lookup gets the same catch-and-retry treatment as `AdminMfaSetup` (2026-11-09)
+Context: found in review (Greptile P2, PR #7). `AdminGuard`'s MFA-check effect (added in D-65 on `phase-4/t01-migration-and-admin-script`, same day — that branch doesn't carry this one's history, hence this entry living here instead) called `needsMfaChallenge()`/`getVerifiedTotpFactorId()` with no `.catch()`. If either rejects (a network blip, the Supabase client erroring), `mfa` stays stuck on `"checking"` forever and the guard renders `null` — a blank screen with no explanation and no way to recover short of a full reload. `AdminMfaSetup.tsx` already hit the identical shape of bug one review round earlier (its own `hasVerifiedTotpFactor()` lookup) and was already fixed there with a `"failed"` state plus a Retry button; this guard's lookup just hadn't been given the same treatment.
+Decision: added a `"failed"` member to `AdminGuard`'s `MfaState` union, a `.catch()` on the MFA-check effect's async IIFE setting it, and a retry screen (same "Couldn't check two-factor status" / Retry button pattern as `AdminMfaSetup`) that bumps a `mfaRetryCount` state value included in the effect's dependency array to re-run the lookup.
+Alternatives considered: a global error boundary around the whole guard — rejected, too coarse (would also catch unrelated render errors in `children` and lose the in-place retry UX T2 already established for "No access").
+Consequences: `AdminGuard.test.tsx` gained two cases (lookup failure shows the retry screen; clicking Retry re-runs the lookup and recovers) — 11/11 passing. `npm run typecheck`/`lint` clean (0 errors, same 11 pre-existing warnings, none in touched files).
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
