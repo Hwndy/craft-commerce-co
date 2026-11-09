@@ -116,7 +116,13 @@ select lives_ok(
   'admin: pages delete succeeds'
 );
 
-reset role;
+-- Found in review (Greptile P1, PR #6): the `reset role;` that used to be
+-- right here left every assertion below running as `postgres` (the table
+-- owner, which bypasses RLS entirely) — the direct audit_log insert
+-- further down would then wrongly *succeed* instead of raising 42501,
+-- failing its own throws_ok, and the products insert would stop actually
+-- testing the admin path. Re-establishing the same admin role+claims
+-- (nothing below needs a *different* identity) instead of resetting.
 
 -- The audit trigger (not a direct insert) is what populates audit_log —
 -- the pages update above should already have produced a row. Ordered by
@@ -178,6 +184,24 @@ reset role;
 -- checking the row is unchanged, not with throws_ok. Every other admin
 -- assertion in this file never sets a `sub` claim, so auth.uid() is null
 -- there and this fixture (scoped to a real sub) can't affect them.
+--
+-- Found in review (Greptile P1, PR #6): auth.mfa_factors.user_id
+-- references auth.users.id — inserting the factor alone, with no parent
+-- user row, fails on the foreign key before either assertion below runs.
+-- Parent row inserted first, same transaction, same '00000000-...-71' id.
+insert into auth.users (id, instance_id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at)
+values (
+  '00000000-0000-0000-0000-000000000071',
+  '00000000-0000-0000-0000-000000000000',
+  'authenticated',
+  'authenticated',
+  'pgtap-test-mfa@example.com',
+  'x',
+  now(),
+  now(),
+  now()
+);
+
 insert into auth.mfa_factors (id, user_id, status, factor_type, friendly_name)
 values ('00000000-0000-0000-0000-000000000070', '00000000-0000-0000-0000-000000000071', 'verified', 'totp', 'pgtap-test factor');
 
