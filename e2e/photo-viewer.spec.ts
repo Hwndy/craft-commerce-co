@@ -103,6 +103,18 @@ async function clickAnUnobstructedPhoto(page: Page) {
 }
 
 test.describe("photo viewer", () => {
+  // Collage's circular mode spins every photo continuously (index.css's
+  // collage-spin, docs/decisions.md D-62) — Playwright's click
+  // actionability check requires an element's bounding box to stop
+  // changing between frames, which a perpetually-rotating element never
+  // does, so clickAnUnobstructedPhoto()'s click timed out on every test
+  // here (found via real CI on PR #5). Scoped to this file rather than
+  // playwright.config.ts's global default: e2e/entry-sequence.spec.ts has
+  // its own tests that specifically need full motion (and one that needs
+  // *no* motion preference set at all), which a suite-wide default broke
+  // (found in review, Greptile, PR #5).
+  test.use({ reducedMotion: "reduce" });
+
   test.beforeEach(({ browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
   });

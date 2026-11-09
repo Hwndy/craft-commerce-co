@@ -4,7 +4,7 @@ import { rectsIntersect } from "@/canvas/culling";
 
 import {
   collageBoundingBox,
-  DEFAULT_ITEMS_PER_STRIP,
+  DEFAULT_ITEMS_PER_STACK,
   DEFAULT_TILT_RANGE_DEG,
   layoutCollage,
   phyllotaxisLayout,
@@ -92,22 +92,45 @@ describe("stripsLayout", () => {
     expect(second).toEqual(first);
   });
 
-  it("groups consecutive photos into the same row (strip)", () => {
-    const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STRIP * 2), { centerX: 0, centerY: 0 });
-    const firstStripY = layouts.slice(0, DEFAULT_ITEMS_PER_STRIP).map((l) => l.y + l.height / 2);
-    const secondStripY = layouts.slice(DEFAULT_ITEMS_PER_STRIP).map((l) => l.y + l.height / 2);
-
-    // Within a strip, every centre-y matches (same row).
-    for (const y of firstStripY) expect(y).toBeCloseTo(firstStripY[0], 5);
-    for (const y of secondStripY) expect(y).toBeCloseTo(secondStripY[0], 5);
-    // The second strip is offset to a different row entirely.
-    expect(secondStripY[0]).not.toBeCloseTo(firstStripY[0], 0);
+  // The owner's own sketch ("IDEA 1 for PICTURE LAYOUT", docs/decisions.md
+  // D-62): consecutive photos within a stack overlap into a fanned-deck
+  // look, not an evenly-spaced grid — the opposite of phyllotaxisLayout's
+  // own no-overlap guarantee above.
+  it("overlaps consecutive photos within the same stack", () => {
+    const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STACK));
+    for (let i = 1; i < layouts.length; i++) {
+      expect(rectsIntersect(layouts[i - 1], layouts[i])).toBe(true);
+    }
   });
 
-  it("advances along x within a strip", () => {
-    const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STRIP));
-    for (let i = 1; i < layouts.length; i++) {
-      expect(layouts[i].x).toBeGreaterThan(layouts[i - 1].x);
+  it("advances diagonally (both x and y increase) within a stack", () => {
+    // Compares centres, not raw left/top edges: per-card size jitter means
+    // a wider card's own left edge can sit further left even while its
+    // centre still advances along the stack's cascade (same reasoning as
+    // phyllotaxisLayout's own centre-based distance test above).
+    const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STACK));
+    const centers = layouts.map((l) => ({ x: l.x + l.width / 2, y: l.y + l.height / 2 }));
+    for (let i = 1; i < centers.length; i++) {
+      expect(centers[i].x).toBeGreaterThan(centers[i - 1].x);
+      expect(centers[i].y).toBeGreaterThan(centers[i - 1].y);
+    }
+  });
+
+  it("starts a new, non-overlapping stack once itemsPerStack is reached", () => {
+    const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STACK * 2), { centerX: 0, centerY: 0 });
+    const firstStack = layouts.slice(0, DEFAULT_ITEMS_PER_STACK);
+    const secondStack = layouts.slice(DEFAULT_ITEMS_PER_STACK);
+
+    // The second stack starts back at the first card's own (small) offset,
+    // not continuing the first stack's cascade — i.e. a real new pile, not
+    // just one long diagonal line of every photo.
+    expect(secondStack[0].y).toBeLessThan(firstStack[firstStack.length - 1].y);
+
+    // And the two stacks' footprints don't reach each other.
+    for (const a of firstStack) {
+      for (const b of secondStack) {
+        expect(rectsIntersect(a, b)).toBe(false);
+      }
     }
   });
 });

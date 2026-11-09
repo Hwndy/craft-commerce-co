@@ -92,7 +92,12 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
       // automatically (there's no "Watch once" gate riding on this video).
       onFatalError: () => setView("pictures"),
     });
-    void video.play().catch(() => {
+    // Optional chaining, not a bare .catch(): real browsers always return a
+    // Promise from play(), but jsdom's play() returns undefined (found via
+    // this file's own test, the first to actually switch to the video view
+    // and let this effect run) — a bare .catch() would throw there instead
+    // of just doing nothing, which is the correct behaviour either way.
+    void video.play()?.catch(() => {
       // Autoplay can be blocked even when muted on some browsers; the
       // poster frame (still shown via the <video poster> attribute until
       // playback starts) is an acceptable static fallback rather than
@@ -196,11 +201,42 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                       className="h-full w-full object-cover"
                     />
                   ) : activePicture ? (
-                    <img
-                      src={siteMediaUrl(activePicture.renditions["1280"] ?? activePicture.storagePath)}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
+                    // The owner's own walkthrough (docs/decisions.md D-62):
+                    // "what we show is the still image and then when they
+                    // click on it the video now starts playing" — a real
+                    // <button>, not just an onClick div, so it's reachable
+                    // the same way the Pictures/Video pills already are.
+                    // Kept additive alongside those pills (not replacing
+                    // them) since tapping the image isn't otherwise
+                    // discoverable — the "▶" hint makes it so.
+                    hasVideo ? (
+                      <button
+                        type="button"
+                        onClick={() => setView("video")}
+                        aria-label="Play the turntable video"
+                        className="group relative block h-full w-full"
+                      >
+                        <img
+                          src={siteMediaUrl(activePicture.renditions["1280"] ?? activePicture.storagePath)}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                        <span
+                          aria-hidden="true"
+                          className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20"
+                        >
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-white bg-black/40 text-xl text-white opacity-80 transition-opacity group-hover:opacity-100">
+                            ▶
+                          </span>
+                        </span>
+                      </button>
+                    ) : (
+                      <img
+                        src={siteMediaUrl(activePicture.renditions["1280"] ?? activePicture.storagePath)}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    )
                   ) : null}
 
                   {pictures.length > 1 && view === "pictures" && (

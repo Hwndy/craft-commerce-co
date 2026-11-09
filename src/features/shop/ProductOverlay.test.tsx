@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "@/lib/env";
+import { siteMediaUrl } from "@/lib/storage";
 
 import type { ProductDetail, ProductMedia } from "./lib/queries";
 import { ProductOverlay } from "./ProductOverlay";
@@ -20,6 +21,18 @@ vi.mock("@/features/enquiry/components/EnquiryForm", () => ({
 const exitFullscreenIfActive = vi.fn().mockResolvedValue(undefined);
 vi.mock("@/features/film/lib/fullscreen", () => ({
   exitFullscreenIfActive: (...args: unknown[]) => exitFullscreenIfActive(...args),
+}));
+
+// The real attachHls() points the <video> at a fake master.m3u8 path —
+// jsdom can't load it, so it fires a real error immediately, which the
+// video effect's own onFatalError handler reads as "this video is broken"
+// and flips back to the picture view before any assertion can run. Mocked
+// here the same way exitFullscreenIfActive is, since these tests only need
+// to know the overlay *asked* to show the video, not that real HLS
+// playback succeeded (that's attachHls's own test file's job).
+const attachHls = vi.fn().mockReturnValue({ destroy: vi.fn() });
+vi.mock("@/features/film/lib/hls", () => ({
+  attachHls: (...args: unknown[]) => attachHls(...args),
 }));
 
 function media(overrides: Partial<ProductMedia> = {}): ProductMedia {
@@ -115,6 +128,42 @@ describe("ProductOverlay", () => {
     );
     expect(screen.getByRole("button", { name: "Pictures" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Video" })).toBeInTheDocument();
+  });
+
+  // The owner's own walkthrough (docs/decisions.md D-62): "what we show is
+  // the still image and then when they click on it the video now starts
+  // playing" — clicking the picture itself switches to the video, not just
+  // the Pictures/Video pills (kept additive alongside those).
+  it("clicking the picture switches to the turntable video, when one exists", () => {
+    // Found in review (Greptile, PR #5): the earlier version of this test
+    // only checked that a <video> element appeared — it would still pass
+    // if the effect stopped actually attaching the stream or calling
+    // play(). Mocking play() (jsdom's own doesn't return a Promise — see
+    // ProductOverlay.tsx's own ?.catch() comment) lets this assert both.
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    attachHls.mockClear();
+
+    render(
+      <ProductOverlay
+        slug="sample-belt-no-5"
+        product={product({ video: media({ id: "video-1", hlsMaster: "products/p1/video-1/master.m3u8" }) })}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(document.querySelector("video")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Play the turntable video" }));
+
+    const video = document.querySelector("video");
+    expect(video).toBeInTheDocument();
+    expect(attachHls).toHaveBeenCalledWith(
+      video,
+      siteMediaUrl("products/p1/video-1/master.m3u8"),
+      expect.anything()
+    );
+    expect(playSpy).toHaveBeenCalled();
+
+    playSpy.mockRestore();
   });
 
   it("calls onClose when the close button is activated", async () => {

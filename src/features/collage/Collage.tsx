@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { NodeLayer } from "@/canvas/NodeLayer";
 import { Region } from "@/canvas/Region";
@@ -23,6 +23,18 @@ export interface CollageProps {
 const EMPTY_REGION_SIZE = 800;
 const REGION_PADDING = 200;
 
+// The owner's own "strips" sketch (docs/decisions.md D-62): clicking a
+// photo should visibly rise up out of its stack before the full-screen
+// viewer opens, not just jump straight there. Kept short and only in
+// "strips" mode — "circular" mode's photos aren't stacked, so there's
+// nothing to rise out of. AGENTS.md rule 6: reduced motion is a
+// requirement, so a visitor who prefers it skips straight to opening.
+export const RISE_DURATION_MS = 180;
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+}
+
 /**
  * The Gallery's circular photo collage (docs/00-product-brief.md FR-3.1,
  * FR-3.2, FR-3.7). Lays out whatever published photos exist via
@@ -41,6 +53,39 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
   const { data: photos } = useCollagePhotos();
   const layoutMode = useCollageViewStore((s) => s.layoutMode);
   const activeShootId = useCollageViewStore((s) => s.activeShootId);
+  const [risingId, setRisingId] = useState<string | null>(null);
+  // Found in review (Greptile, PR #5): a second activation within
+  // RISE_DURATION_MS (a double-click, or clicking a different photo before
+  // the first one finishes rising) started a second, independent timer
+  // rather than replacing the first — both eventually fired onOpenPhoto,
+  // pushing two viewer entries into history. Tracked in a ref (not state)
+  // so handleOpen can always see the *current* pending timer, including
+  // one started earlier in the very same render.
+  const riseTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (riseTimerRef.current != null) window.clearTimeout(riseTimerRef.current);
+    };
+  }, []);
+
+  function handleOpen(id: string) {
+    if (!onOpenPhoto) return;
+    if (riseTimerRef.current != null) {
+      window.clearTimeout(riseTimerRef.current);
+      riseTimerRef.current = null;
+    }
+    if (layoutMode !== "strips" || prefersReducedMotion()) {
+      onOpenPhoto(id);
+      return;
+    }
+    setRisingId(id);
+    riseTimerRef.current = window.setTimeout(() => {
+      riseTimerRef.current = null;
+      setRisingId(null);
+      onOpenPhoto(id);
+    }, RISE_DURATION_MS);
+  }
 
   const { nodes, rect } = useMemo(() => {
     const emptyRect: Rect = {
@@ -96,20 +141,50 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
     <Region id="collage" title="Collage" x={rect.x} y={rect.y} width={rect.width} height={rect.height}>
       <NodeLayer
         nodes={nodes}
-        renderNode={(node, lod) => (
-          <div
-            style={{
-              position: "absolute",
-              left: node.x - rect.x,
-              top: node.y - rect.y,
-              width: node.width,
-              height: node.height,
-              transform: `rotate(${node.rotation}deg)`,
-            }}
-          >
-            <PhotoThumbnail photo={node.photo} lod={lod} onOpen={onOpenPhoto ? () => onOpenPhoto(node.photo.id) : undefined} />
-          </div>
-        )}
+        renderNode={(node, lod) => {
+          const isRising = node.id === risingId;
+          // "collage-spin" (index.css) owns `transform` continuously in
+          // circular mode (the owner's "pictures... spinning" flair) — the
+          // rise transition below is strips-mode-only, so the two never
+          // actually fight over the same element, but skipping the
+          // transition declaration here too avoids any transform/animation
+          // interaction quirks while the spin keyframe is running.
+          //
+          // Found in review (Greptile, PR #5): a plain `to { rotate(360deg)
+          // }` keyframe snaps visibly back to this node's own tilt at the
+          // end of every loop, since each photo's *static* tilt (not 0deg)
+          // is the implicit starting value a from-less keyframe uses — 360
+          // and the starting tilt aren't the same rendered angle unless the
+          // tilt is 0. Passing the tilt through as a `--collage-tilt`
+          // custom property instead lets the keyframe start and end at the
+          // *same* rendered angle (`tilt` and `tilt + 360deg` look
+          // identical), so the loop wraps with no visible jump — see the
+          // keyframe itself in index.css.
+          const isCircular = layoutMode === "circular";
+          return (
+            <div
+              className={isCircular ? "collage-spin" : undefined}
+              style={{
+                position: "absolute",
+                left: node.x - rect.x,
+                top: node.y - rect.y,
+                width: node.width,
+                height: node.height,
+                ...(isCircular
+                  ? ({ "--collage-tilt": `${node.rotation}deg` } as CSSProperties)
+                  : {
+                      transform: isRising
+                        ? `rotate(${node.rotation}deg) translateY(-28px) scale(1.08)`
+                        : `rotate(${node.rotation}deg)`,
+                    }),
+                transition: isCircular ? undefined : `transform ${RISE_DURATION_MS}ms ease-out`,
+                zIndex: isRising ? 10 : undefined,
+              }}
+            >
+              <PhotoThumbnail photo={node.photo} lod={lod} onOpen={onOpenPhoto ? () => handleOpen(node.photo.id) : undefined} />
+            </div>
+          );
+        }}
       />
     </Region>
   );

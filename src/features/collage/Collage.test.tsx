@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCameraStore } from "@/canvas/store";
 
-import { Collage } from "./Collage";
+import { Collage, RISE_DURATION_MS } from "./Collage";
 import { useCollageViewStore } from "./collageViewStore";
 
 // useCollagePhotos() calls the real fetchCollagePhotos(), which hits
@@ -92,6 +92,96 @@ describe("Collage", () => {
     });
     const firstAfterFilter = screen.getByRole("button", { name: "The first cast, 2026-03-14" });
     expect(firstAfterFilter.parentElement?.style.left).toBe(firstLeft);
+  });
+
+  // The owner's own "strips" sketch (docs/decisions.md D-62): clicking a
+  // photo should visibly rise out of its stack before the viewer opens.
+  it("in strips mode, rises the clicked photo for RISE_DURATION_MS before calling onOpenPhoto", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        fireEvent.click(node);
+      });
+      expect(onOpenPhoto).not.toHaveBeenCalled();
+      // Found in review (Greptile, PR #5): the earlier version of this test
+      // only checked the delayed callback, so it would still pass with the
+      // rise transform/zIndex removed entirely — asserting the clicked
+      // card's own wrapper actually rises (and clears its neighbours) is
+      // the whole point of this behaviour, not just the timing.
+      const wrapper = node.parentElement as HTMLElement;
+      expect(wrapper.style.transform).toContain("translateY(-28px)");
+      expect(wrapper.style.transform).toContain("scale(1.08)");
+      expect(wrapper.style.zIndex).toBe("10");
+
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS);
+      });
+      expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+      expect(wrapper.style.transform).not.toContain("translateY");
+      expect(wrapper.style.zIndex).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Found in review (Greptile, PR #5): a second activation before the
+  // first one finishes rising previously started a second, independent
+  // timer — both eventually fired onOpenPhoto, pushing two viewer entries
+  // into history instead of replacing the pending one.
+  it("in strips mode, a second click before the first rise finishes cancels the first timer instead of firing twice", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        fireEvent.click(node);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      act(() => {
+        fireEvent.click(node);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      // Only the first timer's original deadline has passed; the second
+      // click's own full RISE_DURATION_MS hasn't elapsed yet.
+      expect(onOpenPhoto).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      expect(onOpenPhoto).toHaveBeenCalledTimes(1);
+      expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("in strips mode, skips the rise delay and opens immediately when reduced motion is preferred", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const matchMediaSpy = vi.spyOn(window, "matchMedia").mockReturnValue({
+      matches: true,
+    } as MediaQueryList);
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    act(() => {
+      fireEvent.click(node);
+    });
+    expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+
+    matchMediaSpy.mockRestore();
   });
 
   it("renders no photo nodes and doesn't crash when nothing is published yet", async () => {
