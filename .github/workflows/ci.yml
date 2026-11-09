@@ -68,8 +68,28 @@ jobs:
         with:
           version: latest
 
+      # Investigated as part of the recurring canvas-gestures.spec.ts/about-
+      # contact.spec.ts/product-overlay.spec.ts e2e flakiness (D-49): the
+      # full default stack (13 containers) runs for this entire job's e2e
+      # step, alongside up to 4 Playwright browser projects, on a standard
+      # GitHub-hosted runner — real, previously undocumented background CPU
+      # pressure on top of the "parallel specs" explanation D-49 already
+      # gave. Excludes the containers nothing in this app or any e2e spec
+      # actually touches, confirmed by reading the real code, not assumed:
+      # studio (its own admin UI, never requested by a test), postgres-meta
+      # (only serves Studio's schema browser — pointless once Studio itself
+      # is out), logflare/vector (Supabase's own internal log-shipping
+      # pipeline, not application code), imgproxy (siteMediaUrl() in
+      # src/lib/storage.ts only ever builds a plain object/public/... URL,
+      # never a render/image/... transform one), realtime (no `.channel(`/
+      # `postgres_changes` call anywhere in src), mailpit (no e2e spec reads
+      # a captured email yet). Does NOT exclude edge-runtime, gotrue,
+      # storage-api, postgrest, kong or supavisor — about-contact.spec.ts
+      # and product-overlay.spec.ts make real network calls through
+      # edge-runtime (submit-enquiry), and the rest are load-bearing for
+      # every other spec.
       - name: Start local Supabase stack
-        run: supabase start
+        run: supabase start -x studio,postgres-meta,logflare,vector,imgproxy,realtime,mailpit
 
       - name: Record local Supabase connection details
         # `-o env` prints KEY="value" lines (plus the occasional stray

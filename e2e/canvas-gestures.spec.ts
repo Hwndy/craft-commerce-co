@@ -51,6 +51,13 @@ async function getCamera(page: Page) {
 }
 
 test.describe("canvas gestures", () => {
+  // Generous timeouts throughout this file, matching the keyboard test's
+  // own already-documented reasoning below: these only wait out real event
+  // dispatch/paint under CI's documented CPU contention (D-49), not slow
+  // application logic. Found investigating recurring CI failures: this
+  // test's own poll calls were the one place in this file still left on
+  // the 5000ms default, unlike the keyboard test's explicit 15000ms — no
+  // reason for the two to differ, since both wait on the same mechanism.
   test("wheel zooms the camera about the pointer", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
     await revealBoard(page);
@@ -60,11 +67,11 @@ test.describe("canvas gestures", () => {
 
     await page.mouse.move(400, 300);
     await page.mouse.wheel(0, -400);
-    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(before!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(before!.zoom);
 
     const zoomedIn = await getCamera(page);
     await page.mouse.wheel(0, 400);
-    await expect.poll(async () => (await getCamera(page))?.zoom).toBeLessThan(zoomedIn!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeLessThan(zoomedIn!.zoom);
   });
 
   test("dragging pans the camera", async ({ page, browserName }) => {
@@ -80,7 +87,7 @@ test.describe("canvas gestures", () => {
 
     // Dragging the pointer left should pan the camera's world x forward
     // (content "sticks to the pointer" — see useBoardGestures.ts).
-    await expect.poll(async () => (await getCamera(page))?.x).toBeGreaterThan(before!.x);
+    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 15000 }).toBeGreaterThan(before!.x);
   });
 
   test("double-click zooms in about the click point", async ({ page, browserName }) => {
@@ -89,7 +96,7 @@ test.describe("canvas gestures", () => {
 
     const before = await getCamera(page);
     await page.mouse.dblclick(400, 300);
-    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(before!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(before!.zoom);
   });
 
   test("keyboard: arrows pan, +/- zoom, 0 returns home", async ({ page, browserName }) => {
