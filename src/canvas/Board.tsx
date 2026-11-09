@@ -16,6 +16,11 @@ const viewportStyle: CSSProperties = {
   height: "100dvh",
   overflow: "hidden",
   touchAction: "none",
+  // Owner request: the board's own empty backdrop (the world between/
+  // behind regions) is white, not the app's dark --background token —
+  // every region's own content (About/Contact's cards, Shop/Collage's
+  // nodes, Gallery's poster card) is opaque and unaffected either way.
+  backgroundColor: "#FFFFFF",
 };
 
 const worldStyle: CSSProperties = {
