@@ -119,16 +119,17 @@ export function CanvasChrome() {
           outer inset-0 wrapper, whose own box would cover the whole
           viewport) so e2e specs can check a candidate element against
           CanvasChrome's actual footprint — see e2e/photo-viewer.spec.ts.
-          bg-background/70 (same translucent-dark convention as the
-          minimap below and IconButton/pill-outline) found in review,
-          Greptile, PR #4: this bar's own wordmark/region-label text has
-          no background of its own, so it read fine floating directly on
-          the board's old dark backdrop but loses all contrast once the
-          canvas itself turns white (D-61) — giving the bar its own
-          background keeps it readable regardless of what's behind it. */}
+          Fully opaque bg-background (not the minimap's /70 translucent
+          convention) — found via real CI (axe, not just review): this
+          bar's own text has no background of its own, so a translucent
+          dark bar still blends toward white once the canvas itself turns
+          white (D-61), diluting text-muted-foreground to a measured
+          2.38:1 contrast against a ~#5b5b5b blend — short of WCAG AA's
+          4.5:1. An opaque background can't dilute regardless of what's
+          behind it. */}
       <div
         data-canvas-chrome
-        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-background/70 p-4 backdrop-blur-sm"
+        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-background p-4"
       >
         <div className="flex items-center gap-3">
           <img
@@ -211,7 +212,7 @@ export function CanvasChrome() {
       {mode === "guided" && (
         <div
           data-canvas-chrome
-          className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-background/70 p-4 backdrop-blur-sm"
+          className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-background p-4"
         >
           <div className="flex items-center gap-2">
             <IconButton aria-label="Previous" size="sm" onClick={() => void previous()}>
