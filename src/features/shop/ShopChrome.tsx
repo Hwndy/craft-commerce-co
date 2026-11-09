@@ -45,7 +45,14 @@ export function ShopChrome() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
-      <div data-shop-chrome className="pointer-events-auto absolute inset-x-0 top-20 flex items-start justify-between gap-3 px-4">
+      {/* bg-background/70 (CanvasChrome's own convention) — found in review,
+          Greptile, PR #4: this breadcrumb's text had no background of its
+          own and read fine on the board's old dark backdrop, but loses
+          contrast once the canvas itself turns white (D-61). */}
+      <div
+        data-shop-chrome
+        className="pointer-events-auto absolute inset-x-0 top-20 flex items-start justify-between gap-3 bg-background/70 px-4 py-2 backdrop-blur-sm"
+      >
         <div className="flex items-baseline gap-2">
           <span className="font-heading text-sm font-bold uppercase tracking-wider">Shop</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">
