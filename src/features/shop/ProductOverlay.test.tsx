@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { env } from "@/lib/env";
+import { siteMediaUrl } from "@/lib/storage";
 
 import type { ProductDetail, ProductMedia } from "./lib/queries";
 import { ProductOverlay } from "./ProductOverlay";
@@ -134,6 +135,14 @@ describe("ProductOverlay", () => {
   // playing" — clicking the picture itself switches to the video, not just
   // the Pictures/Video pills (kept additive alongside those).
   it("clicking the picture switches to the turntable video, when one exists", () => {
+    // Found in review (Greptile, PR #5): the earlier version of this test
+    // only checked that a <video> element appeared — it would still pass
+    // if the effect stopped actually attaching the stream or calling
+    // play(). Mocking play() (jsdom's own doesn't return a Promise — see
+    // ProductOverlay.tsx's own ?.catch() comment) lets this assert both.
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    attachHls.mockClear();
+
     render(
       <ProductOverlay
         slug="sample-belt-no-5"
@@ -144,7 +153,17 @@ describe("ProductOverlay", () => {
 
     expect(document.querySelector("video")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Play the turntable video" }));
-    expect(document.querySelector("video")).toBeInTheDocument();
+
+    const video = document.querySelector("video");
+    expect(video).toBeInTheDocument();
+    expect(attachHls).toHaveBeenCalledWith(
+      video,
+      siteMediaUrl("products/p1/video-1/master.m3u8"),
+      expect.anything()
+    );
+    expect(playSpy).toHaveBeenCalled();
+
+    playSpy.mockRestore();
   });
 
   it("calls onClose when the close button is activated", async () => {

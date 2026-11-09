@@ -207,10 +207,24 @@
      "it would be cool if all the pictures in the globe were rotating
      around... as if they're spinning" flair from his walkthrough. Slow and
      subtle (48s per turn) so it reads as gentle ambient motion, not a
-     distraction from actually looking at or clicking a photo. Reuses
-     buffering-spin's own rotate(360deg) keyframe, just a different speed. */
+     distraction from actually looking at or clicking a photo.
+     --collage-tilt (Collage.tsx) is each photo's own static tilt — the
+     keyframe starts and ends there (tilt, then tilt+360deg: the same
+     rendered angle), not a plain 0deg/360deg pair, so the infinite loop
+     wraps with no visible snap (found in review, Greptile, PR #5: a
+     from-less rotate(360deg) keyframe visibly jumped back to each photo's
+     own nonzero tilt at the end of every loop). */
   .collage-spin {
-    animation: buffering-spin 48s linear infinite;
+    animation: collage-spin-turn 48s linear infinite;
+  }
+
+  @keyframes collage-spin-turn {
+    from {
+      transform: rotate(var(--collage-tilt, 0deg));
+    }
+    to {
+      transform: rotate(calc(var(--collage-tilt, 0deg) + 360deg));
+    }
   }
 
   @media (prefers-reduced-motion: reduce) {

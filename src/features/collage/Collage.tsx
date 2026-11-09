@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 
 import { NodeLayer } from "@/canvas/NodeLayer";
 import { Region } from "@/canvas/Region";
@@ -54,15 +54,34 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
   const layoutMode = useCollageViewStore((s) => s.layoutMode);
   const activeShootId = useCollageViewStore((s) => s.activeShootId);
   const [risingId, setRisingId] = useState<string | null>(null);
+  // Found in review (Greptile, PR #5): a second activation within
+  // RISE_DURATION_MS (a double-click, or clicking a different photo before
+  // the first one finishes rising) started a second, independent timer
+  // rather than replacing the first — both eventually fired onOpenPhoto,
+  // pushing two viewer entries into history. Tracked in a ref (not state)
+  // so handleOpen can always see the *current* pending timer, including
+  // one started earlier in the very same render.
+  const riseTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (riseTimerRef.current != null) window.clearTimeout(riseTimerRef.current);
+    };
+  }, []);
 
   function handleOpen(id: string) {
     if (!onOpenPhoto) return;
+    if (riseTimerRef.current != null) {
+      window.clearTimeout(riseTimerRef.current);
+      riseTimerRef.current = null;
+    }
     if (layoutMode !== "strips" || prefersReducedMotion()) {
       onOpenPhoto(id);
       return;
     }
     setRisingId(id);
-    window.setTimeout(() => {
+    riseTimerRef.current = window.setTimeout(() => {
+      riseTimerRef.current = null;
       setRisingId(null);
       onOpenPhoto(id);
     }, RISE_DURATION_MS);
@@ -130,6 +149,17 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
           // actually fight over the same element, but skipping the
           // transition declaration here too avoids any transform/animation
           // interaction quirks while the spin keyframe is running.
+          //
+          // Found in review (Greptile, PR #5): a plain `to { rotate(360deg)
+          // }` keyframe snaps visibly back to this node's own tilt at the
+          // end of every loop, since each photo's *static* tilt (not 0deg)
+          // is the implicit starting value a from-less keyframe uses — 360
+          // and the starting tilt aren't the same rendered angle unless the
+          // tilt is 0. Passing the tilt through as a `--collage-tilt`
+          // custom property instead lets the keyframe start and end at the
+          // *same* rendered angle (`tilt` and `tilt + 360deg` look
+          // identical), so the loop wraps with no visible jump — see the
+          // keyframe itself in index.css.
           const isCircular = layoutMode === "circular";
           return (
             <div
@@ -140,9 +170,13 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
                 top: node.y - rect.y,
                 width: node.width,
                 height: node.height,
-                transform: isRising
-                  ? `rotate(${node.rotation}deg) translateY(-28px) scale(1.08)`
-                  : `rotate(${node.rotation}deg)`,
+                ...(isCircular
+                  ? ({ "--collage-tilt": `${node.rotation}deg` } as CSSProperties)
+                  : {
+                      transform: isRising
+                        ? `rotate(${node.rotation}deg) translateY(-28px) scale(1.08)`
+                        : `rotate(${node.rotation}deg)`,
+                    }),
                 transition: isCircular ? undefined : `transform ${RISE_DURATION_MS}ms ease-out`,
                 zIndex: isRising ? 10 : undefined,
               }}

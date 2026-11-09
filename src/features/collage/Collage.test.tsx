@@ -108,10 +108,59 @@ describe("Collage", () => {
         fireEvent.click(node);
       });
       expect(onOpenPhoto).not.toHaveBeenCalled();
+      // Found in review (Greptile, PR #5): the earlier version of this test
+      // only checked the delayed callback, so it would still pass with the
+      // rise transform/zIndex removed entirely — asserting the clicked
+      // card's own wrapper actually rises (and clears its neighbours) is
+      // the whole point of this behaviour, not just the timing.
+      const wrapper = node.parentElement as HTMLElement;
+      expect(wrapper.style.transform).toContain("translateY(-28px)");
+      expect(wrapper.style.transform).toContain("scale(1.08)");
+      expect(wrapper.style.zIndex).toBe("10");
 
       await act(async () => {
         vi.advanceTimersByTime(RISE_DURATION_MS);
       });
+      expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+      expect(wrapper.style.transform).not.toContain("translateY");
+      expect(wrapper.style.zIndex).toBe("");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Found in review (Greptile, PR #5): a second activation before the
+  // first one finishes rising previously started a second, independent
+  // timer — both eventually fired onOpenPhoto, pushing two viewer entries
+  // into history instead of replacing the pending one.
+  it("in strips mode, a second click before the first rise finishes cancels the first timer instead of firing twice", async () => {
+    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+    const onOpenPhoto = vi.fn();
+    renderCollage(onOpenPhoto);
+    const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
+
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        fireEvent.click(node);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      act(() => {
+        fireEvent.click(node);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      // Only the first timer's original deadline has passed; the second
+      // click's own full RISE_DURATION_MS hasn't elapsed yet.
+      expect(onOpenPhoto).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS / 2);
+      });
+      expect(onOpenPhoto).toHaveBeenCalledTimes(1);
       expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
     } finally {
       vi.useRealTimers();
