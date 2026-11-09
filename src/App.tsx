@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
+import { AdminGuard } from "@/features/admin/AdminGuard";
 import LandingVideo from "./pages/LandingVideo";
 import Home from "./pages/Home";
 import NotFound from "./pages/NotFound";
@@ -24,6 +25,14 @@ const ListRegion = lazy(() => import("./pages/ListRegion"));
 // but a static import still gets bundled unless it's code-split like this.
 const DevCanvas = lazy(() => import("./pages/DevCanvas"));
 const DevFilm = lazy(() => import("./pages/DevFilm"));
+
+// Admin (Phase 4) is its own, fully lazy route tree — kept out of the
+// public bundle the same way Gallery/FilmStage already are, since it'll
+// pull in its own forms/upload-pipeline code public visitors never need.
+const Admin = lazy(() => import("./pages/Admin"));
+const AdminLogin = lazy(() => import("./features/admin/AdminLogin"));
+const AdminResetPassword = lazy(() => import("./features/admin/AdminResetPassword"));
+const AdminMfaSetup = lazy(() => import("./features/admin/AdminMfaSetup"));
 
 // FilmStage (src/features/entry/preload.ts prefetches this chunk during
 // the entry sequence) holds the single persistent <video> element the
@@ -135,6 +144,42 @@ const App = () => (
               />
             </>
           )}
+          <Route
+            path="/admin/login"
+            element={
+              <Suspense fallback={null}>
+                <AdminLogin />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/reset-password"
+            element={
+              <Suspense fallback={null}>
+                <AdminResetPassword />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <Suspense fallback={null}>
+                <AdminGuard>
+                  <Admin />
+                </AdminGuard>
+              </Suspense>
+            }
+          />
+          <Route
+            path="/admin/mfa-setup"
+            element={
+              <Suspense fallback={null}>
+                <AdminGuard>
+                  <AdminMfaSetup />
+                </AdminGuard>
+              </Suspense>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

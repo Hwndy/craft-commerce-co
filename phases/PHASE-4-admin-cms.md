@@ -20,8 +20,8 @@
 - [ ] Disable public sign-ups and invite the owner (document the dashboard steps in `docs/admin-setup.md`).
 
 ### T2. Auth and guard
-- [ ] `/admin/login` with Supabase Auth (email and password, MFA prompt when enrolled), session handling, sign-out, password reset. Route guard that checks the role claim, not only that a session exists. `noindex` on all admin routes.
-- [ ] Tests: unauthenticated users are redirected; a non-admin authenticated user sees "no access" and every write fails at the database.
+- [x] `/admin/login` (email+password, MFA challenge step when a factor is enrolled), a separate `/admin/mfa-setup` enrollment screen, session handling (`onAuthStateChange`), sign-out, password reset (request + `/admin/reset-password` completion). `AdminGuard` checks the JWT role claim client-side (UX only — RLS is the real enforcement). `NoIndex` on every `/admin/*` route.
+- [x] Tests: unauthenticated → redirected to `/admin/login`; authenticated non-admin → "No access" shown in place (`AdminGuard.test.tsx`). "Every write fails at the database" is pgTAP's job (T1, already proven for `pages`/`audit_log`; the same admin-role policies already cover `products`/`photo_sets`/`photos` from Phases 2/3).
 
 ### T3. Admin shell
 - [ ] Mobile-first layout with shadcn components: bottom navigation on phones, sidebar on desktop; sections Products, Photos, Pages, Layout, Enquiries.
