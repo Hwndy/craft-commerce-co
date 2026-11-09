@@ -118,8 +118,19 @@ export function CanvasChrome() {
           data-canvas-chrome marks each real interactive region (not this
           outer inset-0 wrapper, whose own box would cover the whole
           viewport) so e2e specs can check a candidate element against
-          CanvasChrome's actual footprint — see e2e/photo-viewer.spec.ts. */}
-      <div data-canvas-chrome className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 p-4">
+          CanvasChrome's actual footprint — see e2e/photo-viewer.spec.ts.
+          Fully opaque bg-background (not the minimap's /70 translucent
+          convention) — found via real CI (axe, not just review): this
+          bar's own text has no background of its own, so a translucent
+          dark bar still blends toward white once the canvas itself turns
+          white (D-61), diluting text-muted-foreground to a measured
+          2.38:1 contrast against a ~#5b5b5b blend — short of WCAG AA's
+          4.5:1. An opaque background can't dilute regardless of what's
+          behind it. */}
+      <div
+        data-canvas-chrome
+        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-background p-4"
+      >
         <div className="flex items-center gap-3">
           <img
             src="/videos/all_life_poster.jpg"
@@ -199,7 +210,10 @@ export function CanvasChrome() {
 
       {/* Bottom bar: Previous + progress (left), region tabs (centre), gold Next CTA (right) — guided mode only. */}
       {mode === "guided" && (
-        <div data-canvas-chrome className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 p-4">
+        <div
+          data-canvas-chrome
+          className="pointer-events-auto absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-background p-4"
+        >
           <div className="flex items-center gap-2">
             <IconButton aria-label="Previous" size="sm" onClick={() => void previous()}>
               ‹

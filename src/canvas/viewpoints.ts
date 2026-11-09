@@ -129,20 +129,32 @@ export function listViewpoints(): Viewpoint[] {
 }
 
 /**
- * Region keys whose own Region placement (About.tsx/Contact.tsx) treats
- * the viewpoint's x/y as the panel's *centre* — distinct from every other
- * region (Gallery/Collage/Shop), where a flyTo/setCamera(viewpoint) call
- * landing with that same x/y as the camera's own top-left is the already-
- * tested, intentional behaviour (interpolateCamera in math.ts is built to
- * end there exactly; e2e/product-overlay.spec.ts's revealBoard() already
- * asserts that literally for "collage"). About and Contact are the first
- * case where a visitor can land directly on a region whose real,
- * immediately-readable content — not hidden behind a modal or the film
- * layer — must actually be centred the moment they arrive, rather than
- * left mostly off-screen above/left of the viewport (found in review,
- * Greptile/CodeRabbit, PR #3).
+ * Region keys whose own Region placement treats the viewpoint's x/y as the
+ * panel's *centre* — distinct from Gallery/Collage, where a flyTo/
+ * setCamera(viewpoint) call landing with that same x/y as the camera's own
+ * top-left is the already-tested, intentional behaviour (interpolateCamera
+ * in math.ts is built to end there exactly; e2e/product-overlay.spec.ts's
+ * revealBoard() already asserts that literally for "collage"). About and
+ * Contact (T6) were the first case where a visitor can land directly on a
+ * region whose real, immediately-readable content — not hidden behind a
+ * modal or the film layer — must actually be centred the moment they
+ * arrive, rather than left mostly off-screen above/left of the viewport
+ * (found in review, Greptile/CodeRabbit, PR #3).
+ *
+ * shop-wall/shop-floor (T2) turned out to need the same treatment, found
+ * afterwards by the owner: unlike Collage's many generative, spread-out
+ * photos (where landing on one quadrant of a large browsable field and
+ * panning the rest is reasonable), each Shop region is seeded with exactly
+ * one small, curated product card, deliberately centred on the region's
+ * own viewpoint coordinate (scripts/seed-products.ts's own comment: "centred
+ * on supabase/seed.sql's 'shop-floor' viewpoint"). Landing with that
+ * coordinate as the camera's raw top-left instead cropped roughly half of
+ * that single card (and left most of the screen empty board) on arrival —
+ * the same root cause as the pre-fix About/Contact bug, just milder to
+ * notice because something (the card's own bottom-right quadrant) was
+ * still visible rather than nothing at all.
  */
-const CENTERED_REGION_KEYS = new Set(["about", "contact"]);
+const CENTERED_REGION_KEYS = new Set(["about", "contact", "shop-wall", "shop-floor"]);
 
 /**
  * The camera to use when flying to or setting `viewpoint` directly —
