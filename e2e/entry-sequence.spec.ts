@@ -80,6 +80,16 @@ test.describe("entry sequence", () => {
     await expect
       .poll(async () => video.evaluate((el: HTMLVideoElement) => el.paused))
       .toBe(false);
+
+    // Found in review (Greptile, PR #8): toBeVisible() doesn't check
+    // opacity, only bounding box + visibility — FilmStage.tsx's own hidden
+    // state (opacity: 0, zIndex: -1, not display: none) still has a real,
+    // non-empty box, so the checks above alone could pass even if the
+    // regression this test exists to catch (Gallery.tsx's mount effect
+    // re-hiding the film) somehow stopped short of also pausing the video.
+    // Asserting the stage's own real computed opacity directly is immune
+    // to that — 1 only when FilmStage.tsx's revealedLayerStyle is active.
+    await expect(page.getByTestId("film-stage")).toHaveCSS("opacity", "1");
   });
 
   test("Skip jumps straight to /gallery without waiting out the full sequence", async ({ page }) => {

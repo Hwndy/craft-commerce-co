@@ -83,13 +83,18 @@ jobs:
       # src/lib/storage.ts only ever builds a plain object/public/... URL,
       # never a render/image/... transform one), realtime (no `.channel(`/
       # `postgres_changes` call anywhere in src), mailpit (no e2e spec reads
-      # a captured email yet). Does NOT exclude edge-runtime, gotrue,
-      # storage-api, postgrest, kong or supavisor — about-contact.spec.ts
-      # and product-overlay.spec.ts make real network calls through
-      # edge-runtime (submit-enquiry), and the rest are load-bearing for
-      # every other spec.
+      # a captured email yet). Also excludes edge-runtime (found in review,
+      # Greptile, PR #8: the first version of this comment claimed about-
+      # contact.spec.ts/product-overlay.spec.ts make real calls through it
+      # — wrong, both specs intercept submit-enquiry with page.route() and
+      # fulfil it themselves, same as e2e/product-overlay.spec.ts's own
+      # existing comment already said; confirmed no e2e spec ever makes a
+      # real Edge Function call, and there's no second function in
+      # supabase/functions/ that might). Does NOT exclude gotrue,
+      # storage-api, postgrest, kong or supavisor — load-bearing for every
+      # other spec.
       - name: Start local Supabase stack
-        run: supabase start -x studio,postgres-meta,logflare,vector,imgproxy,realtime,mailpit
+        run: supabase start -x studio,postgres-meta,logflare,vector,imgproxy,realtime,mailpit,edge-runtime
 
       - name: Record local Supabase connection details
         # `-o env` prints KEY="value" lines (plus the occasional stray
