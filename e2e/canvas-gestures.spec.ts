@@ -60,6 +60,13 @@ test.describe("canvas gestures", () => {
   // reason for the two to differ, since both wait on the same mechanism.
   test("wheel zooms the camera about the pointer", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    // Found in review (CodeRabbit, PR #8): two sequential 15000ms polls
+    // plus revealBoard()'s own setup can exceed Playwright's default
+    // 30000ms per-test timeout before the second poll's own window even
+    // elapses, which would fail the test on an unrelated test-level
+    // timeout instead of a clean poll assertion. Widened to cover both
+    // polls' full worst case plus setup, with margin.
+    test.setTimeout(60000);
     await revealBoard(page);
 
     const before = await getCamera(page);
@@ -101,6 +108,14 @@ test.describe("canvas gestures", () => {
 
   test("keyboard: arrows pan, +/- zoom, 0 returns home", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
+    // Found in review (CodeRabbit, PR #8, while fixing the identical shape
+    // of issue in the wheel test above): this test's own four sequential
+    // polls (15000 + 15000 + 5000 + 5000 = 40000ms worst case) already
+    // exceeded Playwright's default 30000ms per-test timeout before
+    // revealBoard()'s own setup time is even added — a pre-existing risk,
+    // not introduced by this PR, just not caught until this same
+    // investigation looked closely at this file's own timeout budgets.
+    test.setTimeout(75000);
     await revealBoard(page);
 
     await page.locator("[data-camera-zoom]").first().focus();
