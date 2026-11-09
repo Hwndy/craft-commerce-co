@@ -18,7 +18,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(19);
+select plan(20);
 
 -- Fixture data, inserted as postgres (bypasses RLS: table owner).
 insert into public.pages (key, title, body_markdown)
@@ -225,12 +225,24 @@ select isnt(
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000071","aal":"aal2","app_metadata":{"role":"admin"}}';
 
+-- Found in review (CodeRabbit, PR #6): lives_ok alone only proves the
+-- statement raised no exception — exactly the same RLS-silently-filters
+-- gotcha this file already hit twice above (anon/non-admin UPDATE). If
+-- is_admin()'s aal2 check had a bug that wrongly rejected this update,
+-- RLS would filter it to 0 rows with no exception and lives_ok would
+-- still pass, missing the one case this whole block exists to prove.
 select lives_ok(
   $$ update public.pages set title = 'pgtap-test: page (updated by aal2)' where key = 'pgtap-test-page' $$,
   'admin with a verified MFA factor, at aal2: pages update succeeds'
 );
 
 reset role;
+
+select is(
+  (select title from public.pages where key = 'pgtap-test-page'),
+  'pgtap-test: page (updated by aal2)',
+  'admin with a verified MFA factor, at aal2: the update actually changed the row'
+);
 
 select * from finish();
 rollback;
