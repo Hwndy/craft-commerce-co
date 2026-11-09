@@ -15,17 +15,6 @@ export default defineConfig({
   use: {
     baseURL: "http://127.0.0.1:4173",
     trace: "on-first-retry",
-    // Collage's circular mode spins every photo continuously (index.css's
-    // collage-spin, docs/decisions.md D-62) — Playwright's click
-    // actionability check requires an element's bounding box to stop
-    // changing, which a perpetually-rotating element never does, so every
-    // photo-viewer.spec.ts click on a collage thumbnail timed out (found via
-    // real CI on PR #5). Defaulting the whole suite to reduced motion
-    // disables that animation the same way a real reduced-motion visitor's
-    // browser would, which is what every spec here already implicitly
-    // assumes (none asserts the animation itself); a spec that needs the
-    // opposite can still call page.emulateMedia({ reducedMotion: "no-preference" }).
-    reducedMotion: "reduce",
   },
   webServer: {
     command: "npm run preview -- --port 4173 --host 127.0.0.1",
