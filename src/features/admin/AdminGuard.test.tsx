@@ -35,8 +35,8 @@ vi.mock("./lib/mfa", () => ({
 
 import { AdminGuard } from "./AdminGuard";
 
-function session(appMetadata: Record<string, unknown> = {}) {
-  return { user: { app_metadata: appMetadata } } as never;
+function session(appMetadata: Record<string, unknown> = {}, userId = "admin-user-1") {
+  return { user: { id: userId, app_metadata: appMetadata } } as never;
 }
 
 function renderGuard() {
@@ -165,6 +165,33 @@ describe("AdminGuard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+  });
+
+  // Found in review (Greptile P2, PR #7): a background token refresh for
+  // the *same* admin fires onAuthStateChange with a new session object
+  // (same user, new reference) — re-running the MFA check on every such
+  // event reset `mfa` to "checking" and unmounted whatever this guard
+  // wraps (e.g. a half-completed AdminMfaSetup enrollment) for no reason.
+  it("does not re-run the MFA lookup or disrupt an in-progress challenge when the session is merely refreshed for the same user", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }));
+    needsMfaChallengeMock.mockResolvedValue(true);
+    getVerifiedTotpFactorIdMock.mockResolvedValue("factor-1");
+    let onChange: ((session: unknown) => void) | undefined;
+    onAuthStateChangeMock.mockImplementation((cb: typeof onChange) => {
+      onChange = cb;
+      return vi.fn();
+    });
+    renderGuard();
+    await waitFor(() => screen.getByText("Enter the 6-digit code from your authenticator app."));
+    expect(needsMfaChallengeMock).toHaveBeenCalledTimes(1);
+
+    // A new session object, same user id and role — a token refresh, not a sign-in.
+    onChange?.(session({ role: "admin" }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Enter the 6-digit code from your authenticator app.")).toBeInTheDocument()
+    );
+    expect(needsMfaChallengeMock).toHaveBeenCalledTimes(1);
   });
 
   it("reacts to a later sign-out by switching to the login redirect", async () => {

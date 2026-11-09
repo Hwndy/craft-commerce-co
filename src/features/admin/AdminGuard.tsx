@@ -52,8 +52,23 @@ export function AdminGuard({ children }: AdminGuardProps) {
     };
   }, []);
 
+  // Found in review (Greptile P2, PR #7): depending on `session` itself
+  // (not just whether it's a verified admin) re-ran this on every
+  // onAuthStateChange event, including a background token refresh for
+  // the *same* signed-in admin (Supabase rotates the access token
+  // automatically, well before expiry) — each one reset `mfa` to
+  // "checking", unmounting whatever this guard wraps (e.g. a half-typed
+  // AdminMfaSetup enrollment) for no reason, since a token refresh alone
+  // never changes whether MFA is still required. needsMfaChallenge()/
+  // getVerifiedTotpFactorId() read the live session via supabase-js
+  // directly, not this `session` state, so re-deriving them only needs
+  // to happen when the signed-in *identity* (or its admin status) really
+  // changes, or on an explicit retry — not on every reference change.
+  const sessionIsAdmin = session !== "loading" && !!session && isAdminSession(session);
+  const sessionUserId = session !== "loading" && session ? session.user.id : null;
+
   useEffect(() => {
-    if (!session || session === "loading" || !isAdminSession(session)) {
+    if (!sessionIsAdmin) {
       setMfa("checking");
       return;
     }
@@ -72,7 +87,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     return () => {
       active = false;
     };
-  }, [session, mfaRetryCount]);
+  }, [sessionIsAdmin, sessionUserId, mfaRetryCount]);
 
   async function onSignOut() {
     await signOut();
