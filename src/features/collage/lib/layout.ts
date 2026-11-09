@@ -74,6 +74,7 @@ export interface CollageLayoutOptions {
   /** strips only */
   itemsPerStack?: number;
   stackTiltDeg?: number;
+  stackTiltJitterDeg?: number;
   stackOffsetX?: number;
   stackOffsetY?: number;
   stacksPerRow?: number;
@@ -151,6 +152,7 @@ export function stripsLayout(
     sizeJitter = DEFAULT_SIZE_JITTER,
     itemsPerStack = DEFAULT_ITEMS_PER_STACK,
     stackTiltDeg = DEFAULT_STACK_TILT_DEG,
+    stackTiltJitterDeg = DEFAULT_STACK_TILT_JITTER_DEG,
     stackOffsetX = DEFAULT_STACK_OFFSET_X,
     stackOffsetY = DEFAULT_STACK_OFFSET_Y,
     stacksPerRow = DEFAULT_STACKS_PER_ROW,
@@ -171,7 +173,7 @@ export function stripsLayout(
     const stackOriginY = centerY + stackRow * stackRowSpacing;
     const cx = stackOriginX + withinStack * stackOffsetX;
     const cy = stackOriginY + withinStack * stackOffsetY;
-    const tiltJitter = (hashUnitInterval(photo.id, "tilt") * 2 - 1) * DEFAULT_STACK_TILT_JITTER_DEG;
+    const tiltJitter = (hashUnitInterval(photo.id, "tilt") * 2 - 1) * stackTiltJitterDeg;
 
     return {
       id: photo.id,
