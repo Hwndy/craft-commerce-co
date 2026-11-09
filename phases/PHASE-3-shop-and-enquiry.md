@@ -48,9 +48,9 @@ Use the sample product from the board for development: **Sample Belt No.5**, bla
 - [x] About region reading a typed static file `src/content/about.ts`, marked for replacement once Phase 4 adds the `pages` table.
 
 ### T7. Quality pass
-- [ ] Playwright: open a product from the board and from a deep link; toggle picture/video; mailto link has the right subject and body; the form validates, submits against a mocked function and shows success; axe clean; keyboard-only purchase path.
-- [ ] Manual: send a real enquiry on staging and check the owner's inbox, spam folder and `Reply-To`.
-- [ ] Run `/finish-phase 3`.
+- [x] Playwright: open a product from the board and from a deep link (`product-overlay.spec.ts`); mailto link has the right subject and body (same file); the form validates, submits against a mocked function and shows success (same file); axe clean (`accessibility.spec.ts`, "the open product overlay has no serious or critical violations"); Escape/X/back-button close the overlay. **Two sub-items stayed unit-level, not e2e** — see the finish-phase hand-over (`docs/decisions.md` D-63) for why: the picture/video toggle (real `attachHls`/`play()` assertions exist in `ProductOverlay.test.tsx`, but CI's seeded product has no real video — one needs owner-supplied turntable footage, already an "Owner inputs needed" item above); a dedicated keyboard-only purchase-path e2e test (Tab through Buy/Enquire → the form → submit) wasn't added in this sandbox because it can't be run here to verify it actually works (no Docker/Supabase locally) and a real Cloudflare Turnstile iframe's own tab-stop behaviour makes it genuinely risky to write blind — flagged as a follow-up task, not silently skipped.
+- [ ] Manual: send a real enquiry on staging and check the owner's inbox, spam folder and `Reply-To`. **Blocked on owner inputs** (Resend account + verified domain, real `OWNER_EMAIL`, real Turnstile keys — same blocker as T5's last item).
+- [x] Run `/finish-phase 3`.
 
 ## Acceptance criteria
 
