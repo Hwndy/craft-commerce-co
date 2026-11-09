@@ -173,5 +173,27 @@ test.describe("canvas gestures", () => {
     await page.getByRole("button", { name: "Next: Collage" }).click();
     await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
     await expect(page.locator("[data-photo-id]").first()).toBeVisible();
+
+    // T2 (found by the owner, docs/decisions.md D-60): Shop's two regions
+    // are centred the same way About/Contact are, unlike Gallery/Collage
+    // above — each is seeded with exactly one small product card deliberately
+    // centred on its own viewpoint coordinate (scripts/seed-products.ts),
+    // so landing with that coordinate as the camera's raw top-left cropped
+    // roughly half the card instead. Computed from the real viewport, not
+    // hardcoded, since the centred camera depends on it.
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("expected a real viewport size");
+
+    await page.getByRole("button", { name: "Next: Shop (wall)" }).click();
+    await expect
+      .poll(() => getCamera(page))
+      .toEqual({ x: -2000 - viewport.width / 2, y: 0 - viewport.height / 2, zoom: 1 });
+    await expect(page.locator('section[data-region-id="shop-wall"]')).toBeVisible();
+
+    await page.getByRole("button", { name: "Next: Shop (floor)" }).click();
+    await expect
+      .poll(() => getCamera(page))
+      .toEqual({ x: -2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
+    await expect(page.locator('section[data-region-id="shop-floor"]')).toBeVisible();
   });
 });

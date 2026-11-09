@@ -108,8 +108,8 @@ describe("cameraForViewpoint", () => {
 
   const viewport = { width: 1000, height: 800 };
 
-  it("returns the raw viewpoint unchanged for every region except about/contact", () => {
-    for (const key of ["landing", "gallery", "collage", "shop-wall", "shop-floor"]) {
+  it("returns the raw viewpoint unchanged for every region except about/contact/shop-wall/shop-floor", () => {
+    for (const key of ["landing", "gallery", "collage"]) {
       const viewpoint = getViewpoint(key);
       expect(cameraForViewpoint(viewpoint, viewport)).toEqual(viewpoint);
     }
@@ -117,10 +117,14 @@ describe("cameraForViewpoint", () => {
 
   // T6 (found in review, Greptile/CodeRabbit, PR #3): About/Contact's own
   // Region placement treats the viewpoint's x/y as the panel's *centre*,
-  // unlike every other region — this is the one place that distinction is
-  // resolved, so every flyTo/setCamera call site shares it.
-  it("centres the camera on about/contact's viewpoint instead of using it as the raw top-left", () => {
-    for (const key of ["about", "contact"]) {
+  // unlike Gallery/Collage — this is the one place that distinction is
+  // resolved, so every flyTo/setCamera call site shares it. Shop's two
+  // regions (T2) joined this set afterwards (found by the owner, docs/
+  // decisions.md D-60): each is seeded with exactly one small product card
+  // deliberately centred on the region's own viewpoint coordinate, so the
+  // same raw-top-left landing cropped roughly half of it on arrival.
+  it("centres the camera on about/contact/shop-wall/shop-floor's viewpoint instead of using it as the raw top-left", () => {
+    for (const key of ["about", "contact", "shop-wall", "shop-floor"]) {
       const viewpoint = getViewpoint(key);
       const camera = cameraForViewpoint(viewpoint, viewport);
       expect(camera).not.toEqual(viewpoint);
