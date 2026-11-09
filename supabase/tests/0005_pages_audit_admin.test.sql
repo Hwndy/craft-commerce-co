@@ -18,7 +18,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(17);
+select plan(19);
 
 -- Fixture data, inserted as postgres (bypasses RLS: table owner).
 insert into public.pages (key, title, body_markdown)
@@ -116,6 +116,8 @@ select lives_ok(
   'admin: pages delete succeeds'
 );
 
+reset role;
+
 -- The audit trigger (not a direct insert) is what populates audit_log —
 -- the pages update above should already have produced a row. Ordered by
 -- `id` (a strictly-increasing identity), not `created_at`: this whole
@@ -161,6 +163,41 @@ select throws_ok(
   '42501',
   null,
   'admin: audit_log insert is still rejected (trigger-only, like enquiries insert in 0003)'
+);
+
+reset role;
+
+-- Found in review (Greptile, PR #7, security): is_admin() above now also
+-- requires aal2 once the account has a *verified* MFA factor — role=admin
+-- alone is no longer enough for this one user. Deliberately last: an
+-- earlier assertion (just above) already locked in the audit_log
+-- ordering it needs from "the pages update" being the most recent write
+-- to that row, and the aal1 case below is itself an is_admin()-returns-
+-- false case, so (same lesson as the anon/non-admin UPDATE fix earlier in
+-- this file) it affects 0 rows rather than throwing — asserted by
+-- checking the row is unchanged, not with throws_ok. Every other admin
+-- assertion in this file never sets a `sub` claim, so auth.uid() is null
+-- there and this fixture (scoped to a real sub) can't affect them.
+insert into auth.mfa_factors (id, user_id, status, factor_type, friendly_name)
+values ('00000000-0000-0000-0000-000000000070', '00000000-0000-0000-0000-000000000071', 'verified', 'totp', 'pgtap-test factor');
+
+set local role authenticated;
+set local request.jwt.claims = '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000071","aal":"aal1","app_metadata":{"role":"admin"}}';
+
+update public.pages set title = 'pgtap-test: aal1 tried this' where key = 'pgtap-test-page';
+reset role;
+select isnt(
+  (select title from public.pages where key = 'pgtap-test-page'),
+  'pgtap-test: aal1 tried this',
+  'admin with a verified MFA factor, at aal1: pages update does not change the row (MFA not completed this session)'
+);
+
+set local role authenticated;
+set local request.jwt.claims = '{"role":"authenticated","sub":"00000000-0000-0000-0000-000000000071","aal":"aal2","app_metadata":{"role":"admin"}}';
+
+select lives_ok(
+  $$ update public.pages set title = 'pgtap-test: page (updated by aal2)' where key = 'pgtap-test-page' $$,
+  'admin with a verified MFA factor, at aal2: pages update succeeds'
 );
 
 reset role;

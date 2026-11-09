@@ -6,6 +6,37 @@
 -- after this doc's migration numbers were written (docs/decisions.md D-64
 -- records this deviation).
 
+-- Found in review (Greptile, PR #7, security): T2's AdminLogin only shows
+-- the MFA challenge step as part of its own client-side flow — a session
+-- that's already real and persisted after signInWithPassword() alone
+-- (aal1) passes is_admin() exactly the same as one that actually
+-- completed the second factor, because the original is_admin() (migration
+-- 0001) only ever checked the role claim, never the session's assurance
+-- level. Visiting /admin directly with a lingering aal1 session (closing
+-- the tab mid-challenge, a stale tab, etc.) would skip MFA entirely, at
+-- the one layer that actually matters — the database — not just the
+-- client-side guard's own UX check.
+--
+-- Fixed here rather than requiring aal2 unconditionally: the owner's
+-- agreement to enable MFA (docs/decisions.md owner-questions table) is
+-- still pending, so admin access can't yet *require* a second factor that
+-- may not exist — this requires aal2 only once the account actually has a
+-- verified TOTP factor enrolled (auth.mfa_factors, Supabase's own standard
+-- RLS-MFA-enforcement idiom: https://supabase.com/docs/guides/auth/auth-mfa),
+-- and keeps accepting aal1 until then.
+create or replace function public.is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+  select
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', '') = 'admin'
+    and (
+      not exists (
+        select 1 from auth.mfa_factors f
+        where f.user_id = auth.uid() and f.status = 'verified'
+      )
+      or coalesce(auth.jwt() ->> 'aal', 'aal1') = 'aal2'
+    );
+$$;
+
 create table public.pages (
   key text primary key,                -- 'about', 'contact', 'home-meta'
   title text not null,
