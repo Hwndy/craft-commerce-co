@@ -376,6 +376,11 @@ Two T7 checklist sub-items deliberately left as gaps rather than guessed at: a d
 
 Consequences: Phase 3 is accepted as done against its own checklist and acceptance criteria, with the two T7 gaps and the owner-input blockers (T5's last item, the real product catalogue, the real About story, the real social URLs) explicitly carried forward rather than hidden. Do not start Phase 4 from this pass alone — per `/finish-phase`'s own scope, that's a separate `/start-phase 4` decision for the owner.
 
+### D-64: Phase 4 T1 migration numbering deviation (2026-11-09)
+Context: `docs/03-data-and-security.md` §4 and `phases/PHASE-4-admin-cms.md` T1 both call the new `pages`/`audit_log` migration `0004_pages_audit_admin`. That number was already taken by `0004_enquiry_rate_limit_fn`, added as an unplanned Phase 3 T5 follow-up (D-61-era work) after those docs' migration numbers were written — neither doc anticipated a migration being inserted mid-phase.
+Decision: named it `0005_pages_audit_admin` instead — the next free number, no renumbering of the existing, already-applied `0004`. Per `docs/03-data-and-security.md` §0's own instruction ("adjust names only if you record why"), recording it here rather than silently diverging.
+Consequences: no functional difference — every call site (`supabase/migrations/`, `supabase/tests/`) uses the filename directly, and nothing hardcodes "0004" as *this* migration's number anywhere outside those two reference docs' own prose, which now read one number ahead of reality for this one case.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
@@ -387,6 +392,7 @@ List here with a date when asked and the answer when received.
 | | Is the "finer luminous" seal form a supplied asset, or should it be created with light effects? | |
 | 2026-11-08 | T5: Resend account + verified sending domain; the real `OWNER_EMAIL` to receive enquiries (confirm it's `serve@alllifeworks.com`, same as `VITE_OWNER_EMAIL`, or a different inbox); real Cloudflare Turnstile site+secret key pair; wording for the enquiry success message. | |
 | 2026-11-08 | T6: the real About brand story (the mockup itself shows this as a placeholder, `[Brand story — owner's own words, editable in the admin.]`); real Instagram/YouTube/website URLs for the Contact region's three social icons. | |
+| 2026-11-09 | Phase 4: the owner's email for the admin invite + agreement to enable MFA; final About/Contact copy and SEO titles/descriptions; the Vercel deploy hook URL for T10's publish webhook. | |
 
 ## Template
 
