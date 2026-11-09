@@ -27,6 +27,7 @@ import {
   isAdminSession,
   onAuthStateChange,
   requestPasswordReset,
+  sessionAal,
   signInWithPassword,
   signOut,
   updatePassword,
@@ -34,6 +35,12 @@ import {
 
 function session(appMetadata: Record<string, unknown> = {}) {
   return { user: { app_metadata: appMetadata } } as never;
+}
+
+function fakeAccessToken(claims: Record<string, unknown>): string {
+  const base64url = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${base64url({ alg: "none" })}.${base64url(claims)}.sig`;
 }
 
 // Every mock above is shared across this whole file's tests.
@@ -56,6 +63,22 @@ describe("isAdminSession", () => {
 
   it("is true only for app_metadata.role === 'admin'", () => {
     expect(isAdminSession(session({ role: "admin" }))).toBe(true);
+  });
+});
+
+describe("sessionAal", () => {
+  it("is null for a null session", () => {
+    expect(sessionAal(null)).toBeNull();
+  });
+
+  it("reads the aal claim out of the access_token's own JWT payload", () => {
+    const s = { access_token: fakeAccessToken({ aal: "aal2" }) } as never;
+    expect(sessionAal(s)).toBe("aal2");
+  });
+
+  it("is null when the token has no aal claim, or isn't a parseable JWT", () => {
+    expect(sessionAal({ access_token: fakeAccessToken({}) } as never)).toBeNull();
+    expect(sessionAal({ access_token: "not-a-jwt" } as never)).toBeNull();
   });
 });
 

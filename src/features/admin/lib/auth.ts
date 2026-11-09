@@ -14,6 +14,28 @@ export function isAdminSession(session: Session | null): boolean {
   return session?.user.app_metadata?.role === "admin";
 }
 
+/**
+ * The session's own `aal` claim (not exposed as a field on `Session` —
+ * only inside the `access_token` JWT's payload), read straight from the
+ * token rather than re-querying Supabase. AdminGuard uses this (found in
+ * review, Greptile P2, PR #7) to tell a real step-up — completing MFA,
+ * here or in another tab, promotes the session to aal2 and
+ * onAuthStateChange fires with a new session reflecting it — from an
+ * ordinary same-level token refresh, which also fires onAuthStateChange
+ * with a new session object but never changes this claim.
+ */
+export function sessionAal(session: Session | null): string | null {
+  if (!session) return null;
+  try {
+    const payload = session.access_token.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    const aal = JSON.parse(json).aal;
+    return typeof aal === "string" ? aal : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getSession(): Promise<Session | null> {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;

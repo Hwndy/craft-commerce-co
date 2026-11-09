@@ -35,8 +35,17 @@ vi.mock("./lib/mfa", () => ({
 
 import { AdminGuard } from "./AdminGuard";
 
-function session(appMetadata: Record<string, unknown> = {}, userId = "admin-user-1") {
-  return { user: { id: userId, app_metadata: appMetadata } } as never;
+// A minimal unsigned JWT (header.payload.signature, base64url, no real
+// signing) so sessionAal() — which decodes the real access_token, not a
+// mock — can read a genuine `aal` claim back out of it.
+function fakeAccessToken(aal: string): string {
+  const base64url = (value: Record<string, unknown>) =>
+    btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${base64url({ alg: "none" })}.${base64url({ aal })}.sig`;
+}
+
+function session(appMetadata: Record<string, unknown> = {}, userId = "admin-user-1", aal = "aal1") {
+  return { user: { id: userId, app_metadata: appMetadata }, access_token: fakeAccessToken(aal) } as never;
 }
 
 function renderGuard() {
@@ -192,6 +201,34 @@ describe("AdminGuard", () => {
       expect(screen.getByText("Enter the 6-digit code from your authenticator app.")).toBeInTheDocument()
     );
     expect(needsMfaChallengeMock).toHaveBeenCalledTimes(1);
+  });
+
+  // Found in review (Greptile P2, PR #7): fixing the test above by
+  // ignoring userId/isAdmin alone went too far the other way — completing
+  // MFA in *another* tab promotes that session to aal2 and fires
+  // onAuthStateChange here too, but neither value changes (same user,
+  // still admin), so this tab kept showing a challenge already cleared
+  // elsewhere. The real `aal` claim (decoded from the new session's own
+  // access_token, not a mock) must still trigger a re-check.
+  it("re-checks and clears a stale challenge when the session is promoted to aal2 in another tab", async () => {
+    getSessionMock.mockResolvedValue(session({ role: "admin" }, "admin-user-1", "aal1"));
+    needsMfaChallengeMock.mockResolvedValueOnce(true);
+    getVerifiedTotpFactorIdMock.mockResolvedValue("factor-1");
+    let onChange: ((session: unknown) => void) | undefined;
+    onAuthStateChangeMock.mockImplementation((cb: typeof onChange) => {
+      onChange = cb;
+      return vi.fn();
+    });
+    renderGuard();
+    await waitFor(() => screen.getByText("Enter the 6-digit code from your authenticator app."));
+
+    // Same user, same admin role — only the aal claim differs, as if the
+    // challenge had just been completed in another tab.
+    needsMfaChallengeMock.mockResolvedValueOnce(false);
+    onChange?.(session({ role: "admin" }, "admin-user-1", "aal2"));
+
+    await waitFor(() => expect(screen.getByText("Protected content")).toBeInTheDocument());
+    expect(needsMfaChallengeMock).toHaveBeenCalledTimes(2);
   });
 
   it("reacts to a later sign-out by switching to the login redirect", async () => {

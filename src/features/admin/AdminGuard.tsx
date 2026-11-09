@@ -5,7 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { Button } from "@/components/ui/button";
 
-import { getSession, isAdminSession, onAuthStateChange, signOut } from "./lib/auth";
+import { getSession, isAdminSession, onAuthStateChange, sessionAal, signOut } from "./lib/auth";
 import { getVerifiedTotpFactorId, needsMfaChallenge } from "./lib/mfa";
 import { MfaChallengeStep } from "./components/MfaChallengeStep";
 import { NoIndex } from "./components/NoIndex";
@@ -64,8 +64,19 @@ export function AdminGuard({ children }: AdminGuardProps) {
   // directly, not this `session` state, so re-deriving them only needs
   // to happen when the signed-in *identity* (or its admin status) really
   // changes, or on an explicit retry — not on every reference change.
+  //
+  // Found in review (Greptile P2, PR #7): userId/isAdmin alone went too
+  // far the other way — completing MFA in *another* tab promotes that
+  // session to aal2 and fires onAuthStateChange here too, but neither
+  // value changes (same user, still admin), so this tab kept showing the
+  // challenge step it had already been cleared of elsewhere. `aal` isn't
+  // on `Session` itself, only inside the access_token's own JWT payload
+  // (sessionAal decodes it directly, no extra request), so it's added as
+  // its own dependency: a same-level token refresh still doesn't change
+  // it (no re-run), but a real step-up in any tab does.
   const sessionIsAdmin = session !== "loading" && !!session && isAdminSession(session);
   const sessionUserId = session !== "loading" && session ? session.user.id : null;
+  const aal = session !== "loading" ? sessionAal(session) : null;
 
   useEffect(() => {
     if (!sessionIsAdmin) {
@@ -87,7 +98,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
     return () => {
       active = false;
     };
-  }, [sessionIsAdmin, sessionUserId, mfaRetryCount]);
+  }, [sessionIsAdmin, sessionUserId, aal, mfaRetryCount]);
 
   async function onSignOut() {
     await signOut();
