@@ -78,4 +78,25 @@ describe("ListRegion", () => {
     await waitFor(() => expect(screen.getByText("Nothing published here yet.")).toBeInTheDocument());
     expect(screen.queryByText("region-label")).not.toBeInTheDocument();
   });
+
+  it("shows the About region's real copy, not the empty-state message (T6)", async () => {
+    renderRegion("about");
+
+    await waitFor(() => expect(screen.getByText("Light entering from darkness.")).toBeInTheDocument());
+    expect(screen.getByText("Artworks")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing published here yet.")).not.toBeInTheDocument();
+  });
+
+  it("shows the Contact region's intro and a real mailto link, not the empty-state message (T6)", async () => {
+    renderRegion("contact");
+
+    await waitFor(() =>
+      expect(screen.getByText("Commissions, collaborations, press or a question about a belt.")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("link", { name: "Email ALL LIFE directly" })).toHaveAttribute(
+      "href",
+      expect.stringMatching(/^mailto:/)
+    );
+    expect(screen.queryByText("Nothing published here yet.")).not.toBeInTheDocument();
+  });
 });

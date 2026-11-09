@@ -48,4 +48,15 @@ describe("nearestGuidedIndex", () => {
   it("returns 0 for an empty path", () => {
     expect(nearestGuidedIndex({ x: 0, y: 0, zoom: 1 }, [], 1000, 800)).toBe(0);
   });
+
+  // T6 (found in review, Greptile, PR #3): same fix as nearestViewpoint.ts's
+  // own regression test — switching Explore → Guided while actually
+  // looking at Contact must resolve back to Contact's own path index, not
+  // whichever region happens to sit nearest its *raw, uncentred*
+  // coordinates.
+  it("still resolves to 'contact's index once its camera is centred (not at contact's own raw x/y)", () => {
+    const centredPath = [vp("shop-floor", 0, true, -2000, 1200), vp("contact", 1, true, 0, 2000)];
+    const landedCamera = { x: -960, y: 1460, zoom: 1 }; // cameraForViewpoint(contact, {1920,1080})
+    expect(nearestGuidedIndex(landedCamera, centredPath, 1920, 1080)).toBe(1);
+  });
 });

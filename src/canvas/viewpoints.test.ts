@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { clearViewpointsCache, getViewpoint, listViewpoints, setViewpointsCache } from "./viewpoints";
+import { cameraForViewpoint, clearViewpointsCache, getViewpoint, listViewpoints, setViewpointsCache } from "./viewpoints";
 
 describe("viewpoints", () => {
   afterEach(() => {
     clearViewpointsCache();
   });
 
-  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor registry before the cache is populated", () => {
+  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor/about/contact registry before the cache is populated", () => {
     expect(getViewpoint("landing")).toEqual({
       key: "landing",
       label: "Landing",
@@ -37,6 +37,16 @@ describe("viewpoints", () => {
       inGuidedPath: true,
     });
     expect(getViewpoint("shop-floor").y).toBe(1200);
+    expect(getViewpoint("about")).toEqual({
+      key: "about",
+      label: "About",
+      x: 0,
+      y: -2000,
+      zoom: 1,
+      sortOrder: 5,
+      inGuidedPath: true,
+    });
+    expect(getViewpoint("contact").y).toBe(2000);
   });
 
   it("throws for an unknown key in the fallback registry", () => {
@@ -50,6 +60,8 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
+      "about",
+      "contact",
     ]);
   });
 
@@ -83,6 +95,40 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
+      "about",
+      "contact",
     ]);
+  });
+});
+
+describe("cameraForViewpoint", () => {
+  afterEach(() => {
+    clearViewpointsCache();
+  });
+
+  const viewport = { width: 1000, height: 800 };
+
+  it("returns the raw viewpoint unchanged for every region except about/contact", () => {
+    for (const key of ["landing", "gallery", "collage", "shop-wall", "shop-floor"]) {
+      const viewpoint = getViewpoint(key);
+      expect(cameraForViewpoint(viewpoint, viewport)).toEqual(viewpoint);
+    }
+  });
+
+  // T6 (found in review, Greptile/CodeRabbit, PR #3): About/Contact's own
+  // Region placement treats the viewpoint's x/y as the panel's *centre*,
+  // unlike every other region — this is the one place that distinction is
+  // resolved, so every flyTo/setCamera call site shares it.
+  it("centres the camera on about/contact's viewpoint instead of using it as the raw top-left", () => {
+    for (const key of ["about", "contact"]) {
+      const viewpoint = getViewpoint(key);
+      const camera = cameraForViewpoint(viewpoint, viewport);
+      expect(camera).not.toEqual(viewpoint);
+      expect(camera.zoom).toBe(viewpoint.zoom);
+      // The viewport's centre, in world space, should land exactly on the
+      // viewpoint's own x/y — i.e. camera.x/y + half the viewport.
+      expect(camera.x + viewport.width / (2 * camera.zoom)).toBeCloseTo(viewpoint.x);
+      expect(camera.y + viewport.height / (2 * camera.zoom)).toBeCloseTo(viewpoint.y);
+    }
   });
 });

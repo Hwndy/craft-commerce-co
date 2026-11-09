@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useLocation } from "react-router-dom";
 
 import { useCameraStore } from "@/canvas/store";
-import { getViewpoint } from "@/canvas/viewpoints";
+import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
 import { Button } from "@/components/ui/button";
 import { siteMediaUrl } from "@/lib/storage";
 
@@ -50,11 +51,13 @@ const centeredOverlayStyle: CSSProperties = {
  * for free. Invisible and inert until `isRevealed`.
  */
 export function FilmStage() {
+  const location = useLocation();
   const stageRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const registerVideoElement = useFilmControllerStore((s) => s.registerVideoElement);
   const videoElement = useFilmControllerStore((s) => s.videoElement);
   const isRevealed = useFilmControllerStore((s) => s.isRevealed);
+  const isAutomaticReveal = useFilmControllerStore((s) => s.isAutomaticReveal);
   const isPrimed = useFilmControllerStore((s) => s.isPrimed);
   const fallback = useFilmControllerStore((s) => s.fallback);
   const start = useFilmControllerStore((s) => s.start);
@@ -222,6 +225,66 @@ export function FilmStage() {
     }
   }, [isRevealed]);
 
+  // T6 (found via a real, reproducible e2e failure — About/Contact's own
+  // form fields unclickable after a *second*, already-unlocked navigation
+  // straight into /gallery/contact): Gallery.tsx's own reveal() runs
+  // unconditionally on every mount (T10/D-07, by design, so the lock can
+  // show on a direct deep link) — but nothing ever dismissed the
+  // resulting layer again once it turned out not to need watching.
+  // Unlike the Fullscreen-API problem above (D-55), this is a plain CSS
+  // stacking issue: `revealedLayerStyle` is a full-screen, fully-
+  // interactive layer (z-index 50, no pointer-events override), which
+  // previously went unnoticed because every other deep-linked board
+  // content (Shop, the photo viewer) opens in a Dialog elevated well
+  // above it — About/Contact are the first real board content with
+  // nothing elevating it.
+  //
+  // Gated on `isAutomaticReveal`, not just `isRevealed`: an explicit,
+  // visitor-requested reveal (the Gallery board card, Replay) must never
+  // be silently cancelled just because the gate happens to already be
+  // unlocked — a first attempt at this fix conflated the two and broke
+  // re-watching (found in review, Greptile, PR #3).
+  //
+  // A genuinely reactive effect (not isRevealed-only, one-shot): `film`
+  // is network-loaded and `undefined` while pending, so this waits (does
+  // nothing) until it settles one way or the other, then re-evaluates for
+  // real once it does (found in review, Greptile, PR #3, on a first
+  // attempt at this fix). Deliberately reads `useGateStore.getState().
+  // isUnlocked` live rather than the React-subscribed `isUnlocked` value,
+  // and `isUnlocked` is deliberately *not* a dependency: within the same
+  // commit where `film` first resolves, `gateInitFor`'s own effect above
+  // (declared earlier, so it runs first) synchronously corrects the gate
+  // store's *actual* value the instant it learns the film's version — but
+  // React doesn't retroactively update an *already-rendered* closure's
+  // `isUnlocked`, only the *next* one. A second attempt at this fix read
+  // the stale, not-yet-corrected closure value at exactly that instant,
+  // which reads as "locked" for one render even for an already-unlocked
+  // returning visitor — and because that attempt also *latched* that
+  // reading permanently (to protect the mid-watch-unlock case below), the
+  // false reading stuck forever instead of self-correcting on the next
+  // render (found the same way, a second real CI failure on the same
+  // fix). Reading the store live sidesteps the staleness entirely; *not*
+  // depending on `isUnlocked` is what naturally keeps this effect from
+  // re-firing when a *genuinely* locked visitor later unlocks it by
+  // actually watching through — nothing else in this effect's own
+  // dependencies changes at that moment, so it simply doesn't re-run, and
+  // the deliberate Replay/Continue screen is reached undisturbed.
+  useEffect(() => {
+    if (!isRevealed || !isAutomaticReveal) return;
+    if (film === undefined) return; // still loading — re-runs once it resolves
+    if (film === null || useGateStore.getState().isUnlocked) {
+      // Also stop any playback the separate start() effect may already
+      // have begun (it fires on every isRevealed, including an automatic
+      // one that turns out not locked, since a genuinely locked visitor
+      // needs it starting immediately) — hide() alone only changes
+      // isRevealed, it was never responsible for pausing the video
+      // (Continue never needed to: by the time it's clickable, the film
+      // has already ended on its own) — found in review, Greptile, PR #3.
+      videoRef.current?.pause();
+      useFilmControllerStore.getState().hide();
+    }
+  }, [isRevealed, isAutomaticReveal, film]);
+
   return (
     <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">
       {/* Mounted unconditionally and never a descendant of the aria-hidden
@@ -388,9 +451,42 @@ export function FilmStage() {
                     // panning happened to be — flyTo (not setCamera) so this reads
                     // as a deliberate hand-off, same as Guided mode's Next/
                     // Previous, and respects prefers-reduced-motion the same way.
+                    // T6: unless the visitor arrived via a direct /about or
+                    // /contact deep link — reading the *current* URL here
+                    // (not a value captured at mount) matches how this button
+                    // already reads prefers-reduced-motion fresh on each
+                    // click; the destination can only be either of these two
+                    // literal paths (App.tsx's redirects land on exactly one
+                    // /gallery/<key> URL each) or plain /gallery itself,
+                    // never a changing value otherwise — found in review
+                    // (Greptile/CodeRabbit, PR #3): this handoff was
+                    // previously unconditional, so a first-time visitor's
+                    // requested About/Contact destination was silently lost
+                    // the moment they clicked Continue. cameraForViewpoint
+                    // (viewpoints.ts) centres the landing camera for exactly
+                    // these two keys — a no-op for "collage" itself, so its
+                    // own already-tested landing position is unchanged.
+                    //
+                    // Gated on isAutomaticReveal too (found in review,
+                    // CodeRabbit, PR #3): the board never updates the URL as
+                    // the camera pans, so a visitor who landed on
+                    // /gallery/contact, panned away and later triggered an
+                    // *explicit* rewatch (Gallery's own "watch" card) would
+                    // still read a stale /gallery/contact here and get flown
+                    // straight back to Contact instead of this button's
+                    // normal explicit-rewatch-to-collage handoff.
+                    const destinationKey = !isAutomaticReveal
+                      ? "collage"
+                      : location.pathname === "/gallery/about"
+                        ? "about"
+                        : location.pathname === "/gallery/contact"
+                          ? "contact"
+                          : "collage";
+                    const destination = getViewpoint(destinationKey);
+                    const { viewport, flyTo } = useCameraStore.getState();
                     const reducedMotion =
                       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-                    void useCameraStore.getState().flyTo(getViewpoint("collage"), { reducedMotion });
+                    void flyTo(cameraForViewpoint(destination, viewport), { reducedMotion });
                     useFilmControllerStore.getState().hide();
                   }}
                 >

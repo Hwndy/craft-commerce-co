@@ -10,6 +10,35 @@ const INERTIA_MIN_SPEED = 20; // world units/sec; below this, stop the inertia l
 const INERTIA_HALF_LIFE_SECONDS = 0.25;
 
 /**
+ * Found in review (Greptile, PR #3): About/Contact's panels (T6) can shrink
+ * below their content's natural height on short viewports and rely on their
+ * own `overflow-y-auto` to let a visitor reach the rest — but the board's
+ * wheel listener lives on the viewport element itself, which every wheel
+ * event bubbles up to regardless of where it started, so it was zooming the
+ * board instead of letting the panel scroll. `src/canvas` can't import the
+ * feature components to know which of their elements are scrollable
+ * (CLAUDE.md), so this is the registration point: any feature marks its own
+ * scrollable container with `data-board-scrollable`, and this hook lets the
+ * wheel event scroll it natively — only falling through to zoom once that
+ * element has no more room to scroll in the requested direction (so, e.g.,
+ * scrolling past the top/bottom of a panel still zooms the board).
+ */
+function findScrollableAncestor(target: EventTarget | null, boundary: Element | null): HTMLElement | null {
+  let el = target instanceof Element ? target : null;
+  while (el && el !== boundary) {
+    if (el instanceof HTMLElement && el.hasAttribute("data-board-scrollable")) return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function canScrollFurther(el: HTMLElement, dy: number): boolean {
+  if (dy < 0) return el.scrollTop > 0;
+  if (dy > 0) return el.scrollTop + el.clientHeight < el.scrollHeight;
+  return false;
+}
+
+/**
  * Pointer drag, wheel zoom (incl. ctrlKey trackpad pinch), touch pinch,
  * double-click/double-tap zoom and drag inertia, bound to the board's
  * viewport element. docs/02-canvas-spec.md §4.
@@ -86,6 +115,10 @@ export function useBoardGestures(viewportRef: React.RefObject<HTMLElement>) {
         }
       },
       onWheel: ({ event, delta: [, dy] }) => {
+        if (!event.ctrlKey) {
+          const scrollable = findScrollableAncestor(event.target, viewportRef.current);
+          if (scrollable && canScrollFurther(scrollable, dy)) return;
+        }
         event.preventDefault();
         stopInertia();
         const rect = viewportRef.current?.getBoundingClientRect();

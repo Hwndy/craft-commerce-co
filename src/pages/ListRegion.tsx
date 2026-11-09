@@ -3,10 +3,13 @@ import { Link, useParams } from "react-router-dom";
 import { useViewpointsQuery } from "@/canvas/lib/useViewpoints";
 import { listViewpoints } from "@/canvas/viewpoints";
 import { formatGbp, STATUS_COPY } from "@/components/brand/ProductLabel";
+import { aboutContent } from "@/content/about";
+import { contactIntro } from "@/content/contact";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { useFilm } from "@/features/film/lib/useFilm";
 import { useRegionNodes } from "@/features/list/lib/useRegionNodes";
 import { useProductNodes } from "@/features/shop/lib/useProducts";
+import { env } from "@/lib/env";
 
 /**
  * /list/:region — plain semantic HTML for one region's content
@@ -17,7 +20,13 @@ import { useProductNodes } from "@/features/shop/lib/useProducts";
  * never real content a list visitor should see. `gallery` and `collage`
  * are real content today, so both get their own section, each using the
  * same data hook the spatial view itself renders from (useFilm(),
- * useCollagePhotos()) rather than duplicating a second query.
+ * useCollagePhotos()) rather than duplicating a second query. `about` and
+ * `contact` (T6) get their own section too, reading the same static
+ * content modules (`src/content/about.ts`, `src/content/contact.ts`) the
+ * spatial About/Contact components render from — plain text/links here,
+ * not the interactive enquiry form (this page is deliberately dependency-
+ * free: no Turnstile, no JS-only widgets), same "read-only summary"
+ * precedent the Shop section below already sets.
  *
  * Reads the viewpoint label from useViewpointsQuery()'s own data, not the
  * synchronous listViewpoints() snapshot — see ListIndex.tsx's comment for
@@ -43,7 +52,9 @@ export default function ListRegion() {
     realNodes.length > 0 ||
     (region === "gallery" && !!film) ||
     (region === "collage" && !!photos?.length) ||
-    (isShopRegion && !!productNodes?.length);
+    (isShopRegion && !!productNodes?.length) ||
+    region === "about" ||
+    region === "contact";
 
   if (!region) return null;
 
@@ -70,6 +81,30 @@ export default function ListRegion() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {region === "about" && (
+        <section aria-label="About">
+          <p>{aboutContent.tagline}</p>
+          <p>{aboutContent.purpose}</p>
+          <p>
+            <em>[{aboutContent.brandStory}]</em>
+          </p>
+          <ul>
+            {aboutContent.tags.map((tag) => (
+              <li key={tag}>{tag}</li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {region === "contact" && (
+        <section aria-label="Contact">
+          <p>{contactIntro}</p>
+          <p>
+            <a href={`mailto:${env.VITE_OWNER_EMAIL}`}>Email ALL LIFE directly</a>
+          </p>
         </section>
       )}
 
