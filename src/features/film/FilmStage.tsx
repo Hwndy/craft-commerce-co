@@ -286,7 +286,12 @@ export function FilmStage() {
   }, [isRevealed, isAutomaticReveal, film]);
 
   return (
-    <div ref={stageRef} style={isRevealed ? revealedLayerStyle : hiddenLayerStyle} className="font-body text-sm text-white">
+    <div
+      ref={stageRef}
+      data-testid="film-stage"
+      style={isRevealed ? revealedLayerStyle : hiddenLayerStyle}
+      className="font-body text-sm text-white"
+    >
       {/* Mounted unconditionally and never a descendant of the aria-hidden
        * wrapper below — a screen reader has therefore already "seen" this
        * exact element before its text can ever change. Nesting it under

@@ -91,18 +91,28 @@ export function Board({ children, className }: BoardProps) {
   }, [setViewport]);
 
   // Keeps data-camera-* immediately accurate even if the rAF loop below
-  // stalls under heavy load — confirmed root cause of e2e/canvas-gestures.
-  // spec.ts's CI flakiness: an interaction (wheel/drag/keypress) updates
-  // the camera store synchronously, but previously these attributes only
-  // got painted on the loop's next tick, which real CI can delay past even
-  // a 15s test timeout under parallel-worker CPU contention. Subscribes
-  // directly to the store (zustand's vanilla subscribe, not the React
-  // hook), so this never triggers a React re-render — same "no per-frame
-  // React update" rule the rAF loop itself follows below, just immediate
-  // instead of once-per-frame. The rAF loop still separately owns the
-  // world transform and frameTimeMs; this only makes the e2e-observability
-  // attributes it already wrote (see that loop's own comment) resilient to
-  // paint timing.
+  // stalls under heavy load, so these e2e-observability attributes are
+  // never stale relative to the store itself. Previously credited as the
+  // "confirmed root cause" of e2e/canvas-gestures.spec.ts's CI flakiness —
+  // that was wrong (found properly root-causing the same flakiness later,
+  // docs/decisions.md D-66): the real cause was never attribute staleness,
+  // it was flyTo() itself overwriting `camera` every frame while a prior
+  // flight (e.g. Continue's own, in FilmStage.tsx) was still in progress,
+  // clobbering a concurrent gesture's one-shot write before it could ever
+  // reach the DOM — this subscribe doesn't touch that, it just makes
+  // whatever the store's *current* value is visible without a frame's
+  // delay. Still worth keeping for that: a real, if smaller, improvement.
+  // Subscribes directly to the store (zustand's vanilla subscribe, not the
+  // React hook), so this never triggers a React re-render — same "no
+  // per-frame React update" rule the rAF loop itself follows below, just
+  // immediate instead of once-per-frame. The rAF loop still separately
+  // owns the world transform and frameTimeMs; this only makes the
+  // attributes it already wrote (see that loop's own comment) resilient
+  // to paint timing. Also exposes isFlying (data-camera-flying) — added
+  // alongside the real fix: an e2e helper that triggers a flyTo (directly
+  // or via a button like Continue) needs a reliable way to wait for it to
+  // actually settle before driving further interaction through the same
+  // store, rather than racing it.
   useEffect(() => {
     return useCameraStore.subscribe((state) => {
       const viewport = viewportRef.current;
@@ -110,6 +120,7 @@ export function Board({ children, className }: BoardProps) {
       viewport.dataset.cameraX = String(state.camera.x);
       viewport.dataset.cameraY = String(state.camera.y);
       viewport.dataset.cameraZoom = String(state.camera.zoom);
+      viewport.dataset.cameraFlying = String(state.isFlying);
     });
   }, []);
 
@@ -130,6 +141,7 @@ export function Board({ children, className }: BoardProps) {
           viewport.dataset.cameraX = String(camera.x);
           viewport.dataset.cameraY = String(camera.y);
           viewport.dataset.cameraZoom = String(camera.zoom);
+          viewport.dataset.cameraFlying = String(useCameraStore.getState().isFlying);
           if (lastFrameTime != null) {
             viewport.dataset.frameTimeMs = (now - lastFrameTime).toFixed(2);
           }
