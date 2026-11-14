@@ -93,7 +93,26 @@ export default function Gallery() {
     // distinction to dismiss itself once it's confirmed this reveal
     // doesn't need watching, without ever doing the same to a visitor's
     // own explicit "watch the film" click (RegionLabel's onClick below).
-    useFilmControllerStore.getState().revealAutomatically();
+    //
+    // Found as a real, reproduced bug (not a review finding): this ran
+    // unconditionally on every mount, including the one right after
+    // LandingVideo's own handleDone already called the real, explicit
+    // reveal() (+ start()) moments earlier, just before
+    // navigate("/gallery"). On a device that has already watched the
+    // film before (isUnlocked persisted in localStorage from an earlier
+    // visit), overwriting isAutomaticReveal back to true here made
+    // FilmStage's own already-unlocked-automatic-reveal effect fire
+    // immediately and hide() the film again — cancelling the very reveal
+    // the visitor had just explicitly clicked through the whole entry
+    // sequence to watch, dropping them straight onto the board instead.
+    // Only mark this reveal automatic if nothing has revealed the film
+    // yet: a genuinely fresh mount (a direct /gallery deep link, or
+    // returning after the cleanup below already hid it) keeps the
+    // original, correct behaviour; one that arrives already revealed
+    // leaves that explicit intent alone.
+    if (!useFilmControllerStore.getState().isRevealed) {
+      useFilmControllerStore.getState().revealAutomatically();
+    }
     return () => {
       // Leaving /gallery (back button, etc.) always drops the full-screen
       // layer — it has no business covering a different route. The gate's
