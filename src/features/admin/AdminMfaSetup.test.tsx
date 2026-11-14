@@ -1,0 +1,136 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const { hasVerifiedTotpFactorMock, enrollTotpMock, verifyEnrollmentMock } = vi.hoisted(() => ({
+  hasVerifiedTotpFactorMock: vi.fn(),
+  enrollTotpMock: vi.fn(),
+  verifyEnrollmentMock: vi.fn(),
+}));
+vi.mock("./lib/mfa", () => ({
+  hasVerifiedTotpFactor: hasVerifiedTotpFactorMock,
+  enrollTotp: enrollTotpMock,
+  verifyEnrollment: verifyEnrollmentMock,
+}));
+
+import AdminMfaSetup from "./AdminMfaSetup";
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("AdminMfaSetup", () => {
+  it("says it's already set up, without offering to enroll again, when a factor is already verified", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(true);
+    render(<AdminMfaSetup />);
+
+    await waitFor(() =>
+      expect(screen.getByText("Two-factor authentication is set up on this account.")).toBeInTheDocument()
+    );
+    expect(screen.queryByText("Set up two-factor authentication")).not.toBeInTheDocument();
+  });
+
+  it("starts enrollment and shows the QR code and secret", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    enrollTotpMock.mockResolvedValueOnce({
+      factorId: "f1",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
+      secret: "SECRET123",
+    });
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => screen.getByText("Set up two-factor authentication"));
+    fireEvent.click(screen.getByText("Set up two-factor authentication"));
+
+    await waitFor(() =>
+      expect(screen.getByAltText("QR code to scan with your authenticator app")).toHaveAttribute(
+        "src",
+        "data:image/svg+xml;utf-8,<svg></svg>"
+      )
+    );
+    expect(screen.getByText("SECRET123")).toBeInTheDocument();
+  });
+
+  // Found in review (CodeRabbit, PR #7): clicking twice before the first
+  // enrollTotp() resolved could create two factors, with the slower
+  // response silently replacing the faster one's already-displayed QR code.
+  it("ignores a second click while enrollment is still in flight", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    let resolveEnroll: (value: { factorId: string; qrCodeSvg: string; secret: string }) => void;
+    enrollTotpMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveEnroll = resolve;
+        })
+    );
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => screen.getByText("Set up two-factor authentication"));
+    const button = screen.getByText("Set up two-factor authentication");
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(enrollTotpMock).toHaveBeenCalledTimes(1);
+    resolveEnroll!({ factorId: "f1", qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>", secret: "SECRET123" });
+    await waitFor(() => expect(screen.getByText("SECRET123")).toBeInTheDocument());
+  });
+
+  it("confirms completion once the typed code verifies", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    enrollTotpMock.mockResolvedValueOnce({
+      factorId: "f1",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
+      secret: "SECRET123",
+    });
+    verifyEnrollmentMock.mockResolvedValueOnce(undefined);
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => screen.getByText("Set up two-factor authentication"));
+    fireEvent.click(screen.getByText("Set up two-factor authentication"));
+    await waitFor(() => screen.getByText("SECRET123"));
+
+    const hiddenInput = document.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
+    fireEvent.change(hiddenInput, { target: { value: "123456" } });
+
+    await waitFor(() => expect(verifyEnrollmentMock).toHaveBeenCalledWith("f1", "123456"));
+    await waitFor(() =>
+      expect(screen.getByText("Two-factor authentication is set up on this account.")).toBeInTheDocument()
+    );
+  });
+
+  it("shows an error and clears the code on an incorrect verification", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    enrollTotpMock.mockResolvedValueOnce({
+      factorId: "f1",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
+      secret: "SECRET123",
+    });
+    verifyEnrollmentMock.mockRejectedValueOnce(new Error("Incorrect code."));
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => screen.getByText("Set up two-factor authentication"));
+    fireEvent.click(screen.getByText("Set up two-factor authentication"));
+    await waitFor(() => screen.getByText("SECRET123"));
+
+    const hiddenInput = document.querySelector('input[inputmode="numeric"]') as HTMLInputElement;
+    fireEvent.change(hiddenInput, { target: { value: "000000" } });
+
+    await waitFor(() => expect(screen.getByText("Incorrect code.")).toBeInTheDocument());
+    expect(screen.queryByText("Two-factor authentication is set up on this account.")).not.toBeInTheDocument();
+  });
+
+  // Found in review (Greptile, PR #7): the original effect never caught a
+  // lookup failure, so the page stayed blank forever with no explanation
+  // and no way to recover short of a full reload.
+  it("shows a retry option, not a blank page, when checking enrollment status fails", async () => {
+    hasVerifiedTotpFactorMock.mockRejectedValueOnce(new Error("network error"));
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => expect(screen.getByText("Couldn't check your two-factor status.")).toBeInTheDocument());
+    expect(screen.queryByText("Set up two-factor authentication")).not.toBeInTheDocument();
+
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+    await waitFor(() => expect(screen.getByText("Set up two-factor authentication")).toBeInTheDocument());
+  });
+});

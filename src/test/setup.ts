@@ -13,3 +13,15 @@ if (!Element.prototype.hasPointerCapture) {
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+
+// jsdom has no ResizeObserver either — shadcn's InputOTP (Phase 4 admin
+// MFA screens: AdminLogin's challenge step, AdminMfaSetup's enrollment)
+// observes its container to track focus/caret position, which nothing
+// under test asserts on; a no-op is enough to let it mount at all.
+if (typeof ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
