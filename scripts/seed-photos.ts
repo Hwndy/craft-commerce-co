@@ -90,7 +90,7 @@ function parsePhotosCsv(csvPath: string): PhotoRow[] {
 async function uploadBuffer(destPath: string, buffer: Buffer, contentType: string) {
   const { error } = await supabase.storage.from("site-media").upload(destPath, buffer, {
     contentType,
-    cacheControl: "public, max-age=31536000, immutable",
+    cacheControl: "31536000",
     upsert: true,
   });
   if (error) throw new Error(`Failed to upload ${destPath}: ${error.message}`);
