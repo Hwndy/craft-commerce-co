@@ -122,7 +122,16 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
     if (directUrl) {
       video.src = siteMediaUrl(directUrl);
       tryPlay();
-      return () => video.removeAttribute("src");
+      // Found in review (CodeRabbit, PR #11): removeAttribute() alone
+      // doesn't invoke the media element's resource selection algorithm,
+      // so it doesn't abort an in-flight download — pause() + load()
+      // (the same reset the native-HLS path already gets via hls.js's own
+      // destroy()) actually releases the resource.
+      return () => {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      };
     }
   }, [product?.video?.hlsMaster, product?.video?.storagePath, view]);
 

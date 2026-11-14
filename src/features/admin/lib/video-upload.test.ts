@@ -37,7 +37,7 @@ describe("uploadVideoMedia", () => {
     expect(uploadMock).toHaveBeenCalledWith(
       "products/p1/video-1/video.mp4",
       file,
-      expect.objectContaining({ contentType: "video/mp4", upsert: true })
+      expect.objectContaining({ contentType: "video/mp4", cacheControl: "31536000", upsert: true })
     );
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({

@@ -2,6 +2,12 @@ import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 
+// Found in review (CodeRabbit, PR #11, Major): with no cap, selecting many
+// large photos decoded and uploaded all of them at once — each pipeline
+// keeps its decoded ImageBitmap alive for the whole upload, so e.g. 40
+// full-resolution camera photos could exhaust the browser's memory.
+const MAX_CONCURRENT_UPLOADS = 3;
+
 import { Button } from "@/components/ui/button";
 
 import { ImageUploadError, uploadImageMedia, type ImageUploadStatus } from "../lib/image-pipeline";
@@ -46,9 +52,31 @@ const STATUS_LABEL: Record<QueuedFileStatus, string> = {
 export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }: MediaUploadFieldProps) {
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pendingRef = useRef<Array<{ file: File; mediaId: string; skipWidths: number[] }>>([]);
+  const activeCountRef = useRef(0);
 
   function updateItem(mediaId: string, patch: Partial<QueuedFile>) {
     setQueue((items) => items.map((item) => (item.mediaId === mediaId ? { ...item, ...patch } : item)));
+  }
+
+  // Keeps at most MAX_CONCURRENT_UPLOADS pipelines running; everything
+  // else stays queued (shown as "Queued" via the existing "pending"
+  // status) until a slot frees up.
+  function pump() {
+    while (activeCountRef.current < MAX_CONCURRENT_UPLOADS && pendingRef.current.length > 0) {
+      const next = pendingRef.current.shift();
+      if (!next) break;
+      activeCountRef.current += 1;
+      void runUpload(next.file, next.mediaId, next.skipWidths).finally(() => {
+        activeCountRef.current -= 1;
+        pump();
+      });
+    }
+  }
+
+  function enqueue(file: File, mediaId: string, skipWidths: number[] = []) {
+    pendingRef.current.push({ file, mediaId, skipWidths });
+    pump();
   }
 
   async function runUpload(file: File, mediaId: string, skipWidths: number[] = []) {
@@ -86,13 +114,13 @@ export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }:
     for (const file of Array.from(files)) {
       const mediaId = crypto.randomUUID();
       setQueue((items) => [...items, { file, mediaId, status: "pending" }]);
-      void runUpload(file, mediaId);
+      enqueue(file, mediaId);
     }
     if (inputRef.current) inputRef.current.value = "";
   }
 
   function onRetry(item: QueuedFile) {
-    void runUpload(item.file, item.mediaId, item.completedWidths ?? []);
+    enqueue(item.file, item.mediaId, item.completedWidths ?? []);
   }
 
   return (

@@ -94,6 +94,35 @@ describe("MediaUploadField", () => {
     await waitFor(() => expect(screen.getByText("Done")).toBeInTheDocument());
   });
 
+  // Found in review (CodeRabbit, PR #11, Major): with no cap, selecting
+  // many large files would decode/upload all of them at once.
+  it("runs at most 3 uploads at a time, starting the next one as a slot frees up", async () => {
+    const resolvers: Array<() => void> = [];
+    uploadImageMediaMock.mockImplementation(
+      ({ onProgress }: { onProgress?: (p: { status: string }) => void }) =>
+        new Promise<{ mediaId: string }>((resolve) => {
+          onProgress?.({ status: "uploading" });
+          resolvers.push(() => resolve({ mediaId: "media" }));
+        })
+    );
+
+    render(<MediaUploadField kind="image" storagePrefix="photos/set-1" />);
+    const input = screen.getByLabelText("Choose images to upload") as HTMLInputElement;
+    const files = [1, 2, 3, 4, 5].map((n) => new File(["data"], `photo-${n}.jpg`, { type: "image/jpeg" }));
+    fireEvent.change(input, { target: { files } });
+
+    await waitFor(() => expect(uploadImageMediaMock).toHaveBeenCalledTimes(3));
+    expect(screen.getAllByText("Queued")).toHaveLength(2);
+
+    resolvers[0]();
+    await waitFor(() => expect(uploadImageMediaMock).toHaveBeenCalledTimes(4));
+
+    resolvers[1]();
+    resolvers[2]();
+    resolvers[3]();
+    await waitFor(() => expect(uploadImageMediaMock).toHaveBeenCalledTimes(5));
+  });
+
   it("uses the video pipeline and accept type when kind is video", async () => {
     uploadVideoMediaMock.mockResolvedValue({ mediaId: "video-1" });
 

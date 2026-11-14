@@ -194,6 +194,46 @@ describe("ProductOverlay", () => {
     playSpy.mockRestore();
   });
 
+  // Found in review (CodeRabbit, PR #11): removeAttribute() alone doesn't
+  // abort an in-flight download — pause()+load() does (the HTML spec's
+  // "resource selection algorithm"), the same reset the native-HLS path
+  // already gets via hls.js's own destroy().
+  it("pauses and reloads the element when switching away from a direct-file video, aborting any in-flight download", () => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    const pauseSpy = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    const loadSpy = vi.spyOn(HTMLMediaElement.prototype, "load").mockImplementation(() => {});
+
+    const { rerender } = render(
+      <ProductOverlay
+        slug="sample-belt-no-5"
+        product={product({
+          video: media({ id: "video-1", hlsMaster: null, storagePath: "products/p1/video-1/video.mp4" }),
+        })}
+        onClose={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Play the turntable video" }));
+    expect(document.querySelector("video")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Pictures" }));
+    rerender(
+      <ProductOverlay
+        slug="sample-belt-no-5"
+        product={product({
+          video: media({ id: "video-1", hlsMaster: null, storagePath: "products/p1/video-1/video.mp4" }),
+        })}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(pauseSpy).toHaveBeenCalled();
+    expect(loadSpy).toHaveBeenCalled();
+
+    pauseSpy.mockRestore();
+    loadSpy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
   it("calls onClose when the close button is activated", async () => {
     const onClose = vi.fn();
     const { getByLabelText } = render(

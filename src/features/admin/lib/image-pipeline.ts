@@ -87,6 +87,11 @@ export async function uploadImageMedia({
     throw new ImageUploadError(message, []);
   }
 
+  // Found in review (CodeRabbit, PR #11): bitmap.close() releases the
+  // decoded pixel data deterministically rather than waiting on GC — with
+  // no explicit release, a large source image stays fully decoded in
+  // memory for the whole upload (and any retry), for no reason once every
+  // rendition has actually been drawn from it.
   try {
     report("uploading");
     for (const width of RENDITION_WIDTHS) {
@@ -121,13 +126,21 @@ export async function uploadImageMedia({
     const message = describeError(err, "Couldn't upload this image.");
     report("failed", message);
     throw new ImageUploadError(message, completed);
+  } finally {
+    bitmap.close();
   }
 }
 
 async function uploadToSiteMedia(path: string, blob: Blob, contentType: string): Promise<void> {
   const { error } = await supabase.storage.from("site-media").upload(path, blob, {
     contentType,
-    cacheControl: "public, max-age=31536000, immutable",
+    // Found in review (CodeRabbit, PR #11), verified directly against
+    // @supabase/storage-js's own source: this option is wrapped as
+    // `max-age=${cacheControl}` internally, not sent as a literal header
+    // value — passing a full header string here (mirrored from
+    // scripts/seed-photos.ts, which has the identical bug) would have
+    // produced the nonsensical `cache-control: max-age=public, max-age=31536000, immutable`.
+    cacheControl: "31536000",
     upsert: true,
   });
   if (error) throw error;

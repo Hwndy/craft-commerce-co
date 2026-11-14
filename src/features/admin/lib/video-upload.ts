@@ -67,7 +67,10 @@ export async function uploadVideoMedia({
     report("uploading");
     const { error: uploadError } = await supabase.storage.from("site-media").upload(path, file, {
       contentType: file.type,
-      cacheControl: "public, max-age=31536000, immutable",
+      // See image-pipeline.ts's matching fix (found in review, CodeRabbit,
+      // PR #11): @supabase/storage-js wraps this as `max-age=${value}`
+      // itself, so it takes a bare seconds count, not a full header string.
+      cacheControl: "31536000",
       upsert: true,
     });
     if (uploadError) throw uploadError;

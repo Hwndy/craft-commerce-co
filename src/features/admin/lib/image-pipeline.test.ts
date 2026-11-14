@@ -27,7 +27,9 @@ vi.mock("@/lib/supabase", () => ({
 
 import { ImageUploadError, uploadImageMedia } from "./image-pipeline";
 
-const FAKE_BITMAP = { width: 3000, height: 2000 } as unknown as ImageBitmap;
+function makeFakeBitmap() {
+  return { width: 3000, height: 2000, close: vi.fn() } as unknown as ImageBitmap & { close: ReturnType<typeof vi.fn> };
+}
 
 function makeFile(sizeBytes = 1024) {
   return new File([new Uint8Array(sizeBytes)], "belt.jpg", { type: "image/jpeg" });
@@ -39,7 +41,8 @@ afterEach(() => {
 
 describe("uploadImageMedia", () => {
   it("uploads all four renditions at the right widths and paths, then inserts the media row as ready with all four keys", async () => {
-    decodeImageMock.mockResolvedValue(FAKE_BITMAP);
+    const bitmap = makeFakeBitmap();
+    decodeImageMock.mockResolvedValue(bitmap);
     resizeAndEncodeMock.mockImplementation(async (_bitmap, width: number) => new Blob([`webp-${width}`]));
     encodeBlurPlaceholderMock.mockResolvedValue("data:image/webp;base64,blur");
     fromStorageMock.mockReturnValue({ upload: uploadMock });
@@ -58,6 +61,11 @@ describe("uploadImageMedia", () => {
         expect.objectContaining({ contentType: "image/webp", upsert: true })
       );
     }
+    expect(uploadMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Blob),
+      expect.objectContaining({ cacheControl: "31536000" })
+    );
     expect(upsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "media-1",
@@ -77,6 +85,8 @@ describe("uploadImageMedia", () => {
     expect(upsertMock.mock.invocationCallOrder[0]).toBeGreaterThan(
       uploadMock.mock.invocationCallOrder[uploadMock.mock.invocationCallOrder.length - 1]
     );
+    // The decoded bitmap's pixel data is released deterministically once done, not left to GC.
+    expect(bitmap.close).toHaveBeenCalledTimes(1);
   });
 
   it("rejects a file over 25 MB before attempting to decode it", async () => {
@@ -88,8 +98,9 @@ describe("uploadImageMedia", () => {
     expect(decodeImageMock).not.toHaveBeenCalled();
   });
 
-  it("on a rendition upload failure, throws with the widths that had already succeeded and never inserts the media row", async () => {
-    decodeImageMock.mockResolvedValue(FAKE_BITMAP);
+  it("on a rendition upload failure, throws with the widths that had already succeeded, never inserts the media row, and still releases the bitmap", async () => {
+    const bitmap = makeFakeBitmap();
+    decodeImageMock.mockResolvedValue(bitmap);
     resizeAndEncodeMock.mockResolvedValue(new Blob(["webp"]));
     fromStorageMock.mockReturnValue({ upload: uploadMock });
     uploadMock
@@ -108,10 +119,11 @@ describe("uploadImageMedia", () => {
     expect(caught).toBeInstanceOf(ImageUploadError);
     expect((caught as InstanceType<typeof ImageUploadError>).completedWidths).toEqual([256, 640]);
     expect(upsertMock).not.toHaveBeenCalled();
+    expect(bitmap.close).toHaveBeenCalledTimes(1);
   });
 
   it("retrying with skipWidths re-uses the same mediaId's paths without re-encoding the already-succeeded renditions", async () => {
-    decodeImageMock.mockResolvedValue(FAKE_BITMAP);
+    decodeImageMock.mockResolvedValue(makeFakeBitmap());
     resizeAndEncodeMock.mockResolvedValue(new Blob(["webp"]));
     encodeBlurPlaceholderMock.mockResolvedValue("data:image/webp;base64,blur");
     fromStorageMock.mockReturnValue({ upload: uploadMock });
@@ -144,7 +156,7 @@ describe("uploadImageMedia", () => {
   });
 
   it("generates a mediaId when none is supplied", async () => {
-    decodeImageMock.mockResolvedValue(FAKE_BITMAP);
+    decodeImageMock.mockResolvedValue(makeFakeBitmap());
     resizeAndEncodeMock.mockResolvedValue(new Blob(["webp"]));
     encodeBlurPlaceholderMock.mockResolvedValue("data:image/webp;base64,blur");
     fromStorageMock.mockReturnValue({ upload: uploadMock });
