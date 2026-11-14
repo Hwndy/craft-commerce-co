@@ -166,6 +166,34 @@ describe("ProductOverlay", () => {
     playSpy.mockRestore();
   });
 
+  // Found in review (Phase 4 T4): the upload pipeline uploads product
+  // videos as a direct MP4/WebM file, never HLS — this is the fallback
+  // path that plays one, alongside the existing HLS one above.
+  it("plays a direct video file (no hls_master) by setting video.src directly, without calling attachHls", () => {
+    const playSpy = vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    attachHls.mockClear();
+
+    render(
+      <ProductOverlay
+        slug="sample-belt-no-5"
+        product={product({
+          video: media({ id: "video-1", hlsMaster: null, storagePath: "products/p1/video-1/video.mp4" }),
+        })}
+        onClose={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Play the turntable video" }));
+
+    const video = document.querySelector("video");
+    expect(video).toBeInTheDocument();
+    expect(video?.getAttribute("src")).toBe(siteMediaUrl("products/p1/video-1/video.mp4"));
+    expect(attachHls).not.toHaveBeenCalled();
+    expect(playSpy).toHaveBeenCalled();
+
+    playSpy.mockRestore();
+  });
+
   it("calls onClose when the close button is activated", async () => {
     const onClose = vi.fn();
     const { getByLabelText } = render(
