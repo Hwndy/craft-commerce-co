@@ -15,9 +15,9 @@
 ## Checklist
 
 ### T1. Migration and policies
-- [ ] Migration `0004_pages_audit_admin`: `pages`, `audit_log`, generic audit trigger on content tables, admin Storage policies for upload paths. pgTAP tests for each.
-- [ ] Script `scripts/make-admin.ts` that sets `app_metadata.role = 'admin'` for the owner's auth user using the service-role key (local only).
-- [ ] Disable public sign-ups and invite the owner (document the dashboard steps in `docs/admin-setup.md`).
+- [x] Migration `0005_pages_audit_admin` (renamed from the brief's `0004` — see `docs/decisions.md` D-64): `pages`, `audit_log`, generic audit trigger on `products`/`photo_sets`/`photos`/`pages`, no new Storage policies needed (0001's admin policies are bucket-scoped, already cover every path). pgTAP tests for each — can't run locally (no Docker in this sandbox); needs real CI.
+- [x] Script `scripts/make-admin.ts` that sets `app_metadata.role = 'admin'` for the owner's auth user using the service-role key (local only).
+- [x] Disable public sign-ups and invite the owner (document the dashboard steps in `docs/admin-setup.md`). **The dashboard steps themselves still need the owner to actually do them** — this is documentation for a manual process, not something this codebase can do for them.
 
 ### T2. Auth and guard
 - [ ] `/admin/login` with Supabase Auth (email and password, MFA prompt when enrolled), session handling, sign-out, password reset. Route guard that checks the role claim, not only that a session exists. `noindex` on all admin routes.
