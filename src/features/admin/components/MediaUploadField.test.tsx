@@ -74,6 +74,39 @@ describe("MediaUploadField", () => {
     expect(toastMock).toHaveBeenCalledWith(expect.stringContaining("Couldn't upload this image."));
   });
 
+  // Found in review (CodeRabbit, PR #11): nothing previously marked a
+  // retried row "Queued" until pump() actually got to it, so its Retry
+  // button stayed visible and clickable in the meantime — two clicks
+  // landing before the row re-rendered as "Queued" could enqueue the
+  // same mediaId twice, and pump() would then run two concurrent
+  // uploadImageMedia() calls for it once slots freed up.
+  it("ignores a second Retry click for the same row before it's re-rendered as Queued", async () => {
+    uploadImageMediaMock.mockRejectedValueOnce(new ImageUploadError("network error", []));
+    let resolveRetry: (value: { mediaId: string }) => void = () => {};
+    uploadImageMediaMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRetry = () => resolve({ mediaId: "media-1" });
+        })
+    );
+
+    render(<MediaUploadField kind="image" storagePrefix="photos/set-1" />);
+    selectFile();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument());
+
+    const retryButton = screen.getByRole("button", { name: "Retry" });
+    fireEvent.click(retryButton);
+    fireEvent.click(retryButton);
+
+    expect(uploadImageMediaMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Queued")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+
+    resolveRetry({ mediaId: "media-1" });
+    await waitFor(() => expect(screen.getByText("Done")).toBeInTheDocument());
+    expect(uploadImageMediaMock).toHaveBeenCalledTimes(2);
+  });
+
   it("retrying calls the pipeline again with the same mediaId and the previously-completed widths to skip", async () => {
     uploadImageMediaMock.mockRejectedValueOnce(new ImageUploadError("network error", [256, 640]));
     uploadImageMediaMock.mockResolvedValueOnce({ mediaId: "media-1" });

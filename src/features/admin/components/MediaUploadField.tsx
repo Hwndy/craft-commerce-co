@@ -54,6 +54,13 @@ export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }:
   const inputRef = useRef<HTMLInputElement>(null);
   const pendingRef = useRef<Array<{ file: File; mediaId: string; skipWidths: number[] }>>([]);
   const activeCountRef = useRef(0);
+  // Found in review (CodeRabbit, PR #11): without this, clicking Retry
+  // more than once while all 3 slots were busy left the row showing
+  // "Failed" (nothing marks it "Queued" until pump() actually gets to
+  // it) with its Retry button still clickable, so repeated clicks could
+  // queue the same mediaId several times — pump() would then run two
+  // concurrent uploadImageMedia() calls for it once slots freed up.
+  const queuedMediaIdsRef = useRef<Set<string>>(new Set());
 
   function updateItem(mediaId: string, patch: Partial<QueuedFile>) {
     setQueue((items) => items.map((item) => (item.mediaId === mediaId ? { ...item, ...patch } : item)));
@@ -69,18 +76,21 @@ export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }:
       activeCountRef.current += 1;
       void runUpload(next.file, next.mediaId, next.skipWidths).finally(() => {
         activeCountRef.current -= 1;
+        queuedMediaIdsRef.current.delete(next.mediaId);
         pump();
       });
     }
   }
 
   function enqueue(file: File, mediaId: string, skipWidths: number[] = []) {
+    if (queuedMediaIdsRef.current.has(mediaId)) return;
+    queuedMediaIdsRef.current.add(mediaId);
     pendingRef.current.push({ file, mediaId, skipWidths });
+    updateItem(mediaId, { status: "pending", error: undefined });
     pump();
   }
 
   async function runUpload(file: File, mediaId: string, skipWidths: number[] = []) {
-    updateItem(mediaId, { status: "pending", error: undefined });
     try {
       if (kind === "image") {
         await uploadImageMedia({

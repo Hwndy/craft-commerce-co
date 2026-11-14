@@ -475,6 +475,8 @@ Consequences: `image-pipeline.ts`/`image-codec.ts`/`video-upload.ts`/`MediaUploa
 - `ProductOverlay.tsx`'s direct-file cleanup only removed the `src` attribute, which doesn't invoke the media element's resource-selection algorithm and so doesn't actually abort an in-flight download — added `video.pause()` + `video.load()` (the same reset the native-HLS path already gets via `hls.js`'s own `destroy()`). New test asserts both are called when switching away from a direct-file video.
 Consequences: 2 new test files' worth of additional assertions, 485/485 full suite passing; `npm run typecheck`/`lint`/`build` clean (195.67 KB gzip, unchanged).
 
+**Update (same day, found in review, CodeRabbit, PR #11 — a genuine follow-on from the concurrency fix above, not a new independent finding):** the concurrency cap traded one bug for a related one. Nothing marked a retried row "Queued" until `pump()` actually got to it, so a row still showing "Failed" kept its Retry button visible and clickable while all 3 slots were busy — two clicks landing before the re-render could enqueue the same `mediaId` twice, and `pump()` would then run two concurrent `uploadImageMedia()` calls for it once a slot freed up. Fixed by having `enqueue()` itself (not `runUpload()`) set the row to "pending" immediately and guard against a `mediaId` already queued or in flight (`queuedMediaIdsRef`, cleared in `pump()`'s own `finally`). New test: firing two Retry clicks back-to-back (before any re-render) results in exactly one `uploadImageMedia()` call. 486/486 full suite passing; `npm run typecheck`/`lint`/`build` clean (195.66 KB gzip, unchanged).
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
