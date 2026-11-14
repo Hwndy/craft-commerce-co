@@ -74,7 +74,15 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
     if (slug) void exitFullscreenIfActive();
   }, [slug]);
 
-  const hasVideo = !!product?.video?.hlsMaster && !prefersReducedData();
+  // Found in review (Phase 4 T4): T4's own upload pipeline uploads product
+  // videos as a direct MP4/WebM file, never HLS (AGENTS.md's "no automatic
+  // transcoding in the admin" rule, and docs/decisions.md D-06, both rule
+  // out building a client-side HLS encoder here) — but this effect
+  // previously only ever tried `hlsMaster`, so an uploaded video's media
+  // row would validate and even show the Pictures/Video toggle, yet never
+  // actually play. `storagePath` (a video's own direct file) was already
+  // read into `ProductMedia` for exactly this case; it just wasn't used.
+  const hasVideo = !!product?.video && (!!product.video.hlsMaster || !!product.video.storagePath) && !prefersReducedData();
 
   // FR-4.4: starts when visible (the Video tab is the one showing), pauses
   // when hidden (any other tab, or the dialog closes) — not a viewport
@@ -83,28 +91,49 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
   useEffect(() => {
     const video = videoRef.current;
     const masterUrl = product?.video?.hlsMaster;
-    if (!video || !masterUrl || view !== "video") return;
+    const directUrl = product?.video?.storagePath;
+    if (!video || view !== "video") return;
 
-    const controller = attachHls(video, siteMediaUrl(masterUrl), {
-      // A turntable loop failing to play is never worth blocking the
-      // overlay over — fall back to the picture gallery, same spirit as
-      // FilmStage's own fallback chain but with nothing left to retry
-      // automatically (there's no "Watch once" gate riding on this video).
-      onFatalError: () => setView("pictures"),
-    });
     // Optional chaining, not a bare .catch(): real browsers always return a
     // Promise from play(), but jsdom's play() returns undefined (found via
     // this file's own test, the first to actually switch to the video view
     // and let this effect run) — a bare .catch() would throw there instead
     // of just doing nothing, which is the correct behaviour either way.
-    void video.play()?.catch(() => {
-      // Autoplay can be blocked even when muted on some browsers; the
-      // poster frame (still shown via the <video poster> attribute until
-      // playback starts) is an acceptable static fallback rather than
-      // forcing a tap-to-play control onto a purely decorative loop.
-    });
-    return () => controller.destroy();
-  }, [product?.video?.hlsMaster, view]);
+    const tryPlay = () =>
+      void video.play()?.catch(() => {
+        // Autoplay can be blocked even when muted on some browsers; the
+        // poster frame (still shown via the <video poster> attribute until
+        // playback starts) is an acceptable static fallback rather than
+        // forcing a tap-to-play control onto a purely decorative loop.
+      });
+
+    if (masterUrl) {
+      const controller = attachHls(video, siteMediaUrl(masterUrl), {
+        // A turntable loop failing to play is never worth blocking the
+        // overlay over — fall back to the picture gallery, same spirit as
+        // FilmStage's own fallback chain but with nothing left to retry
+        // automatically (there's no "Watch once" gate riding on this video).
+        onFatalError: () => setView("pictures"),
+      });
+      tryPlay();
+      return () => controller.destroy();
+    }
+
+    if (directUrl) {
+      video.src = siteMediaUrl(directUrl);
+      tryPlay();
+      // Found in review (CodeRabbit, PR #11): removeAttribute() alone
+      // doesn't invoke the media element's resource selection algorithm,
+      // so it doesn't abort an in-flight download — pause() + load()
+      // (the same reset the native-HLS path already gets via hls.js's own
+      // destroy()) actually releases the resource.
+      return () => {
+        video.pause();
+        video.removeAttribute("src");
+        video.load();
+      };
+    }
+  }, [product?.video?.hlsMaster, product?.video?.storagePath, view]);
 
   useEffect(() => {
     const video = videoRef.current;

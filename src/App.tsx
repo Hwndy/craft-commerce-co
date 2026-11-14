@@ -24,6 +24,7 @@ const ListRegion = lazy(() => import("./pages/ListRegion"));
 // but a static import still gets bundled unless it's code-split like this.
 const DevCanvas = lazy(() => import("./pages/DevCanvas"));
 const DevFilm = lazy(() => import("./pages/DevFilm"));
+const DevUpload = lazy(() => import("./pages/DevUpload"));
 
 // Admin (Phase 4) is its own, fully lazy route tree — kept out of the
 // public bundle the same way Gallery/FilmStage already are, since it'll
@@ -156,6 +157,14 @@ const App = () => (
                 element={
                   <Suspense fallback={null}>
                     <DevFilm />
+                  </Suspense>
+                }
+              />
+              <Route
+                path="/dev/upload"
+                element={
+                  <Suspense fallback={null}>
+                    <DevUpload />
                   </Suspense>
                 }
               />
