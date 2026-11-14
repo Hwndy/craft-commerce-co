@@ -24,8 +24,8 @@
 - [x] Tests: unauthenticated → redirected to `/admin/login`; authenticated non-admin → "No access" shown in place (`AdminGuard.test.tsx`). "Every write fails at the database" is pgTAP's job (T1, already proven for `pages`/`audit_log`; the same admin-role policies already cover `products`/`photo_sets`/`photos` from Phases 2/3).
 
 ### T3. Admin shell
-- [ ] Mobile-first layout with shadcn components: bottom navigation on phones, sidebar on desktop; sections Products, Photos, Pages, Layout, Enquiries.
-- [ ] Consistent patterns: list with search, edit drawer, optimistic updates with rollback, clear error toasts, unsaved-changes warning.
+- [x] Mobile-first layout with shadcn components: bottom navigation on phones, sidebar on desktop; sections Products, Photos, Pages, Layout, Enquiries. Each section is a real nested route under `/admin` (`AdminShell.tsx`'s `<Outlet/>`) with a placeholder naming the task that builds its real CRUD (T5–T9) — no content built ahead.
+- [x] Consistent patterns, built domain-agnostic for T5–T9 to each instantiate: `AdminList` (list+search), `AdminEditDrawer` (edit drawer, wraps `ui/sheet.tsx`), `useOptimisticMutation` (optimistic update + rollback, TanStack Query), `sonner`'s `toast()` (clear error toasts, matching the existing convention), `useUnsavedChangesWarning` (beforeunload + guarded in-app navigation — no `useBlocker`, since `App.tsx` uses a plain `BrowserRouter`).
 
 ### T4. Uploads with client-side renditions (D-15)
 - [ ] `src/features/admin/lib/image-pipeline.ts`: read a file, correct EXIF orientation, resize with `createImageBitmap` and canvas into WebP renditions (256, 640, 1280, 2048 px), generate a tiny blur data URL, upload each to `site-media`, then insert the `media` row as `ready` only when all uploads succeed. Show per-file progress and allow retry.

@@ -33,13 +33,23 @@ const DevFilm = lazy(() => import("./pages/DevFilm"));
 // D-65), it pulls in the input-otp library — a static import here would
 // have put that straight back in the public bundle (confirmed in a real
 // build: 195.33 -> 199.88 KB gzip before this fix).
-const Admin = lazy(() => import("./pages/Admin"));
 const AdminLogin = lazy(() => import("./features/admin/AdminLogin"));
 const AdminResetPassword = lazy(() => import("./features/admin/AdminResetPassword"));
 const AdminMfaSetup = lazy(() => import("./features/admin/AdminMfaSetup"));
 const AdminGuard = lazy(() =>
   import("./features/admin/AdminGuard").then((m) => ({ default: m.AdminGuard }))
 );
+// T3: the admin shell (nav chrome + <Outlet/>) and its five sections.
+// Nested <Route>s here (rather than one route per fully self-contained
+// page, as every other route in this file does) are safe specifically
+// for /admin — unlike /gallery/*, nothing here holds persistent camera or
+// video state that a section-to-section remount would need to preserve.
+const AdminShell = lazy(() => import("./features/admin/AdminShell").then((m) => ({ default: m.AdminShell })));
+const AdminProducts = lazy(() => import("./features/admin/AdminProducts"));
+const AdminPhotos = lazy(() => import("./features/admin/AdminPhotos"));
+const AdminPages = lazy(() => import("./features/admin/AdminPages"));
+const AdminLayoutSection = lazy(() => import("./features/admin/AdminLayout"));
+const AdminEnquiries = lazy(() => import("./features/admin/AdminEnquiries"));
 
 // FilmStage (src/features/entry/preload.ts prefetches this chunk during
 // the entry sequence) holds the single persistent <video> element the
@@ -172,11 +182,18 @@ const App = () => (
             element={
               <Suspense fallback={null}>
                 <AdminGuard>
-                  <Admin />
+                  <AdminShell />
                 </AdminGuard>
               </Suspense>
             }
-          />
+          >
+            <Route index element={<Navigate to="/admin/products" replace />} />
+            <Route path="products" element={<AdminProducts />} />
+            <Route path="photos" element={<AdminPhotos />} />
+            <Route path="pages" element={<AdminPages />} />
+            <Route path="layout" element={<AdminLayoutSection />} />
+            <Route path="enquiries" element={<AdminEnquiries />} />
+          </Route>
           <Route
             path="/admin/mfa-setup"
             element={
