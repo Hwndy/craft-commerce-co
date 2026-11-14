@@ -32,10 +32,30 @@ async function revealBoard(page: Page) {
   await page.getByRole("button", { name: "Continue" }).click();
   await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
 
+  // Found properly root-causing the recurring wheel/double-click/keyboard
+  // failures in this file (docs/decisions.md D-66), after an earlier,
+  // incomplete CPU-contention diagnosis (D-65) didn't actually fix them:
+  // Continue's own onClick (FilmStage.tsx) calls flyTo() without awaiting
+  // it, and this function used to return the instant the section became
+  // visible — which happens as soon as hide() runs, well before the
+  // flight itself settles. flyTo()'s own rAF loop overwrites `camera`
+  // every frame for up to ~2.2s (math.ts's flightDurationMs); a single-
+  // shot gesture (one wheel event, one dblclick, one keypress) fired
+  // during that window writes its own camera update exactly once, which
+  // the flight's very next frame clobbers — permanently, with nothing to
+  // retry it. Multi-event gestures (drag's several mousemoves, several
+  // ArrowRight presses) survived because at least one of their repeated
+  // writes typically landed after the flight settled — exactly the
+  // pattern of which tests in this file failed and which didn't.
+  // data-camera-flying (Board.tsx) mirrors the camera store's own
+  // isFlying, so this can wait for the *real* settle condition instead of
+  // a fixed delay or guessing from the camera's own values.
+  await expect(page.locator("[data-camera-flying]")).toHaveAttribute("data-camera-flying", "false", {
+    timeout: 5000,
+  });
+
   // Gesture tests don't need the film still decoding in the background —
-  // pausing it frees up this page's main thread, which otherwise competes
-  // with the camera store's rAF loop under CPU contention from parallel
-  // specs (this measurably fixed a real, reproducible-under-load flake).
+  // pausing it frees up this page's main thread.
   await video.evaluate((el: HTMLVideoElement) => el.pause());
 }
 
@@ -51,22 +71,14 @@ async function getCamera(page: Page) {
 }
 
 test.describe("canvas gestures", () => {
-  // Generous timeouts throughout this file, matching the keyboard test's
-  // own already-documented reasoning below: these only wait out real event
-  // dispatch/paint under CI's documented CPU contention (D-49), not slow
-  // application logic. Found investigating recurring CI failures: this
-  // test's own poll calls were the one place in this file still left on
-  // the 5000ms default, unlike the keyboard test's explicit 15000ms — no
-  // reason for the two to differ, since both wait on the same mechanism.
+  // No special per-test timeouts needed here (an earlier pass through this
+  // file added several, up to 75000ms, chasing an incomplete CPU-contention
+  // diagnosis — docs/decisions.md D-65) — the real cause (D-66) was
+  // revealBoard() racing Continue's own un-awaited flyTo(), now fixed in
+  // revealBoard() itself, which actually resolves these tests in
+  // milliseconds again, same as every other gesture test in this file.
   test("wheel zooms the camera about the pointer", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    // Found in review (CodeRabbit, PR #8): two sequential 15000ms polls
-    // plus revealBoard()'s own setup can exceed Playwright's default
-    // 30000ms per-test timeout before the second poll's own window even
-    // elapses, which would fail the test on an unrelated test-level
-    // timeout instead of a clean poll assertion. Widened to cover both
-    // polls' full worst case plus setup, with margin.
-    test.setTimeout(60000);
     await revealBoard(page);
 
     const before = await getCamera(page);
@@ -74,11 +86,11 @@ test.describe("canvas gestures", () => {
 
     await page.mouse.move(400, 300);
     await page.mouse.wheel(0, -400);
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(before!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(before!.zoom);
 
     const zoomedIn = await getCamera(page);
     await page.mouse.wheel(0, 400);
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeLessThan(zoomedIn!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom).toBeLessThan(zoomedIn!.zoom);
   });
 
   test("dragging pans the camera", async ({ page, browserName }) => {
@@ -94,7 +106,7 @@ test.describe("canvas gestures", () => {
 
     // Dragging the pointer left should pan the camera's world x forward
     // (content "sticks to the pointer" — see useBoardGestures.ts).
-    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 15000 }).toBeGreaterThan(before!.x);
+    await expect.poll(async () => (await getCamera(page))?.x).toBeGreaterThan(before!.x);
   });
 
   test("double-click zooms in about the click point", async ({ page, browserName }) => {
@@ -103,38 +115,27 @@ test.describe("canvas gestures", () => {
 
     const before = await getCamera(page);
     await page.mouse.dblclick(400, 300);
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(before!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(before!.zoom);
   });
 
   test("keyboard: arrows pan, +/- zoom, 0 returns home", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    // Found in review (CodeRabbit, PR #8, while fixing the identical shape
-    // of issue in the wheel test above): this test's own four sequential
-    // polls (15000 + 15000 + 5000 + 5000 = 40000ms worst case) already
-    // exceeded Playwright's default 30000ms per-test timeout before
-    // revealBoard()'s own setup time is even added — a pre-existing risk,
-    // not introduced by this PR, just not caught until this same
-    // investigation looked closely at this file's own timeout budgets.
-    test.setTimeout(75000);
     await revealBoard(page);
 
     await page.locator("[data-camera-zoom]").first().focus();
 
-    // Generous timeouts: the camera store updates synchronously on keydown —
-    // these only wait out the rAF loop's next write of the data-camera-*
-    // attributes, which can lag under CPU contention from parallel specs.
     const before = await getCamera(page);
     await page.keyboard.press("ArrowRight");
-    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 15000 }).toBeGreaterThan(before!.x);
+    await expect.poll(async () => (await getCamera(page))?.x).toBeGreaterThan(before!.x);
 
     const panned = await getCamera(page);
     await page.keyboard.press("+");
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 15000 }).toBeGreaterThan(panned!.zoom);
+    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(panned!.zoom);
 
     await page.keyboard.press("0");
     // flyTo animates to the landing viewpoint (x=0, zoom=1) — poll until settled.
-    await expect.poll(async () => (await getCamera(page))?.x, { timeout: 5000 }).toBeCloseTo(0, 0);
-    await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 5000 }).toBeCloseTo(1, 1);
+    await expect.poll(async () => (await getCamera(page))?.x).toBeCloseTo(0, 0);
+    await expect.poll(async () => (await getCamera(page))?.zoom).toBeCloseTo(1, 1);
   });
 
   test("Tab-focusing a node flies the camera to bring it back into view", async ({ page, browserName }) => {
