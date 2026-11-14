@@ -108,14 +108,19 @@ describe("getVerifiedTotpFactorId", () => {
 });
 
 describe("enrollTotp", () => {
+  // Found in review (CodeRabbit, PR #7): enrollTotp() just passes qr_code
+  // through unchanged, and real @supabase/auth-js (2.119.0+) returns it as
+  // a data:image/svg+xml;utf-8,... URL, not raw SVG — matching that shape
+  // here, not just AdminMfaSetup.test.tsx's own fixtures, keeps every
+  // fixture in the codebase consistent with what the real SDK sends.
   it("returns the factor id, QR code and secret from a fresh enrollment", async () => {
     enrollMock.mockResolvedValueOnce({
-      data: { id: "f1", totp: { qr_code: "<svg></svg>", secret: "SECRET123" } },
+      data: { id: "f1", totp: { qr_code: "data:image/svg+xml;utf-8,<svg></svg>", secret: "SECRET123" } },
       error: null,
     });
     await expect(enrollTotp()).resolves.toEqual({
       factorId: "f1",
-      qrCodeSvg: "<svg></svg>",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
       secret: "SECRET123",
     });
     expect(enrollMock).toHaveBeenCalledWith({ factorType: "totp" });
