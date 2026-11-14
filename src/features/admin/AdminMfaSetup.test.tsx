@@ -33,7 +33,7 @@ describe("AdminMfaSetup", () => {
     hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
     enrollTotpMock.mockResolvedValueOnce({
       factorId: "f1",
-      qrCodeSvg: "<svg data-testid=\"qr\"></svg>",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
       secret: "SECRET123",
     });
     render(<AdminMfaSetup />);
@@ -41,13 +41,46 @@ describe("AdminMfaSetup", () => {
     await waitFor(() => screen.getByText("Set up two-factor authentication"));
     fireEvent.click(screen.getByText("Set up two-factor authentication"));
 
-    await waitFor(() => expect(screen.getByTestId("qr")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByAltText("QR code to scan with your authenticator app")).toHaveAttribute(
+        "src",
+        "data:image/svg+xml;utf-8,<svg></svg>"
+      )
+    );
     expect(screen.getByText("SECRET123")).toBeInTheDocument();
+  });
+
+  // Found in review (CodeRabbit, PR #7): clicking twice before the first
+  // enrollTotp() resolved could create two factors, with the slower
+  // response silently replacing the faster one's already-displayed QR code.
+  it("ignores a second click while enrollment is still in flight", async () => {
+    hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
+    let resolveEnroll: (value: { factorId: string; qrCodeSvg: string; secret: string }) => void;
+    enrollTotpMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveEnroll = resolve;
+        })
+    );
+    render(<AdminMfaSetup />);
+
+    await waitFor(() => screen.getByText("Set up two-factor authentication"));
+    const button = screen.getByText("Set up two-factor authentication");
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    expect(enrollTotpMock).toHaveBeenCalledTimes(1);
+    resolveEnroll!({ factorId: "f1", qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>", secret: "SECRET123" });
+    await waitFor(() => expect(screen.getByText("SECRET123")).toBeInTheDocument());
   });
 
   it("confirms completion once the typed code verifies", async () => {
     hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
-    enrollTotpMock.mockResolvedValueOnce({ factorId: "f1", qrCodeSvg: "<svg></svg>", secret: "SECRET123" });
+    enrollTotpMock.mockResolvedValueOnce({
+      factorId: "f1",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
+      secret: "SECRET123",
+    });
     verifyEnrollmentMock.mockResolvedValueOnce(undefined);
     render(<AdminMfaSetup />);
 
@@ -66,7 +99,11 @@ describe("AdminMfaSetup", () => {
 
   it("shows an error and clears the code on an incorrect verification", async () => {
     hasVerifiedTotpFactorMock.mockResolvedValueOnce(false);
-    enrollTotpMock.mockResolvedValueOnce({ factorId: "f1", qrCodeSvg: "<svg></svg>", secret: "SECRET123" });
+    enrollTotpMock.mockResolvedValueOnce({
+      factorId: "f1",
+      qrCodeSvg: "data:image/svg+xml;utf-8,<svg></svg>",
+      secret: "SECRET123",
+    });
     verifyEnrollmentMock.mockRejectedValueOnce(new Error("Incorrect code."));
     render(<AdminMfaSetup />);
 

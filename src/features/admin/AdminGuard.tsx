@@ -37,6 +37,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
   const [session, setSession] = useState<Session | null | "loading">("loading");
   const [mfa, setMfa] = useState<MfaState>("checking");
   const [mfaRetryCount, setMfaRetryCount] = useState(0);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -100,8 +101,17 @@ export function AdminGuard({ children }: AdminGuardProps) {
     };
   }, [sessionIsAdmin, sessionUserId, aal, mfaRetryCount]);
 
+  // Found in review (CodeRabbit, PR #7): this reached the same uncaught-
+  // rejection shape Admin.tsx's own sign-out handler had — a network blip
+  // left the click silently doing nothing, with no feedback and no way to
+  // tell it had failed.
   async function onSignOut() {
-    await signOut();
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Couldn't sign out. Try again.");
+    }
   }
 
   if (session === "loading") return null;
@@ -123,6 +133,7 @@ export function AdminGuard({ children }: AdminGuardProps) {
             <Button variant="pill-outline" className="mt-4" onClick={onSignOut}>
               Sign out
             </Button>
+            {signOutError && <p className="mt-2 text-sm text-destructive">{signOutError}</p>}
           </div>
         </div>
       </>

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,20 @@ import { signOut } from "@/features/admin/lib/auth";
  */
 export default function Admin() {
   const navigate = useNavigate();
+  const [signOutError, setSignOutError] = useState<string | null>(null);
 
+  // Found in review (CodeRabbit, PR #7): a rejected signOut() (a network
+  // blip — Supabase's own default sign-out still clears the local session
+  // either way, but returns an error) left this uncaught, so navigation
+  // silently never happened with no feedback and no way to retry.
   async function onSignOut() {
-    await signOut();
-    navigate("/admin/login", { replace: true });
+    setSignOutError(null);
+    try {
+      await signOut();
+      navigate("/admin/login", { replace: true });
+    } catch (error) {
+      setSignOutError(error instanceof Error ? error.message : "Couldn't sign out. Try again.");
+    }
   }
 
   return (
@@ -30,6 +41,7 @@ export default function Admin() {
           Sign out
         </Button>
       </div>
+      {signOutError && <p className="mt-2 text-sm text-destructive">{signOutError}</p>}
     </div>
   );
 }

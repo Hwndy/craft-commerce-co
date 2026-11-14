@@ -16,6 +16,7 @@ import { enrollTotp, hasVerifiedTotpFactor, verifyEnrollment, type TotpEnrollmen
 export default function AdminMfaSetup() {
   const [alreadyEnrolled, setAlreadyEnrolled] = useState<boolean | "loading" | "failed">("loading");
   const [enrollment, setEnrollment] = useState<TotpEnrollment | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -40,12 +41,22 @@ export default function AdminMfaSetup() {
     };
   }, [retryCount]);
 
+  // Found in review (CodeRabbit, PR #7): with no guard here, clicking twice
+  // before the first enrollTotp() resolves could create two factors —
+  // the owner scans the first response's QR code, but a later-resolving
+  // second response then replaces `enrollment` with a *different* factor,
+  // so verifying submits that second factor's id against the first
+  // factor's code and fails confusingly.
   async function startEnrollment() {
+    if (enrolling) return;
+    setEnrolling(true);
     setError(null);
     try {
       setEnrollment(await enrollTotp());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't start enrollment.");
+    } finally {
+      setEnrolling(false);
     }
   }
 
@@ -61,7 +72,14 @@ export default function AdminMfaSetup() {
     }
   }
 
-  if (alreadyEnrolled === "loading") return null;
+  if (alreadyEnrolled === "loading") {
+    return (
+      <div className="mx-auto max-w-sm space-y-4 p-6">
+        <h1 className="text-2xl font-heading">Two-factor authentication</h1>
+        <p className="text-sm text-muted-foreground">Checking your two-factor status…</p>
+      </div>
+    );
+  }
 
   if (alreadyEnrolled === "failed") {
     return (
@@ -86,14 +104,26 @@ export default function AdminMfaSetup() {
           <p className="text-sm text-muted-foreground">
             Add an authenticator app (e.g. Google Authenticator, 1Password) as a second sign-in step.
           </p>
-          <Button variant="pill" onClick={startEnrollment}>
+          <Button variant="pill" onClick={startEnrollment} disabled={enrolling}>
             Set up two-factor authentication
           </Button>
         </>
       ) : (
         <div className="space-y-4">
-          {/* supabase-js's own enroll() response (its official QR SVG), not user input — the one dangerouslySetInnerHTML in this codebase, scoped to this admin-only, owner-triggered screen. */}
-          <div className="mx-auto w-48" dangerouslySetInnerHTML={{ __html: enrollment.qrCodeSvg }} />
+          {/* Found in review (CodeRabbit, PR #7): supabase-js's enroll()
+              actually returns qr_code as a data: URL
+              ("data:image/svg+xml;utf-8,<svg>...") since 2.119.0, not raw
+              SVG markup — confirmed in this repo's own installed
+              node_modules/@supabase/auth-js. Rendering that string via
+              dangerouslySetInnerHTML displayed the "data:image/..." prefix
+              as literal text before the SVG. An <img> src handles a data
+              URL correctly either way, and sidesteps the XSS-hole class of
+              dangerouslySetInnerHTML entirely. */}
+          <img
+            className="mx-auto w-48"
+            src={enrollment.qrCodeSvg}
+            alt="QR code to scan with your authenticator app"
+          />
           <p className="text-center text-xs text-muted-foreground">
             Can't scan it? Enter this code manually: <code>{enrollment.secret}</code>
           </p>

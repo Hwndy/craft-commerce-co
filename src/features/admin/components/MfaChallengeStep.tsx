@@ -39,10 +39,11 @@ export function MfaChallengeStep({
 
   return (
     <div className="space-y-4 text-center">
-      <p className="text-sm text-muted-foreground">
+      <p id="mfa-code-instructions" className="text-sm text-muted-foreground">
         Enter the 6-digit code from your authenticator app.
       </p>
       <InputOTP
+        aria-labelledby="mfa-code-instructions"
         maxLength={6}
         value={code}
         onChange={setCode}
