@@ -52,6 +52,12 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
   const [view, setView] = useState<"pictures" | "video">("pictures");
   const [pictureIndex, setPictureIndex] = useState(0);
   const [showForm, setShowForm] = useState(false);
+  // Muted by default, matching the autoplay policy every browser requires
+  // for that anyway — docs/decisions.md D-71, client feedback: the
+  // turntable videos already carry their own real ambient audio (preserved
+  // through D-70's ffmpeg transcode), so a simple per-card toggle is enough
+  // rather than sourcing anything new.
+  const [isMuted, setIsMuted] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Reset to the gallery's first picture whenever a different product opens.
@@ -59,7 +65,17 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
     setView("pictures");
     setPictureIndex(0);
     setShowForm(false);
+    setIsMuted(true);
   }, [slug]);
+
+  // Imperative, not just the `muted` JSX prop: browsers only read that prop
+  // to set the video element's *initial* muted state and don't reliably
+  // react to it changing afterwards, so a later toggle needs to set the
+  // real DOM property directly — the same reasoning this file's own
+  // play()/pause() calls already follow for everything else video-related.
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = isMuted;
+  }, [isMuted, view]);
 
   // Defensive, not just a FilmStage-side fix: a Dialog portaled to body
   // (any z-index) can't be interacted with while the browser is in actual
@@ -223,7 +239,7 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                   {view === "video" && hasVideo ? (
                     <video
                       ref={videoRef}
-                      muted
+                      muted={isMuted}
                       loop
                       playsInline
                       poster={posterUrl}
@@ -305,6 +321,24 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                       </Button>
                     </div>
                   )}
+
+                  {hasVideo && view === "video" && (
+                    <div className="absolute bottom-2 right-2">
+                      <IconButton
+                        aria-label={isMuted ? "Unmute" : "Mute"}
+                        onClick={() => setIsMuted((muted) => !muted)}
+                      >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor">
+                          <path d="M4 9v6h4l5 5V4L8 9H4z" strokeWidth="1.5" strokeLinejoin="round" />
+                          {isMuted ? (
+                            <path d="M16 9l5 6M21 9l-5 6" strokeWidth="1.5" strokeLinecap="round" />
+                          ) : (
+                            <path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8 8 0 0 1 0 12" strokeWidth="1.5" strokeLinecap="round" />
+                          )}
+                        </svg>
+                      </IconButton>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-5 pb-[calc(20px+env(safe-area-inset-bottom))]">
@@ -368,6 +402,7 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                                 priceAmount: product.priceAmount,
                                 priceCurrency: product.priceCurrency,
                                 pageUrl: `${window.location.origin}/shop/${product.slug}`,
+                                bullets: product.bullets,
                               })}
                             >
                               Buy / Enquire

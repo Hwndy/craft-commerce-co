@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMailtoLink, buildMailtoSubject } from "./mailto";
+import { buildMailtoBody, buildMailtoLink, buildMailtoSubject, extractSizeFromBullets } from "./mailto";
 
 describe("buildMailtoSubject", () => {
   it("matches the brief's own literal example exactly", () => {
@@ -69,5 +69,54 @@ describe("buildMailtoLink", () => {
   it("leaves a plain recipient address unencoded (RFC 6068 allows '@' in addr-spec)", () => {
     const link = buildMailtoLink({ ...base, to: "serve@alllifeworks.com", productName: "X", priceAmount: 1 });
     expect(link.startsWith("mailto:serve@alllifeworks.com?")).toBe(true);
+  });
+
+  // docs/decisions.md D-71, client feedback: the body names an "Item" (the
+  // product's own name, standing in for a real item number) and, when
+  // found, a "Size" line from a "Length: …" bullet.
+  it("includes an Item line and a Size line when the product has a Length bullet", () => {
+    const link = buildMailtoLink({
+      ...base,
+      productName: "RIYO — Sample 3",
+      priceAmount: 35,
+      bullets: ["Length: 124cm / 49in", "Buckle sand-cast using discarded aluminium"],
+    });
+    const body = decodeURIComponent(link.split("body=")[1]);
+    expect(body).toContain("Item: RIYO — Sample 3");
+    expect(body).toContain("Size: 124cm / 49in");
+    expect(body).toContain("Price: £35.00");
+  });
+
+  it("omits the Size line entirely when no bullet matches", () => {
+    const link = buildMailtoLink({ ...base, productName: "Sample Belt No.5", priceAmount: 40, bullets: ["Hand-finished"] });
+    const body = decodeURIComponent(link.split("body=")[1]);
+    expect(body).not.toContain("Size:");
+  });
+});
+
+describe("extractSizeFromBullets", () => {
+  it("returns the value after the colon, trimmed", () => {
+    expect(extractSizeFromBullets(["Length: 124cm / 49in"])).toBe("124cm / 49in");
+  });
+
+  it("matches case-insensitively", () => {
+    expect(extractSizeFromBullets(["LENGTH:90cm"])).toBe("90cm");
+  });
+
+  it("returns null when nothing matches", () => {
+    expect(extractSizeFromBullets(["Hand-finished", "Made to order"])).toBeNull();
+  });
+
+  it("returns null for undefined/empty bullets", () => {
+    expect(extractSizeFromBullets(undefined)).toBeNull();
+    expect(extractSizeFromBullets([])).toBeNull();
+  });
+});
+
+describe("buildMailtoBody", () => {
+  it("falls back to no Size line when bullets is omitted", () => {
+    const body = buildMailtoBody("Sample Belt No.5", 40, "GBP", "https://example.com/shop/x");
+    expect(body).not.toContain("Size:");
+    expect(body).toContain("Item: Sample Belt No.5");
   });
 });
