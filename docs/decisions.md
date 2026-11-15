@@ -491,6 +491,8 @@ Decision: (1) the client's own mockup shows £35 per RIYO belt, not the £40 set
 Alternatives considered: leaving the two placeholders published alongside the real catalogue — rejected, real visitors seeing two unrelated, un-photographed "sample" belts next to 8 real ones looks like a mistake, not an intentional out-of-scope easter egg.
 Consequences: none to tests (`sample-belt-no-5`'s own CI/e2e fixture role is untouched; `published = false` doesn't delete rows anything depends on by `id`/`slug`). Still-open items from the client's document (colour palette scope, "All Life Works" rename scope, seal recolour scope, contact-address visibility, product audio, buy-email item-number/size fields, the film "X" button's exact intent) are flagged with a recommended default each in the implementation plan rather than guessed here.
 
+**Update — "Custom fonts?" answered directly (client's document flagged this as an explicit question, not an instruction):** no change. Roboto Slab (headings) and Inter (body) are already the confirmed, loaded fonts from the earlier mockup-driven design-system work (D-45) — nothing in the client's document asks for a different family, so they stay as-is.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
