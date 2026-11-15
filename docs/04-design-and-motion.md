@@ -19,6 +19,18 @@
 
 `--accent-cyan` (`#7FD8E6`) does not appear anywhere in the confirmed design — dropped, not used.
 
+**Shop/Product Display palette (D-71)** — a client feedback document (14 Nov 2026) supplied a separate 7-swatch palette ("ALLIFEWORKS 2026 COLOUR PALETTE"), used only in that document's Product Display mockup — nothing in the document shows it replacing the site-wide dark/gold tokens above. Scoped to the rebuilt Product Display section only (client feedback Step 7); additive:
+
+| Token | Hex | CSS variable | Mockup usage |
+|---|---|---|---|
+| Wall orange | `#EC6136` | `--shop-wall` | back/side wall panels |
+| Accent pink | `#F10044` | `--shop-accent-pink` | secondary signage accent |
+| Cream | `#F7F2F3` | `--shop-cream` | floor/base surface |
+| Teal | `#398D99` | `--shop-teal` | wall border strokes |
+| Green | `#77C290` | `--shop-green` | unassigned secondary accent |
+| Sky blue | `#6EB2D1` | `--shop-sky` | unassigned secondary accent |
+| Gold/yellow | `#FFD455` | `--shop-gold` | price-tag fill |
+
 Type: **confirmed** — Roboto Slab for headings/board labels (`--font-heading`), Inter for body/UI text (`--font-body`), both loaded via Google Fonts in `index.html` with `font-display: swap`.
 
 ## 3. Entry sequence timing (Phase 1)

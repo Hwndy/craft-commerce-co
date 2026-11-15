@@ -61,6 +61,17 @@ export default {
 					DEFAULT: 'hsl(var(--surface-light))',
 					foreground: 'hsl(var(--surface-light-foreground))'
 				},
+				// Shop/Product Display palette only (docs/decisions.md D-71) —
+				// not used outside the rebuilt Product Display section.
+				shop: {
+					wall: 'hsl(var(--shop-wall))',
+					pink: 'hsl(var(--shop-accent-pink))',
+					cream: 'hsl(var(--shop-cream))',
+					teal: 'hsl(var(--shop-teal))',
+					green: 'hsl(var(--shop-green))',
+					sky: 'hsl(var(--shop-sky))',
+					gold: 'hsl(var(--shop-gold))'
+				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
