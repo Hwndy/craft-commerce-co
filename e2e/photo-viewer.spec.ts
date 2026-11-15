@@ -73,6 +73,20 @@ async function clickAnUnobstructedPhoto(page: Page) {
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
+  // TEMPORARY diagnostic for a real CI investigation (not a permanent
+  // change) — the thrown error below doesn't distinguish "zero candidates
+  // rendered at all" from "candidates rendered but every one is
+  // obstructed/off-screen". Logs enough to tell the two apart, then this
+  // whole block is removed again.
+  if (count === 0) {
+    const photoIdCount = await page.locator("[data-photo-id]").count();
+    const nodeLayerCount = await page.locator("[data-node-layer-count]").first().getAttribute("data-node-layer-count");
+    console.log(
+      `[diag] candidates=0 photoIdCount=${photoIdCount} nodeLayerCount=${nodeLayerCount} viewport=${JSON.stringify(viewport)}`
+    );
+  } else {
+    console.log(`[diag] candidates=${count} viewport=${JSON.stringify(viewport)} chromeBoxes=${JSON.stringify(chromeBoxes)}`);
+  }
   for (let i = 0; i < count; i++) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
