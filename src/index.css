@@ -61,7 +61,8 @@
        panel only (a lighting cue, not a second colour). --shop-teal/green/
        sky/accent-pink are no longer used by this section but are kept
        defined in case another area still references them. */
-    --shop-wall: 348 49% 82%; /* E7B9C2 */
+    --shop-wall: 348 49% 82%; /* E7B9C2 — right wall */
+    --shop-wall-back: 348 52% 85%; /* EDC6CE — back/left wall, one shade lighter */
     --shop-floor: 348 49% 88%; /* F0D3D9 */
     --shop-accent-pink: 343 100% 47%; /* F10044 */
     --shop-cream: 42 51% 94%; /* F7F2E6 */
