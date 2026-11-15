@@ -11,10 +11,11 @@ test.describe("list view", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     const regionLinks = page.locator("nav[aria-label='Regions'] a");
-    // landing, gallery, collage, shop, shop-wall, shop-floor, about, contact
+    // landing, gallery, collage, shop, shop-wall, shop-floor, contact
     // (Phase 3 T1, docs/decisions.md D-48: 'shop' is a non-guided overview
-    // anchor alongside the two real guided-path stops).
-    await expect(regionLinks).toHaveCount(8);
+    // anchor alongside the two real guided-path stops; 'about' was an
+    // eighth region here until docs/decisions.md D-71's Step 9 removed it).
+    await expect(regionLinks).toHaveCount(7);
     await expect(page.getByRole("link", { name: "Gallery" })).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();

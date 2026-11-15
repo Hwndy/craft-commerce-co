@@ -42,9 +42,15 @@ describe("initialViewpointKeyFromSplat", () => {
     expect(initialViewpointKeyFromSplat(undefined)).toBeNull();
   });
 
-  it("recognises the bare 'about'/'contact' splats (T6)", () => {
-    expect(initialViewpointKeyFromSplat("about")).toBe("about");
+  it("recognises the bare 'contact' splat (T6)", () => {
     expect(initialViewpointKeyFromSplat("contact")).toBe("contact");
+  });
+
+  // docs/decisions.md D-71, Step 9: the About region was removed outright
+  // — a stale /gallery/about link falls through to the "no region
+  // requested" default, not a special case of its own any more.
+  it("no longer recognises 'about' — it falls through to the default like any other splat", () => {
+    expect(initialViewpointKeyFromSplat("about")).toBeNull();
   });
 
   it("returns null for any other splat shape, including photo/shop tails", () => {

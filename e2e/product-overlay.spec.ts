@@ -159,7 +159,7 @@ test.describe("product overlay (T3)", () => {
 
   // The real end-to-end "fill the form, solve Turnstile for real, hit
   // submit-enquiry" flow this file used to exercise here (and
-  // e2e/about-contact.spec.ts exercised via Contact) no longer has a live
+  // e2e/contact.spec.ts exercised via Contact) no longer has a live
   // UI path for any product this CI fixture seeds — Step 8 removed the
   // in-stock "Use the form instead" button and Contact's own form outright,
   // and the only remaining EnquiryForm usage (a sold product's "Ask about

@@ -469,21 +469,23 @@ export function FilmStage() {
                     // panning happened to be — flyTo (not setCamera) so this reads
                     // as a deliberate hand-off, same as Guided mode's Next/
                     // Previous, and respects prefers-reduced-motion the same way.
-                    // T6: unless the visitor arrived via a direct /about or
-                    // /contact deep link — reading the *current* URL here
-                    // (not a value captured at mount) matches how this button
+                    // T6: unless the visitor arrived via a direct /contact
+                    // deep link — reading the *current* URL here (not a
+                    // value captured at mount) matches how this button
                     // already reads prefers-reduced-motion fresh on each
-                    // click; the destination can only be either of these two
-                    // literal paths (App.tsx's redirects land on exactly one
-                    // /gallery/<key> URL each) or plain /gallery itself,
-                    // never a changing value otherwise — found in review
-                    // (Greptile/CodeRabbit, PR #3): this handoff was
-                    // previously unconditional, so a first-time visitor's
-                    // requested About/Contact destination was silently lost
-                    // the moment they clicked Continue. cameraForViewpoint
-                    // (viewpoints.ts) centres the landing camera for exactly
-                    // these two keys — a no-op for "collage" itself, so its
-                    // own already-tested landing position is unchanged.
+                    // click; the destination can only be this one literal
+                    // path (App.tsx's redirect lands on exactly one
+                    // /gallery/<key> URL) or plain /gallery itself, never a
+                    // changing value otherwise — found in review (Greptile/
+                    // CodeRabbit, PR #3): this handoff was previously
+                    // unconditional, so a first-time visitor's requested
+                    // Contact destination was silently lost the moment they
+                    // clicked Continue. cameraForViewpoint (viewpoints.ts)
+                    // centres the landing camera for exactly this key — a
+                    // no-op for "collage" itself, so its own already-tested
+                    // landing position is unchanged. (About had the same
+                    // branch here until docs/decisions.md D-71's Step 9
+                    // removed the region outright.)
                     //
                     // Gated on isAutomaticReveal too (found in review,
                     // CodeRabbit, PR #3): the board never updates the URL as
@@ -493,10 +495,9 @@ export function FilmStage() {
                     // still read a stale /gallery/contact here and get flown
                     // straight back to Contact instead of this button's
                     // normal explicit-rewatch-to-collage handoff.
-                    const destinationKey = !isAutomaticReveal
-                      ? "collage"
-                      : location.pathname === "/gallery/about"
-                        ? "about"
+                    const destinationKey =
+                      !isAutomaticReveal
+                        ? "collage"
                         : location.pathname === "/gallery/contact"
                           ? "contact"
                           : "collage";

@@ -126,8 +126,9 @@ export function CanvasChrome() {
 
   function flyToViewpoint(viewpoint: Viewpoint) {
     const { viewport, flyTo } = useCameraStore.getState();
-    // cameraForViewpoint centres the landing camera for About/Contact
-    // (T6) specifically — a no-op for every other region, so their own
+    // cameraForViewpoint centres the landing camera for Contact (T6,
+    // alongside About until docs/decisions.md D-71's Step 9 removed it)
+    // specifically — a no-op for every other region, so their own
     // already-tested landing positions are unchanged (found in review,
     // Greptile/CodeRabbit, PR #3: the minimap and region-tab clicks here
     // share the exact same off-centre bug the direct /about, /contact

@@ -24,9 +24,9 @@ describe("nearestViewpoint", () => {
   });
 
   // T6 (found in review, Greptile, PR #3): cameraForViewpoint() (viewpoints.ts)
-  // centres the landing camera for "about"/"contact" instead of using their
-  // raw x/y directly — so the camera the visitor actually lands on no
-  // longer sits at "contact"'s own coordinates. Without viewpointCenter()
+  // centres the landing camera for "contact" instead of using its raw x/y
+  // directly — so the camera the visitor actually lands on no longer sits
+  // at "contact"'s own coordinates. Without viewpointCenter()
   // accounting for that same exception here, this would misidentify the
   // nearest viewpoint as "shop-floor" instead, at the exact 1920x1080/
   // (0,2000) numbers from the review comment itself.

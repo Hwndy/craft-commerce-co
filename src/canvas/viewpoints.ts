@@ -18,9 +18,12 @@ import type { Camera, Viewpoint } from "./types";
  * query resolves (a real crash, not a stale-camera-position question —
  * found in review). `shop` itself is deliberately left out: nothing calls
  * `getViewpoint("shop")` synchronously at render time today.
- * `about`/`contact` (T6) are here for the same reason again — Gallery
- * renders both unconditionally too, and `/about`/`/contact`'s own redirect
- * (App.tsx) calls `getViewpoint()` with one of these keys on mount.
+ * `contact` (T6) is here for the same reason again — Gallery renders it
+ * unconditionally too, and `/contact`'s own redirect (App.tsx) calls
+ * `getViewpoint("contact")` on mount. `about` was here for the same
+ * reason until docs/decisions.md D-71's Step 9 removed the About region
+ * outright — the seal now holds the board's "middle" spot everything
+ * else is centred around.
  *
  * `sortOrder` values here are fallback-only — they only need to preserve
  * *relative* order among the handful of keys actually present (there's no
@@ -80,22 +83,13 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
     sortOrder: 4,
     inGuidedPath: true,
   },
-  about: {
-    key: "about",
-    label: "About",
-    x: 0,
-    y: -2000,
-    zoom: 1,
-    sortOrder: 5,
-    inGuidedPath: true,
-  },
   contact: {
     key: "contact",
     label: "Contact",
     x: -2000,
     y: 1200,
     zoom: 1,
-    sortOrder: 6,
+    sortOrder: 5,
     inGuidedPath: true,
   },
 };
@@ -113,11 +107,9 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
  * Centre (0, 600) and zoom 0.18 are a fixed approximation of the four
  * main quadrants' own centres after this step's reposition — gallery
  * (-2000,-1200), collage (2000,-1200), shop (2000,1800), contact
- * (-2000,1200) — not a live `fitRectToViewport` fit: 'about' (0,-2000) is
- * deliberately left out of this framing since Step 9 removes it. Treated
- * as a centred point exactly like `about`/`contact`/`shop-wall`/
- * `shop-floor` above — pass it through `cameraFromCenter`, never used as a
- * raw camera position.
+ * (-2000,1200) — not a live `fitRectToViewport` fit. Treated as a centred
+ * point exactly like `contact`/`shop-wall`/`shop-floor` above — pass it
+ * through `cameraFromCenter`, never used as a raw camera position.
  */
 export const OVERVIEW_VIEWPOINT: Viewpoint = {
   key: "overview",
@@ -163,12 +155,13 @@ export function listViewpoints(): Viewpoint[] {
  * setCamera(viewpoint) call landing with that same x/y as the camera's own
  * top-left is the already-tested, intentional behaviour (interpolateCamera
  * in math.ts is built to end there exactly; e2e/product-overlay.spec.ts's
- * revealBoard() already asserts that literally for "collage"). About and
- * Contact (T6) were the first case where a visitor can land directly on a
- * region whose real, immediately-readable content — not hidden behind a
- * modal or the film layer — must actually be centred the moment they
- * arrive, rather than left mostly off-screen above/left of the viewport
- * (found in review, Greptile/CodeRabbit, PR #3).
+ * revealBoard() already asserts that literally for "collage"). Contact
+ * (T6, alongside About until docs/decisions.md D-71's Step 9 removed it)
+ * was the first case where a visitor can land directly on a region whose
+ * real, immediately-readable content — not hidden behind a modal or the
+ * film layer — must actually be centred the moment they arrive, rather
+ * than left mostly off-screen above/left of the viewport (found in
+ * review, Greptile/CodeRabbit, PR #3).
  *
  * shop-wall/shop-floor (T2) turned out to need the same treatment, found
  * afterwards by the owner: unlike Collage's many generative, spread-out
@@ -183,7 +176,7 @@ export function listViewpoints(): Viewpoint[] {
  * notice because something (the card's own bottom-right quadrant) was
  * still visible rather than nothing at all.
  */
-const CENTERED_REGION_KEYS = new Set(["about", "contact", "shop-wall", "shop-floor"]);
+const CENTERED_REGION_KEYS = new Set(["contact", "shop-wall", "shop-floor"]);
 
 /**
  * The camera to use when flying to or setting `viewpoint` directly —

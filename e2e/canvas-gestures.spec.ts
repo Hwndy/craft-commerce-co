@@ -159,7 +159,7 @@ test.describe("canvas gestures", () => {
   // already cover. Lands on OVERVIEW_VIEWPOINT (docs/decisions.md D-71,
   // Step 6), not the "gallery" viewpoint specifically — src/pages/
   // Gallery.tsx's mount effect only falls back to a named viewpoint when
-  // one was actually requested (e.g. /gallery/about).
+  // one was actually requested (e.g. /gallery/contact).
   test("/gallery opens at a wide overview of the whole board", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
     await page.goto("/gallery");

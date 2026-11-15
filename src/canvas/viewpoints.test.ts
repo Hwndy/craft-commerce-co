@@ -7,7 +7,7 @@ describe("viewpoints", () => {
     clearViewpointsCache();
   });
 
-  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor/about/contact registry before the cache is populated", () => {
+  it("falls back to the static landing/gallery/collage/shop-wall/shop-floor/contact registry before the cache is populated", () => {
     expect(getViewpoint("landing")).toEqual({
       key: "landing",
       label: "Landing",
@@ -37,20 +37,17 @@ describe("viewpoints", () => {
       inGuidedPath: true,
     });
     expect(getViewpoint("shop-floor").y).toBe(2400);
-    expect(getViewpoint("about")).toEqual({
-      key: "about",
-      label: "About",
-      x: 0,
-      y: -2000,
-      zoom: 1,
-      sortOrder: 5,
-      inGuidedPath: true,
-    });
     expect(getViewpoint("contact").y).toBe(1200);
   });
 
   it("throws for an unknown key in the fallback registry", () => {
     expect(() => getViewpoint("shop")).toThrow(/Unknown viewpoint/);
+  });
+
+  // docs/decisions.md D-71, Step 9: removed outright, not just excluded
+  // from the fallback — there's no "about" region left anywhere.
+  it("throws for 'about' — the region was removed outright, not just left out of the fallback", () => {
+    expect(() => getViewpoint("about")).toThrow(/Unknown viewpoint/);
   });
 
   it("listViewpoints returns the fallback registry sorted by sortOrder", () => {
@@ -60,7 +57,6 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
-      "about",
       "contact",
     ]);
   });
@@ -95,7 +91,6 @@ describe("viewpoints", () => {
       "collage",
       "shop-wall",
       "shop-floor",
-      "about",
       "contact",
     ]);
   });
@@ -108,14 +103,14 @@ describe("cameraForViewpoint", () => {
 
   const viewport = { width: 1000, height: 800 };
 
-  it("returns the raw viewpoint unchanged for every region except about/contact/shop-wall/shop-floor", () => {
+  it("returns the raw viewpoint unchanged for every region except contact/shop-wall/shop-floor", () => {
     for (const key of ["landing", "gallery", "collage"]) {
       const viewpoint = getViewpoint(key);
       expect(cameraForViewpoint(viewpoint, viewport)).toEqual(viewpoint);
     }
   });
 
-  // T6 (found in review, Greptile/CodeRabbit, PR #3): About/Contact's own
+  // T6 (found in review, Greptile/CodeRabbit, PR #3): Contact's own
   // Region placement treats the viewpoint's x/y as the panel's *centre*,
   // unlike Gallery/Collage — this is the one place that distinction is
   // resolved, so every flyTo/setCamera call site shares it. Shop's two
@@ -123,8 +118,8 @@ describe("cameraForViewpoint", () => {
   // decisions.md D-60): each is seeded with exactly one small product card
   // deliberately centred on the region's own viewpoint coordinate, so the
   // same raw-top-left landing cropped roughly half of it on arrival.
-  it("centres the camera on about/contact/shop-wall/shop-floor's viewpoint instead of using it as the raw top-left", () => {
-    for (const key of ["about", "contact", "shop-wall", "shop-floor"]) {
+  it("centres the camera on contact/shop-wall/shop-floor's viewpoint instead of using it as the raw top-left", () => {
+    for (const key of ["contact", "shop-wall", "shop-floor"]) {
       const viewpoint = getViewpoint(key);
       const camera = cameraForViewpoint(viewpoint, viewport);
       expect(camera).not.toEqual(viewpoint);
