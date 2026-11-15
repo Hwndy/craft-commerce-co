@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { IconButton } from "@/components/brand/IconButton";
@@ -13,6 +13,11 @@ import { useGuidedModeStore } from "./useGuidedModeStore";
 import { cameraForViewpoint, getViewpoint, listViewpoints } from "./viewpoints";
 
 const POLL_MS = 200;
+/** Client feedback (docs/decisions.md D-71): fade the minimap out after
+ * this long with no camera movement, show it again the moment the camera
+ * moves. */
+const MINIMAP_FADE_MS = 3000;
+const CAMERA_MOVE_EPSILON = 0.5;
 /** Default half-extent used to draw a region's box on the minimap — there's
  * no literal "region bounds" table, only viewpoints (a camera position);
  * this approximates the same 800x600 footprint Gallery.tsx's Region uses. */
@@ -82,11 +87,29 @@ export function CanvasChrome() {
   const previous = useGuidedModeStore((s) => s.previous);
   const progress = useGuidedModeStore.getState().progress();
 
+  const [minimapVisible, setMinimapVisible] = useState(true);
+  const lastCameraRef = useRef(camera);
+  const lastMovedAtRef = useRef(Date.now());
+
   useEffect(() => {
     const interval = window.setInterval(() => {
       const state = useCameraStore.getState();
       setCamera(state.camera);
       setViewport(state.viewport);
+
+      const prev = lastCameraRef.current;
+      const moved =
+        Math.abs(state.camera.x - prev.x) > CAMERA_MOVE_EPSILON ||
+        Math.abs(state.camera.y - prev.y) > CAMERA_MOVE_EPSILON ||
+        Math.abs(state.camera.zoom - prev.zoom) > CAMERA_MOVE_EPSILON;
+      lastCameraRef.current = state.camera;
+
+      if (moved) {
+        lastMovedAtRef.current = Date.now();
+        setMinimapVisible(true);
+      } else if (Date.now() - lastMovedAtRef.current > MINIMAP_FADE_MS) {
+        setMinimapVisible(false);
+      }
     }, POLL_MS);
     return () => window.clearInterval(interval);
   }, []);
@@ -114,30 +137,39 @@ export function CanvasChrome() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[60] font-body text-sm text-foreground">
-      {/* Top bar: wordmark + current region (left), Guided/Explore + List view (right).
+      {/* Top bar: wordmark + current region (left), Guided/Explore (right).
           data-canvas-chrome marks each real interactive region (not this
           outer inset-0 wrapper, whose own box would cover the whole
           viewport) so e2e specs can check a candidate element against
           CanvasChrome's actual footprint — see e2e/photo-viewer.spec.ts.
-          Fully opaque bg-background (not the minimap's /70 translucent
-          convention) — found via real CI (axe, not just review): this
-          bar's own text has no background of its own, so a translucent
-          dark bar still blends toward white once the canvas itself turns
-          white (D-61), diluting text-muted-foreground to a measured
-          2.38:1 contrast against a ~#5b5b5b blend — short of WCAG AA's
-          4.5:1. An opaque background can't dilute regardless of what's
-          behind it. */}
+
+          Client feedback (docs/decisions.md D-71): "remove header but keep
+          everything in it" — the previous fully-opaque bg-background bar
+          (a deliberate fix for a real measured 2.38:1 contrast failure
+          once a translucent bar blended toward a white canvas, D-61) is
+          replaced with a top-anchored gradient scrim + backdrop-blur
+          instead of a hard flat rectangle: still opaque enough right
+          behind the text (from-background/85) to hold the same contrast
+          guarantee, fading to transparent by the bar's own bottom edge so
+          there's no visible "bar" shape against the canvas. */}
       <div
         data-canvas-chrome
-        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-background p-4"
+        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-background/85 via-background/50 to-transparent p-4 backdrop-blur-md"
       >
         <div className="flex items-center gap-3">
-          <img
-            src="/videos/all_life_poster.jpg"
-            alt=""
-            className="h-8 w-8 rounded-full border border-primary/50 object-cover"
-          />
-          <span className="font-heading text-sm font-bold uppercase tracking-wider">ALL LIFE</span>
+          {/* Client feedback: the seal redirects to the landing page;
+              grayscale recolours it black/white as a CSS filter rather
+              than a new asset, since no black-and-white source image
+              exists to swap in. Scoped to just the seal, not the whole
+              breadcrumb, per the client's own literal wording. */}
+          <Link to="/" aria-label="Go to the landing page">
+            <img
+              src="/videos/all_life_poster.jpg"
+              alt=""
+              className="h-8 w-8 rounded-full border border-primary/50 object-cover grayscale"
+            />
+          </Link>
+          <span className="font-heading text-sm font-bold uppercase tracking-wider">ALL LIFE WORKS</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">You are at</span>
           <span data-current-region-label className="text-sm font-semibold text-primary">
             {current?.label ?? ""}
@@ -152,15 +184,20 @@ export function CanvasChrome() {
           >
             {mode === "guided" ? "Guided" : "Explore"}
           </Button>
-          <Button asChild variant="pill-outline" size="sm">
-            <Link to="/list">List view</Link>
-          </Button>
         </div>
       </div>
 
-      {/* Minimap, bottom-left. */}
+      {/* Minimap, bottom-left. Client feedback (D-71): fades after 3s idle,
+          shows again on camera movement or while the pointer is over it
+          (so it can still be deliberately brought back, not just flashed
+          on and gone again). */}
       {geometry && (
-        <div data-canvas-chrome className="pointer-events-auto absolute bottom-20 left-4">
+        <div
+          data-canvas-chrome
+          className="pointer-events-auto absolute bottom-20 left-4 transition-opacity duration-500"
+          style={{ opacity: minimapVisible ? 1 : 0 }}
+          onPointerEnter={() => setMinimapVisible(true)}
+        >
           <svg
             width={MINIMAP_SIZE.width}
             height={MINIMAP_SIZE.height}

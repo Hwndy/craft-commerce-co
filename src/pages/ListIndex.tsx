@@ -24,7 +24,7 @@ export default function ListIndex() {
 
   return (
     <main className="bg-background text-foreground min-h-screen" style={{ maxWidth: 640, margin: "0 auto", padding: 24 }}>
-      <h1>ALL LIFE — list view</h1>
+      <h1>ALL LIFE WORKS — list view</h1>
       <p>A plain list of every region on the board, for keyboard and screen-reader navigation.</p>
       <nav aria-label="Regions">
         <ul>
