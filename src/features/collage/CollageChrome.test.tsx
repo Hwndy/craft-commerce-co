@@ -59,7 +59,7 @@ function onePhoto(shootId: string, shootTitle: string) {
 describe("CollageChrome", () => {
   beforeEach(() => {
     setViewpointsCache(viewpoints);
-    useCollageViewStore.setState({ layoutMode: "circular", activeShootId: null });
+    useCollageViewStore.setState({ activeShootId: null });
     photos.length = 0;
     // Recentre's flyTo() otherwise animates over real rAF frames, which
     // this environment doesn't reliably advance within a single test —
@@ -75,7 +75,7 @@ describe("CollageChrome", () => {
 
   afterEach(() => {
     clearViewpointsCache();
-    useCollageViewStore.setState({ layoutMode: "circular", activeShootId: null });
+    useCollageViewStore.setState({ activeShootId: null });
     vi.unstubAllGlobals();
   });
 
@@ -93,27 +93,15 @@ describe("CollageChrome", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("offers the Circle/Diagonal strips toggle once near the collage, and writes layoutMode", async () => {
-    setCameraNearCollage();
-    renderCollageChrome();
-
-    const circle = await screen.findByRole("button", { name: "Circle" });
-    const strips = screen.getByRole("button", { name: "Diagonal strips" });
-    expect(useCollageViewStore.getState().layoutMode).toBe("circular");
-
-    fireEvent.click(strips);
-    expect(useCollageViewStore.getState().layoutMode).toBe("strips");
-
-    fireEvent.click(circle);
-    expect(useCollageViewStore.getState().layoutMode).toBe("circular");
-  });
-
   it("hides the shoot-filter row for a single shoot, shows it and filters for several", async () => {
     photos.push(onePhoto("set-a", "Studio"));
     setCameraNearCollage();
     const { queryClient } = renderCollageChrome();
 
-    await screen.findByRole("button", { name: "Circle" });
+    // The Circle/Diagonal-strips toggle was removed (docs/decisions.md
+    // D-71, client feedback) — "Zoom in" is the stable sync point for
+    // "the chrome has rendered" now.
+    await screen.findByRole("button", { name: "Zoom in" });
     expect(screen.queryByRole("button", { name: "All" })).not.toBeInTheDocument();
 
     photos.push(onePhoto("set-b", "On location"));
@@ -133,7 +121,7 @@ describe("CollageChrome", () => {
   it("Zoom in/out and Recentre move the real camera", async () => {
     setCameraNearCollage();
     renderCollageChrome();
-    await screen.findByRole("button", { name: "Circle" });
+    await screen.findByRole("button", { name: "Zoom in" });
 
     const before = useCameraStore.getState().camera.zoom;
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));

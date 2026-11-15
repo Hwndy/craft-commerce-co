@@ -52,11 +52,11 @@ describe("Collage", () => {
       viewport: { width: 2000, height: 2000 },
       isFlying: false,
     });
-    useCollageViewStore.setState({ layoutMode: "circular", activeShootId: null });
+    useCollageViewStore.setState({ activeShootId: null });
   });
 
   afterEach(() => {
-    useCollageViewStore.setState({ layoutMode: "circular", activeShootId: null });
+    useCollageViewStore.setState({ activeShootId: null });
   });
 
   it("renders one focusable, labelled node per published photo once the query resolves", async () => {
@@ -71,10 +71,23 @@ describe("Collage", () => {
   it("calls onOpenPhoto with the photo's id when a node is clicked", async () => {
     const onOpenPhoto = vi.fn();
     renderCollage(onOpenPhoto);
-
     const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
-    fireEvent.click(node);
-    expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+
+    // Every click rises-then-opens now (strips is the only mode,
+    // docs/decisions.md D-71) — advance past RISE_DURATION_MS for the
+    // delayed callback, same as the dedicated rise tests below.
+    vi.useFakeTimers();
+    try {
+      act(() => {
+        fireEvent.click(node);
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(RISE_DURATION_MS);
+      });
+      expect(onOpenPhoto).toHaveBeenCalledWith("photo-1");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("hides photos from other shoots once activeShootId filters to one (D-45), without moving the ones that stay", async () => {
@@ -96,8 +109,7 @@ describe("Collage", () => {
 
   // The owner's own "strips" sketch (docs/decisions.md D-62): clicking a
   // photo should visibly rise out of its stack before the viewer opens.
-  it("in strips mode, rises the clicked photo for RISE_DURATION_MS before calling onOpenPhoto", async () => {
-    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+  it("rises the clicked photo for RISE_DURATION_MS before calling onOpenPhoto", async () => {
     const onOpenPhoto = vi.fn();
     renderCollage(onOpenPhoto);
     const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
@@ -133,8 +145,7 @@ describe("Collage", () => {
   // first one finishes rising previously started a second, independent
   // timer — both eventually fired onOpenPhoto, pushing two viewer entries
   // into history instead of replacing the pending one.
-  it("in strips mode, a second click before the first rise finishes cancels the first timer instead of firing twice", async () => {
-    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+  it("a second click before the first rise finishes cancels the first timer instead of firing twice", async () => {
     const onOpenPhoto = vi.fn();
     renderCollage(onOpenPhoto);
     const node = await screen.findByRole("button", { name: "The first cast, 2026-03-14" });
@@ -167,8 +178,7 @@ describe("Collage", () => {
     }
   });
 
-  it("in strips mode, skips the rise delay and opens immediately when reduced motion is preferred", async () => {
-    useCollageViewStore.setState({ layoutMode: "strips", activeShootId: null });
+  it("skips the rise delay and opens immediately when reduced motion is preferred", async () => {
     const matchMediaSpy = vi.spyOn(window, "matchMedia").mockReturnValue({
       matches: true,
     } as MediaQueryList);
