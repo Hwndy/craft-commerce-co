@@ -58,13 +58,22 @@ export function ProductLabel({
       type="button"
       onClick={onClick}
       className={cn(
-        "rounded-xl bg-surface-light p-4 text-left text-surface-light-foreground",
+        // Thin-line border added on top of the existing cream fill
+        // (docs/decisions.md D-71) — kept filled here, unlike Button/
+        // RegionLabel's fully-unfilled treatment: this card's text colour
+        // (surface-light-foreground, near-black) depends on that fill for
+        // contrast while it still sits on the dark board background. Step 7
+        // redesigns this card fully once it moves onto the new Product
+        // Display scene's own light surface.
+        "rounded-xl border border-black/10 bg-surface-light p-4 text-left text-surface-light-foreground",
         onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
         className
       )}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="font-heading font-bold">{name}</span>
+        <span className="inline-block rounded-full border border-black/15 px-2.5 py-0.5 font-heading font-bold">
+          {name}
+        </span>
         <span className="font-heading font-bold">{formatGbp(price, currency)}</span>
       </div>
       {description && <p className="mt-1 text-sm text-surface-light-foreground/70">{description}</p>}

@@ -18,13 +18,15 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        // Gold pill CTA — "Next: Film", "Buy / Enquire by email", the
-        // active Guided/Explore state (docs/decisions.md D-45).
-        pill: "rounded-full bg-primary text-primary-foreground hover:bg-primary/90",
-        // Translucent dark pill — Home, List view, the inactive Guided/
-        // Explore state, region-tab chips (docs/decisions.md D-45).
+        // Thin-line gold pill — "Next: Film", "Buy / Enquire by email", the
+        // active Guided/Explore state (docs/decisions.md D-45, D-71: client
+        // feedback asked for thin-line, unfilled circular/oval borders
+        // across every button/heading, not solid filled shapes).
+        pill: "rounded-full border border-primary bg-transparent text-primary hover:bg-primary/10",
+        // Thin-line neutral pill — Home, List view, the inactive Guided/
+        // Explore state, region-tab chips (docs/decisions.md D-45, D-71).
         "pill-outline":
-          "rounded-full border border-white/15 bg-background/60 text-foreground backdrop-blur-sm hover:bg-background/80",
+          "rounded-full border border-white/40 bg-transparent text-foreground hover:bg-white/10",
       },
       size: {
         default: "h-10 px-4 py-2",
