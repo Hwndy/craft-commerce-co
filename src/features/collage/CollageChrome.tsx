@@ -67,7 +67,22 @@ export function CollageChrome() {
         // Stacked above CanvasChrome's minimap (bottom-20 left-4, ~100px
         // tall), not beside it — a variable-width, possibly-wrapping chip
         // row next to a fixed-width box risks running off narrow screens.
-        <div data-collage-chrome className="pointer-events-auto absolute bottom-48 left-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-1.5">
+        // bg-background/80 + backdrop-blur: the board's own backdrop is
+        // white, not dark (Board.tsx, "make the board's own empty backdrop
+        // white") — that commit's audit covered every region/overlay
+        // *inside* the board's world, but this chrome is a sibling of it,
+        // same as CanvasChrome, and unlike CanvasChrome's own bars (each
+        // already opaque or near-opaque) these two clusters had no backing
+        // at all, so their pill buttons' gold text measured ~1.38:1 against
+        // the white board — found by axe failing e2e/collage.spec.ts's
+        // accessibility check. /80 composited over white still clears AA
+        // with margin (≈7:1, worked out from the WCAG relative-luminance
+        // formula) while staying a translucent panel, not a flat fill —
+        // same visual family as CanvasChrome's minimap (bg-background/70).
+        <div
+          data-collage-chrome
+          className="pointer-events-auto absolute bottom-48 left-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-1.5 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
+        >
           <Button
             type="button"
             variant={activeShootId === null ? "pill" : "pill-outline"}
@@ -91,8 +106,12 @@ export function CollageChrome() {
       )}
 
       {/* Stacked above CanvasChrome's Home (bottom-20 right-4), not beside
-       * it. */}
-      <div data-collage-chrome className="pointer-events-auto absolute bottom-36 right-4 flex items-center gap-2">
+       * it. Same bg-background/80 backing as the shoot-filter row above,
+       * and for the same reason — this cluster had none either. */}
+      <div
+        data-collage-chrome
+        className="pointer-events-auto absolute bottom-36 right-4 flex items-center gap-2 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
+      >
         <IconButton aria-label="Zoom out" size="sm" onClick={() => zoomAtViewportCenter(1 / ZOOM_STEP_FACTOR)}>
           −
         </IconButton>
