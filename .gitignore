@@ -40,3 +40,4 @@ assets/test-photos/
 *.sln
 *.sw?
 .vercel
+seed-data/
