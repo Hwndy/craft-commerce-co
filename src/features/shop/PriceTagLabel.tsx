@@ -1,5 +1,4 @@
-import { formatGbp, STATUS_COPY, STATUS_VARIANT, type ProductStatus } from "@/components/brand/ProductLabel";
-import { Badge } from "@/components/ui/badge";
+import { formatGbp } from "@/components/brand/ProductLabel";
 import { extractSizeFromBullets } from "@/features/enquiry/lib/mailto";
 import { cn } from "@/lib/utils";
 
@@ -12,21 +11,30 @@ export interface PriceTagLabelProps {
   /** Looked up for a "Length: …" bullet to show as Size — see
    * extractSizeFromBullets (mailto.ts), the same lookup the buy-email uses. */
   bullets: string[];
-  status: ProductStatus;
-  onSale?: boolean;
   onClick?: () => void;
   className?: string;
 }
 
+// Every product on this site today is the same kind of item (docs/00-
+// product-brief.md: "its first product line is handcrafted belts made
+// from upcycled bike tyre") — there's no dynamic "category" column on
+// `products` to read this from, so it's a literal constant, matching the
+// client's own mockup wording exactly (WEB_DEVELOPMENT._2.pdf page 7's
+// tag: "RIYO SAMPLE #1 / BIKE TYRE BELT / £35 / Size : 49inch").
+const PRODUCT_CATEGORY = "Bike tyre belt";
+
 /**
- * The Product Display's own price-tag-style label (docs/decisions.md
- * D-71, client feedback Step 7) — distinct from the generic ProductLabel
- * (still used by Contact/ProductOverlay/list-view fallback): shows the
- * item name doubling as an item number, a price "tag", and the product's
- * own size when it has a matching bullet. Uses the client-supplied Shop
- * palette tokens (Step 1), scoped to this section only.
+ * The Product Display's own price-tag label (docs/decisions.md D-71,
+ * client feedback Step 7) — a real tag shape (a pentagon with a punched
+ * hole near its point, `clip-path`), matching the client's own mockup:
+ * item name, the product category, price, and size. An earlier version
+ * of this was a plain rounded card with status/sale badges — redone
+ * after actually checking the mockup (WEB_DEVELOPMENT._2.pdf page 7),
+ * which shows only these four lines on the tag itself; status/sale
+ * information still shows elsewhere (the product overlay), not guessed
+ * back onto a design that doesn't show it here.
  */
-export function PriceTagLabel({ name, price, currency = "GBP", bullets, status, onSale, onClick, className }: PriceTagLabelProps) {
+export function PriceTagLabel({ name, price, currency = "GBP", bullets, onClick, className }: PriceTagLabelProps) {
   const size = extractSizeFromBullets(bullets);
 
   return (
@@ -34,22 +42,24 @@ export function PriceTagLabel({ name, price, currency = "GBP", bullets, status, 
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-1 rounded-lg border border-shop-teal bg-shop-cream p-3 text-left text-black",
+        "relative bg-shop-gold py-2.5 pl-3.5 pr-8 text-left text-black",
         onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
         className
       )}
+      style={{ clipPath: "polygon(0% 0%, 82% 0%, 100% 50%, 82% 100%, 0% 100%)" }}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-heading text-sm font-bold uppercase tracking-wide">{name}</span>
-        <span className="shrink-0 rounded-full bg-shop-gold px-2 py-0.5 font-heading text-sm font-bold">
-          {formatGbp(price, currency)}
-        </span>
-      </div>
-      {size && <span className="text-xs text-black/70">Size: {size}</span>}
-      <div className="flex items-center gap-1.5">
-        <Badge variant={STATUS_VARIANT[status]}>{STATUS_COPY[status]}</Badge>
-        {onSale && <Badge variant="outline">Sale</Badge>}
-      </div>
+      {/* The tag's own punched hole — a ring, not a filled dot, so the
+       * gold shows through it like a real cut-out would. */}
+      <span
+        aria-hidden="true"
+        className="absolute right-[10%] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border border-black/30"
+      />
+      <ul className="list-disc space-y-0.5 pl-4 font-heading text-xs font-bold uppercase leading-tight">
+        <li>{name}</li>
+        <li>{PRODUCT_CATEGORY}</li>
+        <li>{formatGbp(price, currency)}</li>
+        {size && <li>Size : {size}</li>}
+      </ul>
     </button>
   );
 }

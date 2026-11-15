@@ -142,8 +142,6 @@ function ShopProductCard({
         price={product.priceAmount}
         currency={product.priceCurrency}
         bullets={product.bullets}
-        status={product.status}
-        onSale={product.onSale}
         onClick={onOpen}
         className="shrink-0"
       />
@@ -156,70 +154,101 @@ const SIGNAGE_BULLETS = [
   "Buckle sand-cast using discarded aluminium",
 ];
 
+// A one-off dark brick red for the "Product display." headline — not one
+// of the client's 7 named palette swatches, so not worth a new design-
+// system token for this single use. Measured against shop-wall's coral
+// (#EC6136): ~3.1:1, clearing WCAG AA's large/bold-text minimum (3:1).
+const SIGNAGE_HEADLINE_COLOR = "#7a1d15";
+
 /**
- * The pseudo-3D "2 walls + floor" retail-signage scene behind the actual
- * product cards (docs/decisions.md D-71, client feedback Step 7 mockup) —
- * purely decorative background, absolutely positioned to fill the
- * region's own rect exactly like the cards above it, so it scales with
- * whatever that rect's real size ends up being rather than a fixed pixel
- * size. Signage text is baked in literally, not product-specific — it's
- * the display's own retail dressing, the same every time this region is
- * visited, not something scripts/seed-products.ts drives.
+ * The retail-signage backdrop behind the actual product cards — one
+ * continuous pink "market stall" surface, not two differently-coloured
+ * walls (docs/decisions.md D-71, client feedback Step 7, corrected: the
+ * first version of this built shop-wall as two separate wall panels in
+ * two different colours; the client's own mockup, WEB_DEVELOPMENT._2.pdf
+ * pages 6-7, shows a single pink plane that reads as a wall here and
+ * continues as the floor of the same stall in shop-floor — "a wall and
+ * floor", the client's own words, not two walls). Purely decorative,
+ * absolutely positioned to fill the region's own rect so it scales with
+ * whatever that rect's real size ends up being, same as the product
+ * cards above it. Signage text is baked in literally, not
+ * product-specific — the display's own retail dressing, not something
+ * scripts/seed-products.ts drives.
  *
- * shop-wall hosts both the "back wall" and "side wall" planes the mockup
- * shows (hung items read as being inside a room with two visible walls);
- * shop-floor is the simpler floor plane the mockup shows laid-out items
- * standing on, with no signage of its own — every signage line in the
- * mockup belongs to a wall.
+ * Colour choices here are adapted from the mockup, not copied exactly:
+ * gold text directly on this pink measures ~2.3:1 (short of WCAG AA even
+ * for large text), so "Sample" sits in its own small gold chip with dark
+ * text instead of gold text on pink — same gold identity, real contrast.
+ * The mockup's own "10%" badge isn't reproduced as a literal percentage:
+ * nothing in the real product data confirms an actual discount rate, and
+ * guessing one would be guessing at pricing (AGENTS.md rule 10) — a
+ * generic "Sale" flag keeps the same visual beat without inventing a number.
  */
 function RoomBackdrop({ variant, width, height }: { variant: "wall" | "floor"; width: number; height: number }) {
   if (variant === "floor") {
     return (
-      <div
-        aria-hidden="true"
-        className="absolute rounded-[10%] border border-shop-teal/60 bg-shop-cream/90"
-        style={{
-          left: width * 0.05,
-          top: height * 0.1,
-          width: width * 0.9,
-          height: height * 0.8,
-          clipPath: "polygon(8% 100%, 92% 100%, 100% 0%, 0% 0%)",
-        }}
-      />
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
+        <div
+          className="absolute rounded-[4%] border border-shop-teal/60 bg-shop-wall"
+          style={{
+            left: width * 0.05,
+            top: height * 0.08,
+            width: width * 0.9,
+            height: height * 0.84,
+            clipPath: "polygon(8% 100%, 92% 100%, 100% 0%, 0% 0%)",
+          }}
+        />
+        {/* The mockup's own second, larger instance of the headline,
+            bleeding diagonally from the wall down across the floor. */}
+        <span
+          className="absolute whitespace-nowrap font-heading text-3xl font-bold uppercase tracking-wide"
+          style={{
+            left: "48%",
+            top: "8%",
+            transform: "rotate(75deg)",
+            transformOrigin: "top left",
+            color: SIGNAGE_HEADLINE_COLOR,
+          }}
+        >
+          Product display.
+        </span>
+      </div>
     );
   }
 
   return (
     <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-      {/* Back wall. Black text throughout, not the cream/gold the mockup's
-          own colours might suggest — checked against WCAG 2.2 AA (4.5:1
-          for this size of text): cream-on-coral measures ~3:1 and
-          gold-on-coral ~2.3:1, both short; black-on-coral measures ~6.3:1,
-          comfortably over (AGENTS.md rule 6: accessibility isn't optional
-          polish, even for signage text that's otherwise purely decorative). */}
-      <div
-        className="absolute inset-0 flex flex-col items-center justify-start gap-1 bg-shop-wall pt-6 text-black"
-        style={{ clipPath: "polygon(0 0, 78% 0, 78% 100%, 0 100%)" }}
-      >
-        <span className="font-heading text-2xl font-bold uppercase tracking-wide">Product display</span>
-        <span className="font-heading text-sm font-bold uppercase tracking-widest">Sample sale</span>
+      {/* One continuous pink wall, angled left edge via clip-path for the
+          perspective look the mockup draws — a single shape, single
+          colour, not a second wall panel. */}
+      <div className="absolute inset-0 bg-shop-wall" style={{ clipPath: "polygon(18% 0, 100% 0, 100% 100%, 0% 100%)" }} />
+
+      <div className="absolute left-4 top-4 rounded-md bg-black px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white">
+        Sale
       </div>
-      {/* Side wall — angled via clip-path to read as a second plane, not a
-          flat continuation of the back wall. Black text again: measured
-          ~4.8:1 on this pink, cream would only measure ~3.9:1. */}
-      <div
-        className="absolute inset-0 flex flex-col items-center justify-start gap-1 bg-shop-pink pl-10 pt-6 text-left text-black"
-        style={{ clipPath: "polygon(78% 0, 100% 0, 100% 100%, 78% 100%)" }}
-      >
-        <div className="w-28 -rotate-6">
-          <p className="font-heading text-sm font-bold uppercase leading-tight tracking-wide">Limited stock</p>
-          <p className="mt-1 text-[10px] uppercase tracking-wide text-black/90">UK &amp; EU shipping only</p>
-          <ul className="mt-2 space-y-1 text-[9px] leading-tight text-black/80">
-            {SIGNAGE_BULLETS.map((bullet) => (
-              <li key={bullet}>{bullet}</li>
-            ))}
-          </ul>
+
+      <div className="absolute right-6 top-10 flex flex-col items-end gap-1.5 text-right">
+        <span className="font-heading text-2xl font-bold uppercase tracking-wide" style={{ color: SIGNAGE_HEADLINE_COLOR }}>
+          Product display.
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="rounded bg-shop-gold px-1.5 py-0.5 font-heading text-sm font-bold uppercase text-black">Sample</span>
+          <span className="font-heading text-sm font-bold uppercase text-white">Sale</span>
         </div>
+      </div>
+
+      {/* Shipping/manufacturing copy along the wall's own angled left
+          edge, rotated to follow it — black text (~6.3:1 on this coral,
+          comfortably over WCAG AA, unlike the gold/cream alternatives
+          this file tried first). */}
+      <div className="absolute left-6 top-28 w-32" style={{ transform: "rotate(-18deg)", transformOrigin: "top left" }}>
+        <p className="font-heading text-sm font-bold uppercase leading-tight tracking-wide text-black">Limited stock.</p>
+        <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-black/80">UK &amp; EU shipping only.</p>
+        <ul className="mt-2 space-y-1 text-[9px] font-medium leading-tight text-black/70">
+          {SIGNAGE_BULLETS.map((bullet) => (
+            <li key={bullet}>{bullet}</li>
+          ))}
+        </ul>
       </div>
     </div>
   );
