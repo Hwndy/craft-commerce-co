@@ -156,14 +156,31 @@ export default function Gallery() {
               poster image fills the card's own background rather than
               sitting in RegionLabel's icon tile, so the whole 800x600
               region stays one large, clickable poster as before.
-              aria-label must still contain the card's own visible text
-              ("Gallery", "Film · Collage"), not just replace it with "Play
-              X" — WCAG 2.5.3/axe's label-content-name-mismatch: a voice-
-              control user who sees "GALLERY" on screen and says "click
-              Gallery" needs that word in the accessible name too. */}
+
+              Corrected (found by axe's label-content-name-mismatch in CI,
+              not caught by the comment this replaces): a composed
+              aria-label is NOT guaranteed to contain the button's actual
+              visible text just because it's written to look like it does
+              — title/subtitle render as two separate text nodes with no
+              real space or comma between them (the gap is CSS flex `gap`,
+              not text), so the real accessible-name check sees
+              "GalleryFilm · Collage" with no separator, which a
+              comma-and-space-containing aria-label like "Gallery, Film ·
+              Collage — …" does not literally contain. Omitting aria-label
+              lets the button's name come from its own visible content
+              instead (guaranteed to contain it, by construction); the
+              extra "play X" context goes in a visually-hidden span inside
+              the button so sighted and screen-reader users both get the
+              same real information, just the first visually, the second
+              read aloud — worded to avoid literally repeating "Play the
+              film", which e2e/gate.spec.ts already uses (Playwright's
+              getByRole name match is substring by default) to find
+              FilmStage's own, unrelated play-button fallback; that
+              element and this card are both in the DOM at once (Board
+              mounts unconditionally; FilmStage is a separate overlay), so
+              an exact phrase collision would make that locator ambiguous. */}
           <RegionLabel
             onClick={() => useFilmControllerStore.getState().reveal()}
-            aria-label={`Gallery, Film · Collage — ${film ? `play ${film.title}` : "play the film"}`}
             title="Gallery"
             subtitle="Film · Collage"
             className="h-full w-full justify-end bg-cover bg-center"
@@ -173,7 +190,11 @@ export default function Gallery() {
                 : undefined,
               backgroundColor: posterUrl ? undefined : "#111",
             }}
-          />
+          >
+            <span className="sr-only">
+              {film ? `Starts ${film.title} playing` : "Starts the film playing"}
+            </span>
+          </RegionLabel>
         </Region>
 
         <Collage

@@ -145,7 +145,12 @@ test.describe("canvas gestures", () => {
     // Gallery.tsx's film-thumbnail button is a real focusable node inside
     // the Board. Pan it off-centre first, so refocusing it has somewhere
     // real to move the camera back to — docs/02-canvas-spec.md §9/FR-8.9.
-    const node = page.getByRole("button", { name: /^Gallery, Film/ });
+    // Matched on its subtitle ("Film · Collage"), not a "Gallery"-prefixed
+    // name: CanvasChrome's own guided-mode region tab is also just named
+    // "Gallery", and this card no longer has a composed aria-label
+    // starting with "Gallery," (removed — see Gallery.tsx's own comment,
+    // found via axe's label-content-name-mismatch in CI).
+    const node = page.getByRole("button", { name: /Film · Collage/ });
     await page.locator("[data-camera-zoom]").first().focus();
     for (let i = 0; i < 10; i++) await page.keyboard.press("ArrowRight");
     const panned = await getCamera(page);
