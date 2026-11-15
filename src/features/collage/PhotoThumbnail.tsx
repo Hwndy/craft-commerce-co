@@ -34,7 +34,12 @@ export function PhotoThumbnail({ photo, lod, onOpen }: PhotoThumbnailProps) {
       onClick={onOpen}
       aria-label={label}
       data-photo-id={photo.id}
-      className="h-full w-full border-0 p-0 outline-none ring-2 ring-transparent ring-offset-2 ring-offset-background transition-[box-shadow] focus-visible:ring-primary"
+      // Client feedback (docs/decisions.md D-71): hover raises the thumbnail
+      // slightly, distinct from Collage.tsx's own click-triggered rise
+      // (which still runs on click/tap, where there's no hover at all —
+      // touch devices get that as their equivalent). motion-reduce: disables
+      // it for anyone who prefers reduced motion, matching AGENTS.md rule 6.
+      className="h-full w-full border-0 p-0 outline-none ring-2 ring-transparent ring-offset-2 ring-offset-background transition-[box-shadow,transform] duration-150 hover:-translate-y-1.5 focus-visible:ring-primary motion-reduce:transition-none motion-reduce:hover:translate-y-0"
       style={{
         cursor: onOpen ? "pointer" : "default",
         backgroundColor: "#111",

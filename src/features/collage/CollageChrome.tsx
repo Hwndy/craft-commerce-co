@@ -8,16 +8,17 @@ import { IconButton } from "@/components/brand/IconButton";
 import { Button } from "@/components/ui/button";
 
 import { useCollageViewStore } from "./collageViewStore";
-import type { CollageLayoutMode } from "./lib/layout";
 import { distinctShoots } from "./lib/shoots";
 import { useCollagePhotos } from "./lib/useCollagePhotos";
 
 const POLL_MS = 200;
 
 /**
- * Fixed, screen-anchored chrome for the Collage screen only (Circle/
- * Diagonal-strips toggle, shoot-filter chips, zoom + Recentre) —
- * docs/decisions.md D-45. Rendered as a SIBLING of <Board> in Gallery.tsx,
+ * Fixed, screen-anchored chrome for the Collage screen only (shoot-filter
+ * chips, zoom + Recentre) — docs/decisions.md D-45. The Circle/Diagonal-
+ * strips toggle this used to render was removed per the client's own
+ * feedback (D-71) — the collage is diagonal strips only now. Rendered as
+ * a SIBLING of <Board> in Gallery.tsx, never a descendant,
  * never a descendant, for the same `position: fixed` containing-block
  * reason CanvasChrome is (D-44): Board's world div carries a `transform`,
  * which would otherwise drag this along with the camera instead of keeping
@@ -38,8 +39,6 @@ const POLL_MS = 200;
 export function CollageChrome() {
   const [isNearCollage, setIsNearCollage] = useState(false);
   const { data: photos } = useCollagePhotos();
-  const layoutMode = useCollageViewStore((s) => s.layoutMode);
-  const setLayoutMode = useCollageViewStore((s) => s.setLayoutMode);
   const activeShootId = useCollageViewStore((s) => s.activeShootId);
   const setActiveShootId = useCollageViewStore((s) => s.setActiveShootId);
 
@@ -64,22 +63,6 @@ export function CollageChrome() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
-      {/* Stacked below CanvasChrome's own top-right cluster (Guided/Explore
-       * + List view), not beside it — that corner is already full width. */}
-      <div data-collage-chrome className="pointer-events-auto absolute right-4 top-20 flex items-center gap-1.5">
-        {(["circular", "strips"] as const satisfies readonly CollageLayoutMode[]).map((candidate) => (
-          <Button
-            key={candidate}
-            type="button"
-            variant={layoutMode === candidate ? "pill" : "pill-outline"}
-            size="sm"
-            onClick={() => setLayoutMode(candidate)}
-          >
-            {candidate === "circular" ? "Circle" : "Diagonal strips"}
-          </Button>
-        ))}
-      </div>
-
       {shoots.length > 1 && (
         // Stacked above CanvasChrome's minimap (bottom-20 left-4, ~100px
         // tall), not beside it — a variable-width, possibly-wrapping chip

@@ -54,8 +54,8 @@ function boxesOverlap(
 /**
  * Clicks a seeded photo thumbnail, skipping any that one of CanvasChrome's
  * or CollageChrome's fixed regions (top bar, minimap, bottom bar, Home;
- * the Circle/Diagonal toggle, shoot chips, zoom + Recentre — D-45) happens
- * to sit on top of — both are screen-anchored (D-44) and both render at
+ * shoot chips, zoom + Recentre — D-45) happens to sit on top of — both
+ * are screen-anchored (D-44) and both render at
  * the same time once Continue hands off to the collage. Each photo's
  * seeded id is random per CI run, so exactly which one the phyllotaxis
  * layout places nearest a chrome region isn't something `.first()` can
@@ -103,16 +103,20 @@ async function clickAnUnobstructedPhoto(page: Page) {
 }
 
 test.describe("photo viewer", () => {
-  // Collage's circular mode spins every photo continuously (index.css's
-  // collage-spin, docs/decisions.md D-62) — Playwright's click
-  // actionability check requires an element's bounding box to stop
+  // Originally forced because the collage's old "circular" mode spun
+  // every photo continuously (index.css's collage-spin) — Playwright's
+  // click actionability check requires an element's bounding box to stop
   // changing between frames, which a perpetually-rotating element never
   // does, so clickAnUnobstructedPhoto()'s click timed out on every test
-  // here (found via real CI on PR #5). Scoped to this file rather than
-  // playwright.config.ts's global default: e2e/entry-sequence.spec.ts has
-  // its own tests that specifically need full motion (and one that needs
-  // *no* motion preference set at all), which a suite-wide default broke
-  // (found in review, Greptile, PR #5).
+  // here (found via real CI on PR #5). Circular mode itself is gone now
+  // (docs/decisions.md D-71, client feedback — strips only), but this
+  // stays: it's still a harmless, reasonable default for a suite about
+  // interaction correctness, not motion, and removing it can't be
+  // verified against real CI from this sandbox. Scoped to this file
+  // rather than playwright.config.ts's global default:
+  // e2e/entry-sequence.spec.ts has its own tests that specifically need
+  // full motion (and one that needs *no* motion preference set at all),
+  // which a suite-wide default broke (found in review, Greptile, PR #5).
   test.use({ reducedMotion: "reduce" });
 
   test.beforeEach(({ browserName }) => {

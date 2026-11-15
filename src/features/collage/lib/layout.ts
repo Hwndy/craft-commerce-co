@@ -193,6 +193,28 @@ export function layoutCollage(
   return options.mode === "strips" ? stripsLayout(photos, options) : phyllotaxisLayout(photos, options);
 }
 
+/**
+ * The ids sharing `openId`'s own strips stack — same `itemsPerStack`
+ * grouping as `stripsLayout` above (contiguous chunks of the *full*,
+ * unfiltered photo-id order), so the full-screen viewer can cycle within
+ * just that stack/column instead of every published photo (docs/
+ * decisions.md D-71, client feedback: "each column will have its own
+ * cycle, they should not be grouped"). `photoIds` must be in the same
+ * order `stripsLayout` received them in, or the grouping won't match what
+ * was actually rendered. Falls back to the full list if `openId` isn't
+ * found in it at all (nothing to scope to).
+ */
+export function photoIdsInSameStack(
+  photoIds: string[],
+  openId: string,
+  itemsPerStack: number = DEFAULT_ITEMS_PER_STACK
+): string[] {
+  const index = photoIds.indexOf(openId);
+  if (index === -1) return photoIds;
+  const stackStart = Math.floor(index / itemsPerStack) * itemsPerStack;
+  return photoIds.slice(stackStart, stackStart + itemsPerStack);
+}
+
 /** The world-space bounding box of a layout, for sizing the collage Region. */
 export function collageBoundingBox(layouts: CollageNodeLayout[]): Rect {
   if (layouts.length === 0) return { x: 0, y: 0, width: 0, height: 0 };

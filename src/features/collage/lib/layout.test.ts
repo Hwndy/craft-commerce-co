@@ -7,6 +7,7 @@ import {
   DEFAULT_ITEMS_PER_STACK,
   DEFAULT_TILT_RANGE_DEG,
   layoutCollage,
+  photoIdsInSameStack,
   phyllotaxisLayout,
   stripsLayout,
 } from "./layout";
@@ -142,6 +143,37 @@ describe("layoutCollage", () => {
 
   it("uses the strips layout when mode is 'strips'", () => {
     expect(layoutCollage(photos(5), { mode: "strips" })).toEqual(stripsLayout(photos(5)));
+  });
+});
+
+describe("photoIdsInSameStack", () => {
+  const ids = Array.from({ length: DEFAULT_ITEMS_PER_STACK * 2 + 5 }, (_, i) => `photo-${i}`);
+
+  it("returns just the ids in the same stack as the opened photo", () => {
+    const scoped = photoIdsInSameStack(ids, "photo-0");
+    expect(scoped).toEqual(ids.slice(0, DEFAULT_ITEMS_PER_STACK));
+  });
+
+  it("returns the second stack for an id past the first stack's boundary", () => {
+    const openId = `photo-${DEFAULT_ITEMS_PER_STACK}`; // first id of stack 2
+    const scoped = photoIdsInSameStack(ids, openId);
+    expect(scoped).toEqual(ids.slice(DEFAULT_ITEMS_PER_STACK, DEFAULT_ITEMS_PER_STACK * 2));
+  });
+
+  it("returns a shorter final stack when the total isn't an exact multiple", () => {
+    const openId = `photo-${DEFAULT_ITEMS_PER_STACK * 2}`; // first id of the partial 3rd stack
+    const scoped = photoIdsInSameStack(ids, openId);
+    expect(scoped).toEqual(ids.slice(DEFAULT_ITEMS_PER_STACK * 2));
+    expect(scoped.length).toBe(5);
+  });
+
+  it("falls back to the full list when the id isn't found", () => {
+    expect(photoIdsInSameStack(ids, "not-a-real-id")).toBe(ids);
+  });
+
+  it("respects a custom itemsPerStack", () => {
+    const scoped = photoIdsInSameStack(["a", "b", "c", "d"], "c", 2);
+    expect(scoped).toEqual(["c", "d"]);
   });
 });
 

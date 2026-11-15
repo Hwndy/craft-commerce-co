@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
 import { Board } from "@/canvas/Board";
@@ -10,6 +10,7 @@ import { RegionLabel } from "@/components/brand/RegionLabel";
 import { About } from "@/features/about/About";
 import { Collage } from "@/features/collage/Collage";
 import { CollageChrome } from "@/features/collage/CollageChrome";
+import { photoIdsInSameStack } from "@/features/collage/lib/layout";
 import { useCollagePhotos } from "@/features/collage/lib/useCollagePhotos";
 import { PhotoViewer } from "@/features/collage/PhotoViewer";
 import { Contact } from "@/features/contact/Contact";
@@ -76,6 +77,23 @@ export default function Gallery() {
   const openPhotoId = !film || isUnlocked ? requestedPhotoId : null;
   const openProductSlug = !film || isUnlocked ? requestedProductSlug : null;
   const { data: product } = useProduct(openProductSlug ?? "");
+
+  // Client feedback (docs/decisions.md D-71): "each column will have its
+  // own cycle, they should not be grouped" — the viewer cycles within the
+  // opened photo's own strips stack/column, not every published photo.
+  // `photos` must stay in the exact order Collage.tsx laid them out in
+  // (the full, unfiltered list) for the stack grouping to match what was
+  // actually on screen.
+  const viewerPhotos = useMemo(() => {
+    const all = photos ?? [];
+    if (!openPhotoId) return all;
+    const scopedIds = photoIdsInSameStack(
+      all.map((p) => p.id),
+      openPhotoId
+    );
+    const byId = new Map(all.map((p) => [p.id, p]));
+    return scopedIds.map((id) => byId.get(id)!).filter(Boolean);
+  }, [photos, openPhotoId]);
 
   // A ref, not a dependency: this effect must run exactly once, on mount
   // (same reasoning as reveal()/hide() below) — only the splat's *initial*
@@ -187,7 +205,7 @@ export default function Gallery() {
         <Contact centerX={getViewpoint("contact").x} centerY={getViewpoint("contact").y} />
 
         <PhotoViewer
-          photos={photos ?? []}
+          photos={viewerPhotos}
           openId={openPhotoId}
           onClose={() => navigate("/gallery", { replace: true })}
           onNavigate={(id) => navigate(`/gallery/photo/${id}`, { replace: true })}
