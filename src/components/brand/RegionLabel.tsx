@@ -22,7 +22,9 @@ export const RegionLabel = React.forwardRef<HTMLButtonElement, RegionLabelProps>
       ref={ref}
       type="button"
       className={cn(
-        "flex flex-col gap-3 rounded-2xl border border-white/10 bg-card/80 p-4 text-left transition-colors hover:border-primary/40 hover:bg-card",
+        // Thin-line, unfilled card (docs/decisions.md D-71) — was a solid
+        // bg-card/80 fill; now just a border on transparent background.
+        "flex flex-col gap-3 rounded-2xl border border-white/20 bg-transparent p-4 text-left transition-colors hover:border-primary/60 hover:bg-white/5",
         className
       )}
       {...props}
@@ -34,7 +36,12 @@ export const RegionLabel = React.forwardRef<HTMLButtonElement, RegionLabelProps>
       )}
       {children}
       <span className="flex items-baseline justify-between gap-2">
-        <span className="font-heading text-lg font-bold uppercase tracking-wide">{title}</span>
+        {/* Oval thin-line border around the heading itself, per the client's
+            "circular or oval shaped borders for all buttons and headings"
+            (docs/decisions.md D-71). */}
+        <span className="inline-block rounded-full border border-white/25 px-3 py-1 font-heading text-lg font-bold uppercase tracking-wide">
+          {title}
+        </span>
         {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
       </span>
     </button>
