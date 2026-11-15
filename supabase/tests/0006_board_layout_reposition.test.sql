@@ -2,7 +2,11 @@
 -- Confirms the six repositioned viewpoints, and the region-label
 -- canvas_nodes placeholders in the regions that moved, land exactly where
 -- the client feedback plan (docs/decisions.md D-71, Step 6) describes,
--- and that 'landing'/'about' are untouched.
+-- and that 'landing' is untouched. ('about' was the other untouched
+-- viewpoint this migration left alone — not checked here any more since
+-- migration 0007 removes it outright, so by the time any test file runs
+-- in this same `db reset`, it no longer exists to assert against; 0007's
+-- own test file covers its removal instead.)
 --
 -- What this *can't* exercise: `supabase db reset` (what this test runs
 -- under) applies every migration in order and only *then* runs seed.sql
@@ -62,9 +66,9 @@ select results_eq(
 );
 
 select results_eq(
-  $$ select x, y from public.viewpoints where key in ('landing', 'about') order by key $$,
-  $$ values (0::double precision, -2000::double precision), (0::double precision, 0::double precision) $$,
-  'landing and about: left exactly where they were'
+  $$ select x, y from public.viewpoints where key = 'landing' $$,
+  $$ values (0::double precision, 0::double precision) $$,
+  'landing: left exactly where it was'
 );
 
 select results_eq(

@@ -79,12 +79,14 @@ describe("ListRegion", () => {
     expect(screen.queryByText("region-label")).not.toBeInTheDocument();
   });
 
-  it("shows the About region's real copy, not the empty-state message (T6)", async () => {
+  // docs/decisions.md D-71, Step 9: the About region was removed outright
+  // — /list/about now shows the generic empty-state message, same as any
+  // other region with nothing published, not a crash or a stale section.
+  it("shows the empty-state message for 'about' now that the region is gone (D-71)", async () => {
     renderRegion("about");
 
-    await waitFor(() => expect(screen.getByText("Light entering from darkness.")).toBeInTheDocument());
-    expect(screen.getByText("Artworks")).toBeInTheDocument();
-    expect(screen.queryByText("Nothing published here yet.")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Nothing published here yet.")).toBeInTheDocument());
+    expect(screen.queryByText("Light entering from darkness.")).not.toBeInTheDocument();
   });
 
   it("shows the Contact region's intro and a real mailto link, not the empty-state message (T6)", async () => {
@@ -93,10 +95,10 @@ describe("ListRegion", () => {
     await waitFor(() =>
       expect(screen.getByText("Commissions, collaborations, press or a question about a belt.")).toBeInTheDocument()
     );
-    expect(screen.getByRole("link", { name: "Email ALL LIFE directly" })).toHaveAttribute(
-      "href",
-      expect.stringMatching(/^mailto:/)
-    );
+    // docs/decisions.md D-71, Step 8: shows the real address now, not
+    // generic "Email ALL LIFE directly" copy.
+    const link = screen.getByRole("link", { name: /^Send us an email at /i });
+    expect(link).toHaveAttribute("href", expect.stringMatching(/^mailto:/));
     expect(screen.queryByText("Nothing published here yet.")).not.toBeInTheDocument();
   });
 });

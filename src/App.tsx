@@ -118,13 +118,14 @@ const App = () => (
             }
           />
           <Route path="/shop/:slug" element={<ShopSlugRedirect />} />
-          {/* docs/01-architecture.md: "/about, /contact — Board focused on
-           * those regions" (T6) — same one-hop redirect-before-Gallery-
-           * mounts pattern as /shop/:slug above, for the same reason
+          {/* docs/01-architecture.md: "/contact — Board focused on that
+           * region" (T6) — same one-hop redirect-before-Gallery-mounts
+           * pattern as /shop/:slug above, for the same reason
            * (ShopSlugRedirect's own comment): a cold/bookmarked visit has no
            * existing camera/board state to lose, so redirecting once is
-           * safe here in a way it wouldn't be for in-app navigation. */}
-          <Route path="/about" element={<Navigate to="/gallery/about" replace />} />
+           * safe here in a way it wouldn't be for in-app navigation.
+           * /about redirected the same way until docs/decisions.md D-71's
+           * Step 9 removed the About region outright. */}
           <Route path="/contact" element={<Navigate to="/gallery/contact" replace />} />
           <Route
             path="/list"

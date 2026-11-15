@@ -14,11 +14,10 @@
 -- Repositioned (docs/decisions.md D-71, client feedback 14 Nov 2026) into
 -- the client's own described grid around landing: Film (gallery) top-left,
 -- Photo gallery (collage) top-right — adjacent to it, same row — Product
--- display (shop) bottom-right, Contact bottom-left. 'about' is left at its
--- original Phase-2 placeholder position (0, -2000) — a separate step
--- removes the About region entirely now that the client wants the seal
--- itself to hold that "middle" spot, so there's no point placing it
--- somewhere new only to delete it right after.
+-- display (shop) bottom-right, Contact bottom-left. 'about' is gone
+-- entirely (Step 9) — the client wants the seal itself to hold the
+-- board's "middle" spot everything else is centred around, so there's no
+-- About region left to place anywhere.
 --
 -- Phase 3 (T1, phases/PHASE-3-shop-and-enquiry.md): 'shop' is a non-guided
 -- overview anchor (List view's single "Shop" entry point; the minimap's
@@ -36,8 +35,7 @@ values
   ('shop', 'Shop', 2000, 1800, 1, 3, false),
   ('shop-wall', 'Shop (wall)', 2000, 1200, 1, 4, true),
   ('shop-floor', 'Shop (floor)', 2000, 2400, 1, 5, true),
-  ('about', 'About', 0, -2000, 1, 6, true),
-  ('contact', 'Contact', -2000, 1200, 1, 7, true)
+  ('contact', 'Contact', -2000, 1200, 1, 6, true)
 on conflict (key) do update set
   x = excluded.x, y = excluded.y, zoom = excluded.zoom,
   sort_order = excluded.sort_order, in_guided_path = excluded.in_guided_path;
@@ -57,5 +55,4 @@ values
   ('collage', 'region-label', 1600, -1500, 800, 600, true),
   ('shop-wall', 'region-label', 1600, 900, 800, 600, true),
   ('shop-floor', 'region-label', 1600, 2100, 800, 600, true),
-  ('about', 'region-label', -400, -2300, 800, 600, true),
   ('contact', 'region-label', -2400, 900, 800, 600, true);

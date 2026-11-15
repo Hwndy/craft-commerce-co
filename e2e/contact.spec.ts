@@ -25,11 +25,13 @@ async function revealBoard(page: Page) {
   await video.evaluate((el: HTMLVideoElement) => el.pause());
 }
 
-test.describe("About and Contact regions (T6)", () => {
+// Renamed from about-contact.spec.ts — docs/decisions.md D-71, Step 9
+// removed the About region outright, leaving this file Contact-only.
+test.describe("Contact region (T6)", () => {
   // Found in review (Greptile/CodeRabbit, PR #3): a genuinely first-time
-  // visitor (gate not yet unlocked) who opens /about or /contact directly
-  // previously lost that destination the moment they clicked Continue —
-  // FilmStage's own handoff flew unconditionally to the collage instead.
+  // visitor (gate not yet unlocked) who opens /contact directly previously
+  // lost that destination the moment they clicked Continue — FilmStage's
+  // own handoff flew unconditionally to the collage instead.
   // Distinct from every other test below, which calls revealBoard() first
   // (an *already-unlocked* visit) and so never exercised this path.
   test("a genuinely first-time visitor who opens /contact directly still lands there after watching and clicking Continue", async ({
@@ -60,36 +62,10 @@ test.describe("About and Contact regions (T6)", () => {
     await expect(region.getByRole("link", { name: /^Send us an email at /i })).toBeVisible();
   });
 
-  test("a direct /about visit redirects into the board's About region", async ({ page, browserName }) => {
-    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await page.goto("/about");
-    // The film gate (T10/D-07) still covers the page on a cold visit —
-    // same reasoning as a direct /shop/:slug or /gallery/photo/:id deep
-    // link — but the redirect itself (docs/01-architecture.md's "/about —
-    // Board focused on that region") happens at the router, independent of
-    // the gate.
-    await expect(page).toHaveURL(/\/gallery\/about$/);
-  });
-
   test("a direct /contact visit redirects into the board's Contact region", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
     await page.goto("/contact");
     await expect(page).toHaveURL(/\/gallery\/contact$/);
-  });
-
-  test("the About region shows the owner's real copy, with the brand story clearly flagged as a placeholder", async ({
-    page,
-    browserName,
-  }) => {
-    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await revealBoard(page);
-    await page.goto("/gallery/about");
-
-    const region = page.locator('section[data-region-id="about"]');
-    await expect(region.getByText("Light entering from darkness.")).toBeVisible();
-    await expect(region.getByText(/ALL LIFE expresses inner drives/)).toBeVisible();
-    await expect(region.getByText("Placeholder — pending the owner's own words")).toBeVisible();
-    await expect(region.getByText("Artworks")).toBeVisible();
   });
 
   // docs/decisions.md D-71, client feedback Step 8: the enquiry form was

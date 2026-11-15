@@ -26,7 +26,7 @@ Browser (Safari / Chrome)
 | `/gallery/photo/:id` | Photo viewer over the collage |
 | `/shop` | Board focused on the Shop region |
 | `/shop/:slug` | Product overlay |
-| `/about`, `/contact` | Board focused on those regions |
+| `/contact` | Board focused on that region |
 | `/list` | Accessible list view of all content (also `/list/:region`) |
 | `/admin/*` | Admin (guarded, `noindex`) |
 

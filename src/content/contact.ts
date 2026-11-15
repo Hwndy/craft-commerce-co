@@ -1,8 +1,7 @@
 /**
- * Static Contact content (T6, FR-6.2) — same "typed stand-in for Phase 4's
- * `pages` table" reasoning as src/content/about.ts. `intro` is the owner's
- * own words, taken verbatim from their uploaded design mockup
- * (`design_6_about_and_contact.png`).
+ * Static Contact content (T6, FR-6.2) — a typed stand-in for Phase 4's
+ * `pages` table. `intro` is the owner's own words, taken verbatim from
+ * their uploaded design mockup (`design_6_about_and_contact.png`).
  *
  * `socialLinks` are the mockup's own three icon slots (Instagram, YouTube,
  * a generic link/website icon) — but the mockup shows icons only, no

@@ -29,7 +29,7 @@ vi.mock("../lib/submitEnquiry", () => ({
 // Turnstile above. A native <select> exercises EnquiryForm's own logic
 // (which option maps to which productId, what gets submitted) for real;
 // the real Radix component's own open/close/keyboard behaviour is covered
-// by e2e/about-contact.spec.ts in a real browser instead.
+// by e2e/contact.spec.ts in a real browser instead.
 vi.mock("@/components/ui/select", () => ({
   Select: ({
     value,

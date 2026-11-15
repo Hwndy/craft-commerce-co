@@ -8,7 +8,6 @@ import { useCameraStore } from "@/canvas/store";
 import { cameraFromCenter } from "@/canvas/math";
 import { cameraForViewpoint, getViewpoint, OVERVIEW_VIEWPOINT } from "@/canvas/viewpoints";
 import { RegionLabel } from "@/components/brand/RegionLabel";
-import { About } from "@/features/about/About";
 import { Collage } from "@/features/collage/Collage";
 import { CollageChrome } from "@/features/collage/CollageChrome";
 import { photoIdsInSameStack } from "@/features/collage/lib/layout";
@@ -105,8 +104,8 @@ export default function Gallery() {
     const { viewport, setCamera } = useCameraStore.getState();
     const requestedKey = initialViewpointKeyRef.current;
     // No specific region was requested (a plain /gallery visit, not a
-    // direct /about, /contact, /gallery/photo/:id or /gallery/shop/:slug
-    // link) — land on a wide, zoomed-out view of the whole board (docs/
+    // direct /contact, /gallery/photo/:id or /gallery/shop/:slug link) —
+    // land on a wide, zoomed-out view of the whole board (docs/
     // decisions.md D-71, Step 6) instead of always defaulting to the
     // Gallery/film quadrant specifically.
     if (!requestedKey) {
@@ -210,8 +209,10 @@ export default function Gallery() {
 
         {/* T6: real content at its own world position, same precedent as
          * Collage/Shop above — no modal to open, so nothing extra to wire
-         * through onOpenProduct-style callbacks. */}
-        <About centerX={getViewpoint("about").x} centerY={getViewpoint("about").y} />
+         * through onOpenProduct-style callbacks. (About was removed
+         * outright in docs/decisions.md D-71, Step 9 — the seal itself
+         * now holds the board's "middle" spot Step 6 centred everything
+         * else around.) */}
         <Contact centerX={getViewpoint("contact").x} centerY={getViewpoint("contact").y} />
 
         <PhotoViewer

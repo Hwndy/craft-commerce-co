@@ -25,16 +25,22 @@ export function productSlugFromSplat(splat: string | undefined): string | null {
 }
 
 /**
- * Parses a splat that's a bare top-level region key — "about" or "contact"
- * (T6, docs/01-architecture.md's `/about`, `/contact` → "Board focused on
- * those regions") — distinct from photoIdFromSplat/productSlugFromSplat
- * above, which carry an id/slug after a fixed prefix. App.tsx redirects a
- * direct /about or /contact visit into /gallery/about or /gallery/contact
- * (same one-hop pattern as /shop/:slug → /gallery/shop/:slug, D-52); this
- * is what Gallery.tsx reads back out to know which viewpoint to land the
- * camera on, instead of always defaulting to "gallery".
+ * Parses a splat that's a bare top-level region key — "contact" (T6,
+ * docs/01-architecture.md's `/contact` → "Board focused on that region")
+ * — distinct from photoIdFromSplat/productSlugFromSplat above, which
+ * carry an id/slug after a fixed prefix. App.tsx redirects a direct
+ * /contact visit into /gallery/contact (same one-hop pattern as
+ * /shop/:slug → /gallery/shop/:slug, D-52); this is what Gallery.tsx reads
+ * back out to know which viewpoint to land the camera on, instead of
+ * always defaulting to "gallery".
+ *
+ * "about" was a second recognised key here until docs/decisions.md D-71's
+ * Step 9 removed the About region outright — no longer recognised, so a
+ * stale /gallery/about link (nothing redirects into it any more either)
+ * falls through to the same "no specific region" default as a plain
+ * /gallery visit, not a crash.
  */
-export function initialViewpointKeyFromSplat(splat: string | undefined): "about" | "contact" | null {
-  if (splat === "about" || splat === "contact") return splat;
+export function initialViewpointKeyFromSplat(splat: string | undefined): "contact" | null {
+  if (splat === "contact") return splat;
   return null;
 }
