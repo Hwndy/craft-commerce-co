@@ -82,8 +82,9 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 // item. Unlike the collage's generative phyllotaxis layout (a real product
 // display is curated, not algorithmic), so this script seeds the node's own
 // position directly — centred on supabase/seed.sql's 'shop-floor'
-// viewpoint (-2000, 1200). Taller than wide: ShopRegion.tsx stacks a poster
-// tile above the ProductLabel card within this one box.
+// viewpoint (2000, 2400 — docs/decisions.md D-71, Step 6's board
+// reposition). Taller than wide: ShopRegion.tsx stacks a poster tile
+// above the ProductLabel card within this one box.
 const SAMPLE_PRODUCT = {
   slug: overrides.get("slug") ?? "sample-belt-no-5",
   name: overrides.get("name") ?? "Sample Belt No.5",
@@ -97,8 +98,8 @@ const SAMPLE_PRODUCT = {
   region: overrides.get("region") ?? "shop-floor",
   sortOrder: Number(overrides.get("sort-order") ?? 0),
   node: {
-    x: Number(overrides.get("node-x") ?? -2120),
-    y: Number(overrides.get("node-y") ?? 1020),
+    x: Number(overrides.get("node-x") ?? 1880),
+    y: Number(overrides.get("node-y") ?? 2220),
     width: Number(overrides.get("node-width") ?? 240),
     height: Number(overrides.get("node-height") ?? 360),
   },

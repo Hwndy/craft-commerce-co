@@ -47,8 +47,8 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
   gallery: {
     key: "gallery",
     label: "Gallery",
-    x: 2000,
-    y: 0,
+    x: -2000,
+    y: -1200,
     zoom: 1,
     sortOrder: 1,
     inGuidedPath: true,
@@ -57,7 +57,7 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
     key: "collage",
     label: "Collage",
     x: 2000,
-    y: 1200,
+    y: -1200,
     zoom: 1,
     sortOrder: 2,
     inGuidedPath: true,
@@ -65,8 +65,8 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
   "shop-wall": {
     key: "shop-wall",
     label: "Shop (wall)",
-    x: -2000,
-    y: 0,
+    x: 2000,
+    y: 1200,
     zoom: 1,
     sortOrder: 3,
     inGuidedPath: true,
@@ -74,8 +74,8 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
   "shop-floor": {
     key: "shop-floor",
     label: "Shop (floor)",
-    x: -2000,
-    y: 1200,
+    x: 2000,
+    y: 2400,
     zoom: 1,
     sortOrder: 4,
     inGuidedPath: true,
@@ -92,12 +92,41 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
   contact: {
     key: "contact",
     label: "Contact",
-    x: 0,
-    y: 2000,
+    x: -2000,
+    y: 1200,
     zoom: 1,
     sortOrder: 6,
     inGuidedPath: true,
   },
+};
+
+/**
+ * A wide, zoomed-out "see the whole board" camera centre (docs/
+ * decisions.md D-71, client feedback 14 Nov 2026, Step 6: "land somewhere
+ * that shows the whole layout, not just the Gallery quadrant"). Not a
+ * `viewpoints` table row — it's not a place anything flies *to* via the
+ * guided path, minimap click, or Home button, just the landing camera
+ * Gallery.tsx uses once the gate unlocks, so it doesn't belong in the same
+ * registry as the real, admin-managed board regions (no migration/pgTAP/
+ * minimap-rectangle implications this way).
+ *
+ * Centre (0, 600) and zoom 0.18 are a fixed approximation of the four
+ * main quadrants' own centres after this step's reposition — gallery
+ * (-2000,-1200), collage (2000,-1200), shop (2000,1800), contact
+ * (-2000,1200) — not a live `fitRectToViewport` fit: 'about' (0,-2000) is
+ * deliberately left out of this framing since Step 9 removes it. Treated
+ * as a centred point exactly like `about`/`contact`/`shop-wall`/
+ * `shop-floor` above — pass it through `cameraFromCenter`, never used as a
+ * raw camera position.
+ */
+export const OVERVIEW_VIEWPOINT: Viewpoint = {
+  key: "overview",
+  label: "Overview",
+  x: 0,
+  y: 600,
+  zoom: 0.18,
+  sortOrder: -1,
+  inGuidedPath: false,
 };
 
 let cachedViewpoints: Record<string, Viewpoint> | null = null;

@@ -17,12 +17,12 @@ describe("viewpoints", () => {
       sortOrder: 0,
       inGuidedPath: true,
     });
-    expect(getViewpoint("gallery").x).toBe(2000);
+    expect(getViewpoint("gallery").x).toBe(-2000);
     expect(getViewpoint("collage")).toEqual({
       key: "collage",
       label: "Collage",
       x: 2000,
-      y: 1200,
+      y: -1200,
       zoom: 1,
       sortOrder: 2,
       inGuidedPath: true,
@@ -30,13 +30,13 @@ describe("viewpoints", () => {
     expect(getViewpoint("shop-wall")).toEqual({
       key: "shop-wall",
       label: "Shop (wall)",
-      x: -2000,
-      y: 0,
+      x: 2000,
+      y: 1200,
       zoom: 1,
       sortOrder: 3,
       inGuidedPath: true,
     });
-    expect(getViewpoint("shop-floor").y).toBe(1200);
+    expect(getViewpoint("shop-floor").y).toBe(2400);
     expect(getViewpoint("about")).toEqual({
       key: "about",
       label: "About",
@@ -46,7 +46,7 @@ describe("viewpoints", () => {
       sortOrder: 5,
       inGuidedPath: true,
     });
-    expect(getViewpoint("contact").y).toBe(2000);
+    expect(getViewpoint("contact").y).toBe(1200);
   });
 
   it("throws for an unknown key in the fallback registry", () => {
