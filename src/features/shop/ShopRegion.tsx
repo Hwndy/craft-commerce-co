@@ -204,9 +204,14 @@ function RoomBackdrop({ variant }: { variant: "wall" | "floor" }) {
         className="absolute inset-y-0 left-0 w-1/2 bg-shop-wall shadow-[inset_-40px_0_60px_-10px_rgba(120,40,60,0.12)]"
         style={{ transformStyle: "preserve-3d", transform: "rotateY(16deg)", transformOrigin: "100% 50%" }}
       >
-        <span className="absolute left-8 top-8 whitespace-nowrap font-heading text-3xl font-semibold text-shop-ink">
-          ALL LIFE <em className="font-normal italic">shop</em>
-        </span>
+        <div className="absolute left-8 top-8 flex flex-col gap-1">
+          <span className="whitespace-nowrap font-heading text-3xl font-semibold text-shop-ink">
+            ALL LIFE <em className="font-normal italic">shop</em>
+          </span>
+          <span className="whitespace-nowrap font-body text-sm italic text-shop-ink/70">
+            belts from repurposed bike tyre · sand-cast aluminium buckles
+          </span>
+        </div>
       </div>
       <div
         className="absolute inset-y-0 right-0 w-1/2 bg-shop-wall shadow-[inset_40px_0_60px_-10px_rgba(120,40,60,0.12)]"
