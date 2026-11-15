@@ -157,8 +157,9 @@ jobs:
       # this same script" extension point (its own header comment),
       # matching docs/decisions.md D-51's identical production precedent.
       # node-x/node-y centre the default 240x360 node on shop-wall's own
-      # viewpoint (-2000, 0), the same convention the script's default
-      # (floor) values already use for shop-floor's (-2000, 1200).
+      # viewpoint (2000, 1200 — docs/decisions.md D-71, Step 6's board
+      # reposition), the same convention the script's default (floor)
+      # values already use for shop-floor's (2000, 2400).
       - name: Seed a second placeholder product for the Shop wall
         env:
           SUPABASE_URL: ${{ env.API_URL }}
@@ -167,7 +168,7 @@ jobs:
           npx tsx scripts/seed-products.ts assets/test-product-photos \
             --slug=sample-belt-no-2 --name="Sample Belt No.2" \
             --zone=wall --region=shop-wall --sort-order=1 \
-            --node-x=-2120 --node-y=-180
+            --node-x=1880 --node-y=1020
 
       - name: Build (against the local Supabase stack)
         env:

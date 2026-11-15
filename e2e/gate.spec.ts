@@ -108,7 +108,7 @@ test.describe("first-watch gate", () => {
 
     // T10: Continue hands the visitor off to the collage, not wherever
     // Explore-mode panning happened to leave the camera.
-    const collageViewpoint = { x: 2000, y: 1200 };
+    const collageViewpoint = { x: 2000, y: -1200 };
     await expect
       .poll(async () => {
         const camera = page.locator("[data-camera-x]").first();

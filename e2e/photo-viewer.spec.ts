@@ -31,9 +31,10 @@ async function revealBoard(page: Page) {
   // "element is not stable"/"detached from the DOM" — NodeLayer's culling
   // recomputes against whatever intermediate camera position the flight
   // is passing through, not just its settled end state. Waiting for the
-  // camera to actually reach collage (2000, 1200, zoom 1 — the exact
-  // values flyTo's own set({ camera: targetCamera }) finishes on) avoids
-  // interacting with anything until it's genuinely done moving.
+  // camera to actually reach collage (2000, -1200, zoom 1 — the exact
+  // values flyTo's own set({ camera: targetCamera }) finishes on; docs/
+  // decisions.md D-71, Step 6's board reposition) avoids interacting with
+  // anything until it's genuinely done moving.
   const camera = page.locator("[data-camera-x]").first();
   await expect
     .poll(async () => ({
@@ -41,7 +42,7 @@ async function revealBoard(page: Page) {
       y: Number(await camera.getAttribute("data-camera-y")),
       zoom: Number(await camera.getAttribute("data-camera-zoom")),
     }))
-    .toEqual({ x: 2000, y: 1200, zoom: 1 });
+    .toEqual({ x: 2000, y: -1200, zoom: 1 });
 }
 
 function boxesOverlap(

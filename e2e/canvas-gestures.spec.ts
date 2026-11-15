@@ -154,12 +154,22 @@ test.describe("canvas gestures", () => {
     await expect.poll(async () => (await getCamera(page))?.x, { timeout: 10000 }).toBeLessThan(panned!.x);
   });
 
-  // T11: "deep link opens at the right camera" (B4) — the gallery
-  // viewpoint itself, not just the photo deep link T9/T10 already cover.
-  test("/gallery opens at the real gallery viewpoint", async ({ page, browserName }) => {
+  // T11: "deep link opens at the right camera" (B4) — a plain /gallery
+  // visit (no requested region), not just the photo deep link T9/T10
+  // already cover. Lands on OVERVIEW_VIEWPOINT (docs/decisions.md D-71,
+  // Step 6), not the "gallery" viewpoint specifically — src/pages/
+  // Gallery.tsx's mount effect only falls back to a named viewpoint when
+  // one was actually requested (e.g. /gallery/about).
+  test("/gallery opens at a wide overview of the whole board", async ({ page, browserName }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
     await page.goto("/gallery");
-    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 0, zoom: 1 });
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("expected a real viewport size");
+    await expect.poll(() => getCamera(page)).toEqual({
+      x: 0 - viewport.width / (2 * 0.18),
+      y: 600 - viewport.height / (2 * 0.18),
+      zoom: 0.18,
+    });
   });
 
   test("guided mode: Explore/Guided switch keeps position, and Next/Previous cycle gallery and collage at the right camera", async ({
@@ -184,17 +194,17 @@ test.describe("canvas gestures", () => {
     // to the nearest path viewpoint to wherever the camera actually is
     // (useGuidedModeStore.ts), which is collage here.
     await modeButton.click(); // Guided -> Explore: keeps the camera at collage.
-    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: -1200, zoom: 1 });
     await modeButton.click(); // Explore -> Guided: resyncs currentIndex to collage.
-    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: -1200, zoom: 1 });
 
     await page.getByRole("button", { name: "Previous" }).click();
-    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 0, zoom: 1 });
+    await expect.poll(() => getCamera(page)).toEqual({ x: -2000, y: -1200, zoom: 1 });
     await expect(page.locator('section[data-region-id="gallery"]')).toBeVisible();
 
     // "Next: Collage" — names the real target (docs/decisions.md D-45), not a bare "Next".
     await page.getByRole("button", { name: "Next: Collage" }).click();
-    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: 1200, zoom: 1 });
+    await expect.poll(() => getCamera(page)).toEqual({ x: 2000, y: -1200, zoom: 1 });
     await expect(page.locator("[data-photo-id]").first()).toBeVisible();
 
     // T2 (found by the owner, docs/decisions.md D-60): Shop's two regions
@@ -224,13 +234,13 @@ test.describe("canvas gestures", () => {
     await page.getByRole("button", { name: "Next: Shop (wall)" }).click();
     await expect
       .poll(() => getCamera(page))
-      .toEqual({ x: -2000 - viewport.width / 2, y: 0 - viewport.height / 2, zoom: 1 });
+      .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.2/ }));
 
     await page.getByRole("button", { name: "Next: Shop (floor)" }).click();
     await expect
       .poll(() => getCamera(page))
-      .toEqual({ x: -2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
+      .toEqual({ x: 2000 - viewport.width / 2, y: 2400 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.5/ }));
   });
 });

@@ -31,7 +31,7 @@ async function revealBoard(page: Page) {
       y: Number(await camera.getAttribute("data-camera-y")),
       zoom: Number(await camera.getAttribute("data-camera-zoom")),
     }))
-    .toEqual({ x: 2000, y: 1200, zoom: 1 });
+    .toEqual({ x: 2000, y: -1200, zoom: 1 }); // collage (docs/decisions.md D-71, Step 6's board reposition)
 }
 
 test.describe("product overlay (T3)", () => {

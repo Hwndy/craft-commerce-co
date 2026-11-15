@@ -6,33 +6,41 @@
 
 -- Phase 2: viewpoints (docs/02-canvas-spec.md §6, guided path order from
 -- docs/00-product-brief.md §3: Landing, Film, Collage, Shop, About,
--- Contact). landing/gallery keep the exact x/y/zoom src/canvas/viewpoints.ts
--- used in Phase 1 — swapping the static registry for this table must not
--- move the camera anywhere the already-verified entry sequence/gate flow
--- doesn't expect. collage/shop/about/contact positions are placeholders in
--- a simple radial layout (D-14's mind-map default: ALL LIFE/landing at the
--- centre, regions around it) pending the owner's actual board-layout
--- confirmation (phases/PHASE-2-canvas-and-collage.md "Owner inputs needed").
--- Phase 3 (T1, phases/PHASE-3-shop-and-enquiry.md): 'shop' keeps its old
--- position as a non-guided overview anchor (List view's single "Shop"
--- entry point; the minimap's sense of "the shop area" as a whole) — two
--- new guided-path stops, 'shop-wall' and 'shop-floor', sit either side of
--- it, same spatial relationship 'collage' already has to 'gallery' (y+1200).
--- Unlike the Gallery area (one 'gallery' guided stop, no separate
--- "overview"), Shop's two regions are different enough in kind (wall:
--- hung/framed; floor: laid out, T2) that neither alone reads as "the shop,"
--- so a third, non-guided anchor stands in for the area as a whole.
+-- Contact). landing keeps the exact x/y/zoom src/canvas/viewpoints.ts used
+-- in Phase 1 — swapping the static registry for this table must not move
+-- the camera anywhere the already-verified entry sequence/gate flow
+-- doesn't expect.
+--
+-- Repositioned (docs/decisions.md D-71, client feedback 14 Nov 2026) into
+-- the client's own described grid around landing: Film (gallery) top-left,
+-- Photo gallery (collage) top-right — adjacent to it, same row — Product
+-- display (shop) bottom-right, Contact bottom-left. 'about' is left at its
+-- original Phase-2 placeholder position (0, -2000) — a separate step
+-- removes the About region entirely now that the client wants the seal
+-- itself to hold that "middle" spot, so there's no point placing it
+-- somewhere new only to delete it right after.
+--
+-- Phase 3 (T1, phases/PHASE-3-shop-and-enquiry.md): 'shop' is a non-guided
+-- overview anchor (List view's single "Shop" entry point; the minimap's
+-- sense of "the shop area" as a whole) — 'shop-wall' and 'shop-floor' sit
+-- either side of it (y ± 1200), same spatial relationship as before, just
+-- moved into the new bottom-right quadrant. Shop's two regions are
+-- different enough in kind (wall: hung/framed; floor: laid out, T2) that
+-- neither alone reads as "the shop," so a third, non-guided anchor stands
+-- in for the area as a whole.
 insert into public.viewpoints (key, label, x, y, zoom, sort_order, in_guided_path)
 values
   ('landing', 'Landing', 0, 0, 1, 0, true),
-  ('gallery', 'Gallery', 2000, 0, 1, 1, true),
-  ('collage', 'Collage', 2000, 1200, 1, 2, true),
-  ('shop', 'Shop', -2000, 600, 1, 3, false),
-  ('shop-wall', 'Shop (wall)', -2000, 0, 1, 4, true),
-  ('shop-floor', 'Shop (floor)', -2000, 1200, 1, 5, true),
+  ('gallery', 'Gallery', -2000, -1200, 1, 1, true),
+  ('collage', 'Collage', 2000, -1200, 1, 2, true),
+  ('shop', 'Shop', 2000, 1800, 1, 3, false),
+  ('shop-wall', 'Shop (wall)', 2000, 1200, 1, 4, true),
+  ('shop-floor', 'Shop (floor)', 2000, 2400, 1, 5, true),
   ('about', 'About', 0, -2000, 1, 6, true),
-  ('contact', 'Contact', 0, 2000, 1, 7, true)
-on conflict (key) do nothing;
+  ('contact', 'Contact', -2000, 1200, 1, 7, true)
+on conflict (key) do update set
+  x = excluded.x, y = excluded.y, zoom = excluded.zoom,
+  sort_order = excluded.sort_order, in_guided_path = excluded.in_guided_path;
 
 -- A region-label node for each region without any real content node yet.
 -- Harmless once a region gets real nodes — Collage.tsx computes its own
@@ -46,8 +54,8 @@ on conflict (key) do nothing;
 -- which scripts/seed-products.ts now does.
 insert into public.canvas_nodes (region, node_type, x, y, width, height, published)
 values
-  ('collage', 'region-label', 1600, 900, 800, 600, true),
-  ('shop-wall', 'region-label', -2400, -300, 800, 600, true),
-  ('shop-floor', 'region-label', -2400, 900, 800, 600, true),
+  ('collage', 'region-label', 1600, -1500, 800, 600, true),
+  ('shop-wall', 'region-label', 1600, 900, 800, 600, true),
+  ('shop-floor', 'region-label', 1600, 2100, 800, 600, true),
   ('about', 'region-label', -400, -2300, 800, 600, true),
-  ('contact', 'region-label', -400, 1700, 800, 600, true);
+  ('contact', 'region-label', -2400, 900, 800, 600, true);

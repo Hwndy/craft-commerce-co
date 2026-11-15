@@ -5,7 +5,8 @@ import { Board } from "@/canvas/Board";
 import { CanvasChrome } from "@/canvas/CanvasChrome";
 import { Region } from "@/canvas/Region";
 import { useCameraStore } from "@/canvas/store";
-import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
+import { cameraFromCenter } from "@/canvas/math";
+import { cameraForViewpoint, getViewpoint, OVERVIEW_VIEWPOINT } from "@/canvas/viewpoints";
 import { RegionLabel } from "@/components/brand/RegionLabel";
 import { About } from "@/features/about/About";
 import { Collage } from "@/features/collage/Collage";
@@ -101,9 +102,18 @@ export default function Gallery() {
   // one re-running this effect on every navigation within /gallery/*.
   const initialViewpointKeyRef = useRef(requestedViewpointKey);
   useEffect(() => {
-    const viewpoint = getViewpoint(initialViewpointKeyRef.current ?? "gallery");
     const { viewport, setCamera } = useCameraStore.getState();
-    setCamera(cameraForViewpoint(viewpoint, viewport));
+    const requestedKey = initialViewpointKeyRef.current;
+    // No specific region was requested (a plain /gallery visit, not a
+    // direct /about, /contact, /gallery/photo/:id or /gallery/shop/:slug
+    // link) — land on a wide, zoomed-out view of the whole board (docs/
+    // decisions.md D-71, Step 6) instead of always defaulting to the
+    // Gallery/film quadrant specifically.
+    if (!requestedKey) {
+      setCamera(cameraFromCenter(OVERVIEW_VIEWPOINT, OVERVIEW_VIEWPOINT.zoom, viewport.width, viewport.height));
+      return;
+    }
+    setCamera(cameraForViewpoint(getViewpoint(requestedKey), viewport));
   }, []);
 
   useEffect(() => {

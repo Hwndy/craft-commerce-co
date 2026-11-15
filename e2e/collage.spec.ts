@@ -33,8 +33,9 @@ async function revealBoard(page: Page) {
 /**
  * Flies the camera (via the keyboard — no CanvasChrome/minimap wiring
  * exists yet, deferred to T10, and no internal store is exposed to tests)
- * so the collage viewpoint (2000, 1200) is centred and the whole cluster
- * fits on screen, regardless of the project/device's real viewport size.
+ * so the collage viewpoint (2000, -1200 — docs/decisions.md D-71, Step 6's
+ * board reposition) is centred and the whole cluster fits on screen,
+ * regardless of the project/device's real viewport size.
  *
  * Zooms out to the camera's floor (DEFAULT_ZOOM_LIMITS.min, 0.15 — "-"
  * enough times to clamp there from any starting zoom) first, so the
@@ -43,7 +44,7 @@ async function revealBoard(page: Page) {
  * even the narrowest mobile viewport's visible world area. Then reads the
  * real camera/zoom and viewport size off the DOM (data-camera-*, same
  * attributes every other gesture spec reads) and computes the *exact*
- * number of pan presses needed to centre (2000, 1200) — not a guessed
+ * number of pan presses needed to centre (2000, -1200) — not a guessed
  * count — since useBoardKeyboard.ts's pan step is a fixed 80 screen-px
  * divided by the *current* zoom, which only this script's own zoom-out
  * step has just changed.
@@ -64,7 +65,7 @@ async function panToCollage(page: Page) {
   };
   const panStepWorld = 80 / camera.zoom;
   const stepsX = Math.round((2000 - vw / (2 * camera.zoom) - camera.x) / panStepWorld);
-  const stepsY = Math.round((1200 - vh / (2 * camera.zoom) - camera.y) / panStepWorld);
+  const stepsY = Math.round((-1200 - vh / (2 * camera.zoom) - camera.y) / panStepWorld);
 
   for (let i = 0; i < Math.abs(stepsX); i++) await page.keyboard.press(stepsX > 0 ? "ArrowRight" : "ArrowLeft");
   for (let i = 0; i < Math.abs(stepsY); i++) await page.keyboard.press(stepsY > 0 ? "ArrowDown" : "ArrowUp");
