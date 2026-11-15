@@ -83,7 +83,7 @@ export function ShopRegion({ region, title, centerX, centerY, onOpenProduct }: S
 
   return (
     <Region id={region} title={title} x={rect.x} y={rect.y} width={rect.width} height={rect.height}>
-      <RoomBackdrop variant={variant} width={rect.width} height={rect.height} />
+      <RoomBackdrop variant={variant} />
       <NodeLayer
         nodes={nodes}
         renderNode={(node) => (
@@ -124,7 +124,7 @@ function ShopProductCard({
   return (
     <div className="flex h-full w-full flex-col gap-2">
       {variant === "wall" && (
-        <svg aria-hidden="true" viewBox="0 0 24 16" className="mx-auto h-4 w-6 text-white/40">
+        <svg aria-hidden="true" viewBox="0 0 24 16" className="mx-auto h-4 w-6 text-shop-peg">
           <circle cx="12" cy="2" r="1.5" fill="currentColor" />
           <line x1="2" y1="2" x2="12" y2="2" stroke="currentColor" strokeWidth="1" />
           <line x1="22" y1="2" x2="12" y2="2" stroke="currentColor" strokeWidth="1" />
@@ -134,14 +134,25 @@ function ShopProductCard({
       )}
       <div
         aria-hidden="true"
-        className="min-h-0 flex-1 rounded-lg bg-black/40 bg-cover bg-center"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg bg-black/10 bg-cover bg-center shadow-md"
         style={posterSrc ? { backgroundImage: `url(${posterSrc})` } : undefined}
-      />
+      >
+        {/* Every product carries its own turntable video (docs/00-product-
+            brief.md) — this badge is a standing "tap to view" affordance,
+            not a claim about one specific product's media. */}
+        <span className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/70">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 fill-white">
+            <path d="M7 4l13 8-13 8z" />
+          </svg>
+        </span>
+      </div>
       <PriceTagLabel
         name={product.name}
         price={product.priceAmount}
         currency={product.priceCurrency}
-        bullets={product.bullets}
+        status={product.status}
+        description={variant === "floor" ? product.description : undefined}
+        layout={variant}
         onClick={onOpen}
         className="shrink-0"
       />
@@ -149,106 +160,66 @@ function ShopProductCard({
   );
 }
 
-const SIGNAGE_BULLETS = [
-  "Belt made from repurposed bike tyre",
-  "Buckle sand-cast using discarded aluminium",
-];
-
-// A one-off dark brick red for the "Product display." headline — not one
-// of the client's 7 named palette swatches, so not worth a new design-
-// system token for this single use. Measured against shop-wall's coral
-// (#EC6136): ~3.1:1, clearing WCAG AA's large/bold-text minimum (3:1).
-const SIGNAGE_HEADLINE_COLOR = "#7a1d15";
-
 /**
- * The retail-signage backdrop behind the actual product cards — one
- * continuous pink "market stall" surface, not two differently-coloured
- * walls (docs/decisions.md D-71, client feedback Step 7, corrected: the
- * first version of this built shop-wall as two separate wall panels in
- * two different colours; the client's own mockup, WEB_DEVELOPMENT._2.pdf
- * pages 6-7, shows a single pink plane that reads as a wall here and
- * continues as the floor of the same stall in shop-floor — "a wall and
- * floor", the client's own words, not two walls). Purely decorative,
- * absolutely positioned to fill the region's own rect so it scales with
- * whatever that rect's real size ends up being, same as the product
- * cards above it. Signage text is baked in literally, not
- * product-specific — the display's own retail dressing, not something
- * scripts/seed-products.ts drives.
- *
- * Colour choices here are adapted from the mockup, not copied exactly:
- * gold text directly on this pink measures ~2.3:1 (short of WCAG AA even
- * for large text), so "Sample" sits in its own small gold chip with dark
- * text instead of gold text on pink — same gold identity, real contrast.
- * The mockup's own "10%" badge isn't reproduced as a literal percentage:
- * nothing in the real product data confirms an actual discount rate, and
- * guessing one would be guessing at pricing (AGENTS.md rule 10) — a
- * generic "Sale" flag keeps the same visual beat without inventing a number.
+ * The retail-signage backdrop behind the actual product cards (docs/
+ * decisions.md D-71, client feedback Step 7 — rebuilt a second time,
+ * after the first rebuild also missed the mark: the owner then built the
+ * Product Display design themselves and shared it directly, so this
+ * matches that design rather than a third guess from the PDF). One
+ * dusty-pink room: its two wall faces are angled to meet at a corner
+ * using real CSS 3D (`perspective` + `rotateY`) rather than a flat
+ * clip-path illusion, matching how the owner's own markup builds it —
+ * but both faces share the exact same `shop-wall` colour token, not two
+ * different walls, which is the one thing corrected twice already. The
+ * floor is the same pink family, one shade lighter (`shop-floor`), as a
+ * lighting cue rather than a second colour. Purely decorative, absolutely
+ * positioned to fill the region's own rect; the real product cards
+ * (rendered by NodeLayer, on top of this) stay flat, same as every
+ * earlier version of this backdrop — only the backdrop itself gets the
+ * 3D treatment.
  */
-function RoomBackdrop({ variant, width, height }: { variant: "wall" | "floor"; width: number; height: number }) {
+function RoomBackdrop({ variant }: { variant: "wall" | "floor" }) {
   if (variant === "floor") {
     return (
-      <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-        <div
-          className="absolute rounded-[4%] border border-shop-teal/60 bg-shop-wall"
-          style={{
-            left: width * 0.05,
-            top: height * 0.08,
-            width: width * 0.9,
-            height: height * 0.84,
-            clipPath: "polygon(8% 100%, 92% 100%, 100% 0%, 0% 0%)",
-          }}
-        />
-        {/* The mockup's own second, larger instance of the headline,
-            bleeding diagonally from the wall down across the floor. */}
+      <div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-shop-cream">
+        <div className="absolute inset-0" style={{ perspective: "1800px" }}>
+          <div
+            className="absolute inset-0 bg-shop-floor"
+            style={{ transformStyle: "preserve-3d", transform: "rotateX(14deg)", transformOrigin: "50% 0%" }}
+          />
+        </div>
         <span
-          className="absolute whitespace-nowrap font-heading text-3xl font-bold uppercase tracking-wide"
-          style={{
-            left: "48%",
-            top: "8%",
-            transform: "rotate(75deg)",
-            transformOrigin: "top left",
-            color: SIGNAGE_HEADLINE_COLOR,
-          }}
+          className="absolute bottom-10 right-10 whitespace-nowrap font-heading text-4xl font-semibold text-shop-ink/85"
+          style={{ transform: "rotate(-4deg)" }}
         >
-          Product display.
+          The <em className="font-normal italic">floor</em>
         </span>
       </div>
     );
   }
 
   return (
-    <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
-      {/* One continuous pink wall, angled left edge via clip-path for the
-          perspective look the mockup draws — a single shape, single
-          colour, not a second wall panel. */}
-      <div className="absolute inset-0 bg-shop-wall" style={{ clipPath: "polygon(18% 0, 100% 0, 100% 100%, 0% 100%)" }} />
-
-      <div className="absolute left-4 top-4 rounded-md bg-black px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-white">
-        Sale
-      </div>
-
-      <div className="absolute right-6 top-10 flex flex-col items-end gap-1.5 text-right">
-        <span className="font-heading text-2xl font-bold uppercase tracking-wide" style={{ color: SIGNAGE_HEADLINE_COLOR }}>
-          Product display.
+    <div aria-hidden="true" className="absolute inset-0 overflow-hidden bg-shop-wall" style={{ perspective: "1400px" }}>
+      <div
+        className="absolute inset-y-0 left-0 w-1/2 bg-shop-wall shadow-[inset_-40px_0_60px_-10px_rgba(120,40,60,0.12)]"
+        style={{ transformStyle: "preserve-3d", transform: "rotateY(16deg)", transformOrigin: "100% 50%" }}
+      >
+        <span className="absolute left-8 top-8 whitespace-nowrap font-heading text-3xl font-semibold text-shop-ink">
+          ALL LIFE <em className="font-normal italic">shop</em>
         </span>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded bg-shop-gold px-1.5 py-0.5 font-heading text-sm font-bold uppercase text-black">Sample</span>
-          <span className="font-heading text-sm font-bold uppercase text-white">Sale</span>
-        </div>
       </div>
-
-      {/* Shipping/manufacturing copy along the wall's own angled left
-          edge, rotated to follow it — black text (~6.3:1 on this coral,
-          comfortably over WCAG AA, unlike the gold/cream alternatives
-          this file tried first). */}
-      <div className="absolute left-6 top-28 w-32" style={{ transform: "rotate(-18deg)", transformOrigin: "top left" }}>
-        <p className="font-heading text-sm font-bold uppercase leading-tight tracking-wide text-black">Limited stock.</p>
-        <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-black/80">UK &amp; EU shipping only.</p>
-        <ul className="mt-2 space-y-1 text-[9px] font-medium leading-tight text-black/70">
-          {SIGNAGE_BULLETS.map((bullet) => (
-            <li key={bullet}>{bullet}</li>
-          ))}
-        </ul>
+      <div
+        className="absolute inset-y-0 right-0 w-1/2 bg-shop-wall shadow-[inset_40px_0_60px_-10px_rgba(120,40,60,0.12)]"
+        style={{ transformStyle: "preserve-3d", transform: "rotateY(-16deg)", transformOrigin: "0% 50%" }}
+      >
+        <div className="absolute right-8 top-8 flex items-baseline gap-3 whitespace-nowrap">
+          <span className="font-heading text-3xl font-semibold text-shop-ink">
+            The <em className="font-normal italic">wall</em>
+          </span>
+          <span className="rounded-full bg-shop-gold px-2.5 py-0.5 font-heading text-xs font-semibold uppercase tracking-wide text-shop-ink">
+            Sample sale
+          </span>
+        </div>
       </div>
     </div>
   );
