@@ -57,7 +57,7 @@ test.describe("About and Contact regions (T6)", () => {
 
     const region = page.locator('section[data-region-id="contact"]');
     await expect(region.getByText("Commissions, collaborations, press or a question about a belt.")).toBeVisible();
-    await expect(region.getByLabel("Name")).toBeVisible();
+    await expect(region.getByRole("link", { name: /^Send us an email at /i })).toBeVisible();
   });
 
   test("a direct /about visit redirects into the board's About region", async ({ page, browserName }) => {
@@ -92,78 +92,12 @@ test.describe("About and Contact regions (T6)", () => {
     await expect(region.getByText("Artworks")).toBeVisible();
   });
 
-  test("the Contact region's form submits a real enquiry, with no product selected", async ({
-    page,
-    browserName,
-  }) => {
-    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await revealBoard(page);
+  // docs/decisions.md D-71, client feedback Step 8: the enquiry form was
+  // removed from Contact entirely (UI only — submit-enquiry/enquiries/RLS
+  // all stay in place, dormant) in favour of the plain mailto link below,
+  // so there's no form-submission flow left to exercise here any more.
 
-    let requestBody: Record<string, unknown> | undefined;
-    await page.route("**/functions/v1/submit-enquiry", async (route) => {
-      requestBody = route.request().postDataJSON();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-    });
-
-    await page.goto("/gallery/contact");
-    const region = page.locator('section[data-region-id="contact"]');
-    await expect(region.getByText("Commissions, collaborations, press or a question about a belt.")).toBeVisible();
-
-    await region.getByLabel("Name").fill("Jane Visitor");
-    await region.getByLabel("Email").fill("jane@example.com");
-    await region.getByLabel("Message").fill("Do you take custom commissions?");
-
-    const sendButton = region.getByRole("button", { name: "Send enquiry" });
-    await expect(sendButton).toBeEnabled({ timeout: 15000 });
-    await sendButton.click();
-
-    await expect(region.getByText("Thank you — message sent")).toBeVisible();
-    expect(requestBody).toMatchObject({
-      name: "Jane Visitor",
-      email: "jane@example.com",
-      message: "Do you take custom commissions?",
-    });
-    // No "About a product" option was chosen — the dropdown's own default.
-    expect(requestBody?.productId).toBeUndefined();
-  });
-
-  // T6's own "About a product (optional)" dropdown (matching the owner's
-  // mockup) — ProductOverlay's own enquiry form never shows this (it
-  // already has a fixed productId), so this is the one place it's
-  // exercised against the real seeded products.
-  test("the Contact region's product picker lists the real seeded products and includes the choice in the enquiry", async ({
-    page,
-    browserName,
-  }) => {
-    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await revealBoard(page);
-
-    let requestBody: Record<string, unknown> | undefined;
-    await page.route("**/functions/v1/submit-enquiry", async (route) => {
-      requestBody = route.request().postDataJSON();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-    });
-
-    await page.goto("/gallery/contact");
-    const region = page.locator('section[data-region-id="contact"]');
-    const picker = region.getByLabel("About a product (optional)");
-    await expect(picker).toBeVisible({ timeout: 10000 });
-    await picker.click();
-    await page.getByRole("option", { name: /Sample Belt No\.5/ }).click();
-
-    await region.getByLabel("Name").fill("Jane Visitor");
-    await region.getByLabel("Email").fill("jane@example.com");
-    await region.getByLabel("Message").fill("Is this one still available?");
-
-    const sendButton = region.getByRole("button", { name: "Send enquiry" });
-    await expect(sendButton).toBeEnabled({ timeout: 15000 });
-    await sendButton.click();
-
-    await expect(region.getByText("Thank you — message sent")).toBeVisible();
-    expect(typeof requestBody?.productId).toBe("string");
-  });
-
-  test("the email link names its purpose rather than showing the raw address, and social links with no owner URL yet are disabled", async ({
+  test("the email address is shown as the link's own visible text, and social links with no owner URL yet are disabled", async ({
     page,
     browserName,
   }) => {
@@ -172,9 +106,15 @@ test.describe("About and Contact regions (T6)", () => {
     await page.goto("/gallery/contact");
 
     const region = page.locator('section[data-region-id="contact"]');
-    const emailLink = region.getByRole("link", { name: "Email ALL LIFE directly" });
+    const emailLink = region.getByRole("link", { name: /^Send us an email at /i });
     await expect(emailLink).toBeVisible();
     await expect(emailLink).toHaveAttribute("href", /^mailto:.+@.+/);
+    // The href's own address appears again as real visible text, not a
+    // generic "contact us"-style label — docs/decisions.md D-71 reversing
+    // D-53's earlier "name the purpose, not the address" choice.
+    const href = (await emailLink.getAttribute("href"))!;
+    const address = href.replace(/^mailto:/, "");
+    await expect(emailLink).toHaveText(`Send us an email at ${address}`);
 
     await expect(region.getByRole("button", { name: "Instagram (coming soon)" })).toBeDisabled();
   });

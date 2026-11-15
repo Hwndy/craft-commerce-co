@@ -309,32 +309,28 @@ describe("ProductOverlay", () => {
       expect(writeText).toHaveBeenCalledWith(env.VITE_OWNER_EMAIL);
     });
 
-    it("'Use the form instead' swaps the buy actions for the enquiry form, pre-filled with this product", () => {
+    // docs/decisions.md D-71, client feedback: removed for the in-stock
+    // case — mailto is the sole path there now, no form fallback button.
+    it("doesn't offer a form fallback for an in-stock product — mailto is the only path", () => {
       render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
-      fireEvent.click(screen.getByRole("button", { name: "Use the form instead" }));
-
-      expect(screen.getByTestId("enquiry-form-stub")).toHaveTextContent("enquiry form for product-1 / Sample Belt No.5");
-      expect(screen.queryByRole("link", { name: "Buy / Enquire" })).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "← Back" })).toBeInTheDocument();
-    });
-
-    it("'← Back' returns from the enquiry form to the buy actions", () => {
-      render(<ProductOverlay slug="sample-belt-no-5" product={product()} onClose={vi.fn()} />);
-      fireEvent.click(screen.getByRole("button", { name: "Use the form instead" }));
-      fireEvent.click(screen.getByRole("button", { name: "← Back" }));
-
-      expect(screen.getByRole("link", { name: "Buy / Enquire" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Use the form instead" })).not.toBeInTheDocument();
       expect(screen.queryByTestId("enquiry-form-stub")).not.toBeInTheDocument();
     });
 
-    // C3 (phases/PHASE-3-shop-and-enquiry.md): sold products don't offer Buy.
-    it("a sold product shows 'Ask about something similar' instead of Buy / Enquire", () => {
+    // C3 (phases/PHASE-3-shop-and-enquiry.md): sold products don't offer
+    // Buy at all — there's no mailto equivalent for "ask about something
+    // similar", so this is the one case EnquiryForm is still wired here.
+    it("a sold product shows 'Ask about something similar' instead of Buy / Enquire, and still opens the form", () => {
       render(<ProductOverlay slug="sample-belt-no-5" product={product({ status: "sold" })} onClose={vi.fn()} />);
 
       expect(screen.queryByRole("link", { name: "Buy / Enquire" })).not.toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Use the form instead" })).not.toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Ask about something similar" }));
-      expect(screen.getByTestId("enquiry-form-stub")).toBeInTheDocument();
+      expect(screen.getByTestId("enquiry-form-stub")).toHaveTextContent("enquiry form for product-1 / Sample Belt No.5");
+
+      fireEvent.click(screen.getByRole("button", { name: "← Back" }));
+      expect(screen.queryByTestId("enquiry-form-stub")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Ask about something similar" })).toBeInTheDocument();
     });
 
     it("a made-to-order product still offers Buy / Enquire", () => {
