@@ -130,6 +130,39 @@ describe("ProductOverlay", () => {
     expect(screen.getByRole("button", { name: "Video" })).toBeInTheDocument();
   });
 
+  // docs/decisions.md D-71, client feedback Step 7: a simple per-card mute
+  // toggle, muted by default to match the autoplay policy every browser
+  // already requires.
+  describe("video mute toggle", () => {
+    function renderWithVideo() {
+      return render(
+        <ProductOverlay
+          slug="sample-belt-no-5"
+          product={product({ video: media({ id: "video-1", hlsMaster: "products/p1/video-1/master.m3u8" }) })}
+          onClose={vi.fn()}
+        />
+      );
+    }
+
+    it("is not offered until the Video tab is actually showing", () => {
+      renderWithVideo();
+      expect(screen.queryByRole("button", { name: /^(Mute|Unmute)$/ })).not.toBeInTheDocument();
+    });
+
+    it("starts muted, and toggling it unmutes the real video element", () => {
+      renderWithVideo();
+      fireEvent.click(screen.getByRole("button", { name: "Video" }));
+
+      const video = document.querySelector("video") as HTMLVideoElement;
+      expect(video.muted).toBe(true);
+      expect(screen.getByRole("button", { name: "Unmute" })).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Unmute" }));
+      expect(video.muted).toBe(false);
+      expect(screen.getByRole("button", { name: "Mute" })).toBeInTheDocument();
+    });
+  });
+
   // The owner's own walkthrough (docs/decisions.md D-62): "what we show is
   // the still image and then when they click on it the video now starts
   // playing" — clicking the picture itself switches to the video, not just
@@ -252,6 +285,18 @@ describe("ProductOverlay", () => {
       expect(href.startsWith(`mailto:${env.VITE_OWNER_EMAIL}?`)).toBe(true);
       expect(decodeURIComponent(href)).toContain("Sample Belt No.5");
       expect(decodeURIComponent(href)).toContain("£40.00");
+    });
+
+    it("surfaces a 'Length: …' bullet as the mailto body's Size line", () => {
+      render(
+        <ProductOverlay
+          slug="sample-belt-no-5"
+          product={product({ bullets: ["Length: 124cm / 49in"] })}
+          onClose={vi.fn()}
+        />
+      );
+      const href = screen.getByRole("link", { name: "Buy / Enquire" }).getAttribute("href")!;
+      expect(decodeURIComponent(href)).toContain("Size: 124cm / 49in");
     });
 
     it("copies the owner's email address when 'Copy email address' is activated", async () => {
