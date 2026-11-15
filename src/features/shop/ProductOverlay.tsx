@@ -368,13 +368,14 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                     {product.description ?? product.name}
                   </DialogPrimitive.Description>
 
-                  {/* T4 (FR-5.1) mailto purchase + T5 (FR-5.2–5.4) fallback
-                   * form, toggled in place rather than a second nested
-                   * dialog — avoids stacking Radix focus traps for what's
-                   * still just one logical "purchase this" panel. C3
-                   * (phases/PHASE-3-shop-and-enquiry.md): a sold item drops
-                   * the mailto "Buy" action for "Ask about something
-                   * similar", which opens the same form instead. */}
+                  {/* T4 (FR-5.1) mailto purchase. The in-stock case is
+                   * mailto-only now (docs/decisions.md D-71, client
+                   * feedback: removed the "Use the form instead" fallback
+                   * button) — EnquiryForm stays wired here only for the
+                   * sold-item case just below, where there's no mailto
+                   * equivalent (nothing to buy, so no "Buy" link to offer;
+                   * "Ask about something similar" has to open a real form
+                   * instead). C3 (phases/PHASE-3-shop-and-enquiry.md). */}
                   {showForm ? (
                     <div className="mt-5">
                       <button
@@ -407,9 +408,6 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                             >
                               Buy / Enquire
                             </a>
-                          </Button>
-                          <Button type="button" variant="pill-outline" onClick={() => setShowForm(true)}>
-                            Use the form instead
                           </Button>
                         </>
                       )}

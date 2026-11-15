@@ -152,52 +152,20 @@ test.describe("product overlay (T3)", () => {
     const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
     expect(clipboardText).toBe(href!.replace(/^mailto:/, "").split("?")[0]);
 
-    await expect(dialog.getByRole("button", { name: "Use the form instead" })).toBeEnabled();
+    // docs/decisions.md D-71, client feedback Step 8: removed for an
+    // in-stock product — mailto is the only path now.
+    await expect(dialog.getByRole("button", { name: "Use the form instead" })).not.toBeVisible();
   });
 
-  // T5 (FR-5.2–FR-5.4): the fallback enquiry form. submit-enquiry itself is
-  // mocked (not a real Supabase project to hit from e2e) — this proves the
-  // client-side flow: open the form, fill it in, Turnstile's own test site
-  // key auto-verifies for real (no network stubbing of challenges.
-  // cloudflare.com), submit, see the success state.
-  test("'Use the form instead' opens a working enquiry form that submits and shows success", async ({
-    page,
-    browserName,
-  }) => {
-    test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await revealBoard(page);
-
-    let requestBody: Record<string, unknown> | undefined;
-    await page.route("**/functions/v1/submit-enquiry", async (route) => {
-      requestBody = route.request().postDataJSON();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-    });
-
-    await page.goto("/gallery/shop/sample-belt-no-5");
-    const dialog = page.getByRole("dialog");
-    await expect(dialog).toBeVisible();
-
-    await dialog.getByRole("button", { name: "Use the form instead" }).click();
-    await expect(dialog.getByText("Hi, I'd like to ask about Sample Belt No.5.")).toBeVisible();
-
-    await dialog.getByLabel("Name").fill("Jane Visitor");
-    await dialog.getByLabel("Email").fill("jane@example.com");
-    await dialog.getByLabel("Message").fill("Is this still available?");
-
-    const sendButton = dialog.getByRole("button", { name: "Send enquiry" });
-    // Cloudflare's "always passes" test site key (.env.example) auto-solves
-    // without any click — just needs a moment to load and call back.
-    await expect(sendButton).toBeEnabled({ timeout: 15000 });
-    await sendButton.click();
-
-    await expect(dialog.getByText("Thank you — message sent")).toBeVisible();
-    expect(requestBody).toMatchObject({
-      name: "Jane Visitor",
-      email: "jane@example.com",
-      message: "Is this still available?",
-      website: "",
-    });
-    expect(typeof requestBody?.turnstileToken).toBe("string");
-    expect((requestBody?.turnstileToken as string).length).toBeGreaterThan(0);
-  });
+  // The real end-to-end "fill the form, solve Turnstile for real, hit
+  // submit-enquiry" flow this file used to exercise here (and
+  // e2e/about-contact.spec.ts exercised via Contact) no longer has a live
+  // UI path for any product this CI fixture seeds — Step 8 removed the
+  // in-stock "Use the form instead" button and Contact's own form outright,
+  // and the only remaining EnquiryForm usage (a sold product's "Ask about
+  // something similar") has no sold product in this fixture to exercise it
+  // against. Unit coverage still exists (EnquiryForm.test.tsx; ProductOverlay.
+  // test.tsx's sold-product test, with EnquiryForm mocked) — flagged here
+  // rather than silently dropped, since AGENTS.md's Definition of Done
+  // expects e2e coverage to track what's actually reachable in the UI.
 });

@@ -3,10 +3,7 @@ import { Instagram, Link2, Youtube } from "lucide-react";
 import { Region } from "@/canvas/Region";
 import { useFittedPanelSize } from "@/canvas/useFittedPanelSize";
 import { IconButton } from "@/components/brand/IconButton";
-import { formatGbp } from "@/components/brand/ProductLabel";
 import { contactIntro, socialLinks, type SocialLink } from "@/content/contact";
-import { EnquiryForm } from "@/features/enquiry/components/EnquiryForm";
-import { useProducts } from "@/features/shop/lib/useProducts";
 import { env } from "@/lib/env";
 
 export interface ContactProps {
@@ -26,25 +23,21 @@ const SOCIAL_ICONS: Record<SocialLink["icon"], typeof Instagram> = {
 /**
  * The Contact region (T6, FR-6.2) — a cream panel directly on the board,
  * same "real content at its own world position, no modal" reasoning as
- * About.tsx. Reuses EnquiryForm (T5) exactly as docs/decisions.md D-54
- * anticipated ("a standalone component... so T6's Contact region can
- * reuse it for a general enquiry, no productId") — the only addition is
- * `productOptions`, so a visitor here can say which product they mean
- * the way the mockup's own "About a product" dropdown does, which
- * ProductOverlay's own usage never needs (it already knows the product).
+ * About.tsx.
+ *
+ * No EnquiryForm here any more (docs/decisions.md D-71, client feedback:
+ * "remove the form" — UI only, the `submit-enquiry` Edge Function, the
+ * `enquiries` table and its RLS policies all stay in place, dormant, not
+ * deleted) — the plain mailto link below is the sole path now, same as
+ * ProductOverlay's own "Use the form instead" removal.
  *
  * Sized via useFittedPanelSize, not a fixed 760×760 — found via a real CI
  * failure (mobile-chrome only): a Pixel 7's 412px-wide viewport is
  * narrower than a fixed 760px panel, so once the camera centred on it,
- * the left-aligned "Send enquiry" button sat permanently outside the
- * viewport (PR #3) — see that hook's own comment.
+ * content sat permanently outside the viewport (PR #3) — see that hook's
+ * own comment.
  */
 export function Contact({ centerX, centerY }: ContactProps) {
-  const { data: products } = useProducts();
-  const productOptions = (products ?? []).map((p) => ({
-    id: p.id,
-    label: `${p.name} — ${formatGbp(p.priceAmount, p.priceCurrency)}`,
-  }));
   const { width, height } = useFittedPanelSize(MAX_WIDTH, MAX_HEIGHT);
 
   return (
@@ -58,20 +51,19 @@ export function Contact({ centerX, centerY }: ContactProps) {
           <p className="mt-2 text-sm text-surface-light-foreground/70">{contactIntro}</p>
         </div>
 
-        <EnquiryForm productOptions={productOptions} />
-
         <div className="mt-auto flex items-center justify-between gap-3 border-t border-surface-light-foreground/10 pt-4">
-          {/* The visible text names the address's purpose, not the address
-           * itself — the mockup's own "Email ALL LIFE directly" treatment.
-           * The real address still has to live in the href for mailto: to
-           * work at all (unavoidable, same as T4's own Buy/Enquire link,
-           * docs/decisions.md D-53) — this just avoids ALSO spelling it out
-           * a second time as plain link text here. */}
+          {/* The address itself is now visible link text, not hidden
+           * behind generic copy — docs/decisions.md D-71, client feedback:
+           * their own new copy writes it out ("send us an email
+           * serve@alllifeworks.com"), reversing D-53's earlier choice.
+           * Still sourced from env.VITE_OWNER_EMAIL, not hardcoded, so the
+           * visible text and the real mailto: destination can never drift
+           * apart. */}
           <a
             href={`mailto:${env.VITE_OWNER_EMAIL}`}
             className="text-sm font-medium underline underline-offset-2 hover:text-primary"
           >
-            Email ALL LIFE directly
+            Send us an email at {env.VITE_OWNER_EMAIL}
           </a>
 
           <div className="flex items-center gap-2">
