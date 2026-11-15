@@ -73,6 +73,8 @@ export function FilmStage() {
   const gateSetDuration = useGateStore((s) => s.setDuration);
   const gateRecordTimeUpdate = useGateStore((s) => s.recordTimeUpdate);
   const isUnlocked = useGateStore((s) => s.isUnlocked);
+  const gatePercent = useGateStore((s) => s.percent);
+  const gateDuration = useGateStore((s) => s.duration);
   const [hasEnded, setHasEnded] = useState(false);
 
   useEffect(() => {
@@ -89,6 +91,16 @@ export function FilmStage() {
   // disable yet (Phase 2 / T11), so this is the part of T10's lock that
   // applies today.
   const isLocked = isRevealed && film != null && !isUnlocked;
+  // Client feedback (docs/decisions.md D-71): hide the "Watch once to
+  // unlock the gallery" pill after the first minute, even while still
+  // locked — a one-time nudge, not a permanent nag. Uses the gate's own
+  // watched-*seconds* (percent * duration, the same anti-cheat-aware
+  // tracking recordTimeUpdate already maintains), not wall-clock time
+  // since reveal: a visitor who immediately pauses hasn't watched a
+  // minute of anything yet, so the label should still be there to remind
+  // them, even if 60 real seconds have ticked by.
+  const LOCK_LABEL_WATCHED_SECONDS_LIMIT = 60;
+  const showLockLabel = isLocked && gatePercent * gateDuration < LOCK_LABEL_WATCHED_SECONDS_LIMIT;
   useEffect(() => {
     if (!isLocked) return;
     const previousOverflow = document.body.style.overflow;
@@ -350,10 +362,10 @@ export function FilmStage() {
             <div
               data-testid="film-lock-pill"
               className="pointer-events-auto flex items-center gap-2 rounded-full border border-white/15 bg-background/70 px-4 py-2 text-xs font-medium backdrop-blur-sm"
-              style={{ visibility: isLocked ? "visible" : "hidden" }}
+              style={{ visibility: showLockLabel ? "visible" : "hidden" }}
             >
               <span aria-hidden="true">🔒</span>
-              <span>{isLocked ? "Watch once to unlock the gallery" : ""}</span>
+              <span>{showLockLabel ? "Watch once to unlock the gallery" : ""}</span>
             </div>
           </div>
         )}
@@ -430,9 +442,10 @@ export function FilmStage() {
         {isRevealed && hasEnded && isUnlocked && (
           <div style={{ ...centeredOverlayStyle, background: "rgba(0,0,0,0.85)" }}>
             <div className="flex flex-col items-center gap-4 rounded-2xl border border-white/10 bg-background/80 p-6 backdrop-blur-sm">
-              <span className="font-body text-xs font-medium uppercase tracking-wider text-white/60">
-                After the first full watch
-              </span>
+              {/* "After the first full watch" label removed per the
+               * client's own feedback (docs/decisions.md D-71) — this
+               * prompt shows after every full watch (first or a replay),
+               * so that label was misleading on a repeat anyway. */}
               <div className="flex items-center gap-3">
                 <Button
                   type="button"

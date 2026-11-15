@@ -115,6 +115,31 @@ describe("FilmStage", () => {
     expect(pill).toBeVisible();
   });
 
+  // Client feedback (docs/decisions.md D-71): the pill hides after a
+  // minute of actually-watched content, even while still locked — but
+  // only once real watched time (percent * duration, not wall-clock)
+  // crosses that line.
+  it("hides the lock pill once 60 watched seconds pass, while still locked", () => {
+    const { container } = render(<FilmStage />);
+    act(() => {
+      useFilmControllerStore.getState().reveal();
+    });
+    const pill = () => container.querySelector('[data-testid="film-lock-pill"]') as HTMLElement;
+    expect(pill()).toBeVisible();
+
+    act(() => {
+      useGateStore.setState({ version: 1, duration: 600, percent: 0.05, isUnlocked: false }); // 30s watched
+    });
+    expect(pill()).toBeVisible();
+
+    act(() => {
+      useGateStore.setState({ percent: 0.15 }); // 90s watched
+    });
+    expect(pill()).not.toBeVisible();
+    // Still locked — this is purely the label hiding, not an unlock.
+    expect(useGateStore.getState().isUnlocked).toBe(false);
+  });
+
   it("clears the live region's text (not just visually hides the pill) once unlocked", () => {
     const { container } = render(<FilmStage />);
 
@@ -356,6 +381,24 @@ describe("FilmStage", () => {
   // calls — panning the board to a region card is not one of them), so
   // location.pathname alone can't tell an about-to-rewatch visitor's
   // *current* intent apart from wherever they happened to land originally.
+  // Client feedback (docs/decisions.md D-71): this prompt shows after
+  // every full watch (first time or a replay), so a label claiming it's
+  // specifically "the first" was misleading — removed.
+  it("no longer labels the Replay/Continue prompt 'After the first full watch'", () => {
+    useGateStore.setState({ version: 1, isUnlocked: true });
+    const { container, getByRole } = render(<FilmStage />);
+    act(() => {
+      useFilmControllerStore.getState().reveal();
+    });
+    const video = container.querySelector("video") as HTMLVideoElement;
+    act(() => {
+      video.dispatchEvent(new Event("ended"));
+    });
+
+    expect(getByRole("button", { name: "Replay" })).toBeVisible();
+    expect(container).not.toHaveTextContent("After the first full watch");
+  });
+
   describe("Continue's About/Contact handoff", () => {
     function endTheFilm(container: HTMLElement) {
       useGateStore.setState({ version: 1, isUnlocked: true });
