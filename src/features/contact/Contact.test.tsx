@@ -1,12 +1,27 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { useCameraStore } from "@/canvas/store";
 import { contactIntro } from "@/content/contact";
 import { env } from "@/lib/env";
 
 import { Contact } from "./Contact";
 
 describe("Contact", () => {
+  // Contact.tsx sizes itself via useFittedPanelSize(760, 760), which
+  // shrinks once the camera store's own viewport is narrower than that.
+  // The geometry assertion below expects the panel at its own unshrunk
+  // 760×760 max size, which only holds with the "viewport not known yet"
+  // {0,0} case (useFittedPanelSize's own documented fallback) — not with
+  // src/canvas/store.ts's now-real window.innerWidth/innerHeight default
+  // (see that file's own comment for why it changed), which jsdom sets to
+  // 1024×768 and would shrink this panel's height. Set explicitly here,
+  // the same way useFittedPanelSize.test.tsx's own cases do, rather than
+  // depending on whatever the store's module-level default happens to be.
+  afterEach(() => {
+    useCameraStore.setState({ viewport: { width: 0, height: 0 } });
+  });
+
   it("shows the owner's own intro copy from the mockup", () => {
     render(<Contact centerX={0} centerY={2000} />);
     expect(screen.getByText(contactIntro)).toBeInTheDocument();
@@ -32,6 +47,7 @@ describe("Contact", () => {
   });
 
   it("renders as a canvas Region positioned around its centre", () => {
+    useCameraStore.setState({ viewport: { width: 0, height: 0 } });
     const { container } = render(<Contact centerX={0} centerY={2000} />);
     const region = container.querySelector('[data-region-id="contact"]') as HTMLElement;
     expect(region).not.toBeNull();

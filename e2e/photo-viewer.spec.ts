@@ -73,20 +73,6 @@ async function clickAnUnobstructedPhoto(page: Page) {
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
-  // TEMPORARY diagnostic for a real CI investigation (not a permanent
-  // change) — the thrown error below doesn't distinguish "zero candidates
-  // rendered at all" from "candidates rendered but every one is
-  // obstructed/off-screen". Logs enough to tell the two apart, then this
-  // whole block is removed again.
-  if (count === 0) {
-    const photoIdCount = await page.locator("[data-photo-id]").count();
-    const nodeLayerCount = await page.locator("[data-node-layer-count]").first().getAttribute("data-node-layer-count");
-    console.log(
-      `[diag] candidates=0 photoIdCount=${photoIdCount} nodeLayerCount=${nodeLayerCount} viewport=${JSON.stringify(viewport)}`
-    );
-  } else {
-    console.log(`[diag] candidates=${count} viewport=${JSON.stringify(viewport)} chromeBoxes=${JSON.stringify(chromeBoxes)}`);
-  }
   for (let i = 0; i < count; i++) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
@@ -101,20 +87,14 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    const overlapsChrome = !!box && chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox));
-    const offscreen =
-      !!box &&
-      !!viewport &&
-      (box.x < 0 || box.y < 0 || box.x + box.width > viewport.width || box.y + box.height > viewport.height);
-    console.log(`[diag] i=${i} id=${id} box=${JSON.stringify(box)} overlapsChrome=${overlapsChrome} offscreen=${offscreen}`);
-    if (!box || overlapsChrome) continue;
+    if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
     // phyllotaxis cluster's radius can exceed half the viewport width.
     // Confirmed on real CI ("element is outside of the viewport") once
     // the chrome-overlap check alone let a fully off-screen candidate
     // through.
-    if (offscreen) {
+    if (viewport && (box.x < 0 || box.y < 0 || box.x + box.width > viewport.width || box.y + box.height > viewport.height)) {
       continue;
     }
     await candidate.click();

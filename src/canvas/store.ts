@@ -27,9 +27,39 @@ interface CameraState {
   flyTo: (target: Camera, options?: FlyToOptions) => Promise<void>;
 }
 
+// Real root cause of a CI-only (never reproduced locally against a real
+// dev server or production build) failure: any code that reads
+// `useCameraStore.getState().viewport` to build a camera via
+// cameraFromCenter/cameraForViewpoint *before* Board.tsx's own effect has
+// run (it calls setViewport synchronously on mount, but Board itself is
+// inside Gallery's lazy chunk, which can still be loading) got {0,0} —
+// cameraFromCenter(center, zoom, 0, 0) degenerates to `camera = center`
+// itself, anchoring the viewpoint's own (x,y) at the screen's top-left
+// corner instead of its centre. FilmStage's Continue handler is exactly
+// such a call site (T10): a real visitor never hits this in practice
+// (watching a film takes far longer than the lazy chunk takes to load),
+// but e2e/photo-viewer.spec.ts's revealBoard() helper fakes "watching" a
+// video near-instantly via synthetic timeupdate events, closing that gap
+// enough to hit it on every real CI run. It only became visible once the
+// collage's own layout (D-71, Step 4's "strips" mode) started clustering
+// every photo tightly around that one mis-anchored point — the previous,
+// far more spread-out "circular" layout happened to still place several
+// photos on-screen and chrome-clear by sheer luck, every time, masking
+// this for as long as it was the default.
+// window.innerWidth/innerHeight are available the instant this module
+// evaluates (page load), long before any component mounts, so seeding
+// the real size here — rather than {0,0} — means every such call site
+// gets a correct viewport even on its very first read. Board's own
+// ResizeObserver still corrects this if the real measurement differs
+// (scrollbars, etc.) once it mounts.
+const initialViewport =
+  typeof window !== "undefined"
+    ? { width: window.innerWidth, height: window.innerHeight }
+    : { width: 0, height: 0 };
+
 export const useCameraStore = create<CameraState>((set, get) => ({
   camera: { x: 0, y: 0, zoom: 1 },
-  viewport: { width: 0, height: 0 },
+  viewport: initialViewport,
   isFlying: false,
   zoomLimits: DEFAULT_ZOOM_LIMITS,
 
