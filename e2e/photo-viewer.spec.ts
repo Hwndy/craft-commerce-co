@@ -73,6 +73,18 @@ async function clickAnUnobstructedPhoto(page: Page) {
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
+  // TEMPORARY diagnostic, round 2 — the viewport-race fix (src/canvas/
+  // store.ts) didn't clear CI, so logging the actual camera + box values
+  // post-fix to see whether it's still the same top-left anchor or
+  // something new. Removed again once the real cause is found.
+  const cameraEl = page.locator("[data-camera-x]").first();
+  console.log(
+    `[diag2] camera=${JSON.stringify({
+      x: await cameraEl.getAttribute("data-camera-x"),
+      y: await cameraEl.getAttribute("data-camera-y"),
+      zoom: await cameraEl.getAttribute("data-camera-zoom"),
+    })} viewport=${JSON.stringify(viewport)} chromeBoxes=${JSON.stringify(chromeBoxes)} count=${count}`
+  );
   for (let i = 0; i < count; i++) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
@@ -87,6 +99,7 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
+    console.log(`[diag2] i=${i} id=${id} box=${JSON.stringify(box)}`);
     if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
