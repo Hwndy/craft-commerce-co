@@ -36,7 +36,7 @@ describe("viewpoints", () => {
       sortOrder: 3,
       inGuidedPath: true,
     });
-    expect(getViewpoint("shop-floor").y).toBe(2400);
+    expect(getViewpoint("shop-floor").y).toBe(1200);
     expect(getViewpoint("contact").y).toBe(1200);
   });
 

@@ -1,5 +1,5 @@
 import { render } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Board } from "./Board";
 import { useCameraStore } from "./store";
@@ -36,6 +36,41 @@ describe("Board", () => {
     expect(viewport).toHaveAttribute("data-camera-x", "123");
     expect(viewport).toHaveAttribute("data-camera-y", "45");
     expect(viewport).toHaveAttribute("data-camera-zoom", "2");
+  });
+
+  // A real CI-observed bug (docs/decisions.md's "fifth correction"): a
+  // transient 0×0 ResizeObserver callback, right after mount, overwrote
+  // the store's already-correct viewport (src/canvas/store.ts's own
+  // module-level default) with {0,0} just before FilmStage's Continue
+  // handler read it to build its flyTo target — anchoring the camera at
+  // the wrong screen position. jsdom's own clientWidth/clientHeight are
+  // always 0 (no real layout) and this suite's own ResizeObserver stub
+  // (src/test/setup.ts) never actually calls back — so Board's *first*,
+  // synchronous updateSize() call (made before observer.observe() even
+  // runs) is the only one jsdom exercises at all; these mock the
+  // prototype getters before mounting so that call sees a real size.
+  describe("the mount-time viewport measurement", () => {
+    afterEach(() => {
+      // @ts-expect-error restoring a test-only prototype override
+      delete HTMLElement.prototype.clientWidth;
+      // @ts-expect-error restoring a test-only prototype override
+      delete HTMLElement.prototype.clientHeight;
+    });
+
+    it("never writes a 0×0 measurement — that can only be a transient glitch for a position:fixed;inset:0 element", () => {
+      useCameraStore.setState({ viewport: { width: 999, height: 888 } });
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { value: 0, configurable: true });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", { value: 0, configurable: true });
+      render(<Board />);
+      expect(useCameraStore.getState().viewport).toEqual({ width: 999, height: 888 });
+    });
+
+    it("does write a real, non-zero measurement", () => {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { value: 1280, configurable: true });
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", { value: 720, configurable: true });
+      render(<Board />);
+      expect(useCameraStore.getState().viewport).toEqual({ width: 1280, height: 720 });
+    });
   });
 
   // D-66: e2e/canvas-gestures.spec.ts's revealBoard() needs a reliable way

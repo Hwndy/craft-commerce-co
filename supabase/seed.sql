@@ -21,12 +21,15 @@
 --
 -- Phase 3 (T1, phases/PHASE-3-shop-and-enquiry.md): 'shop' is a non-guided
 -- overview anchor (List view's single "Shop" entry point; the minimap's
--- sense of "the shop area" as a whole) — 'shop-wall' and 'shop-floor' sit
--- either side of it (y ± 1200), same spatial relationship as before, just
--- moved into the new bottom-right quadrant. Shop's two regions are
--- different enough in kind (wall: hung/framed; floor: laid out, T2) that
--- neither alone reads as "the shop," so a third, non-guided anchor stands
--- in for the area as a whole.
+-- sense of "the shop area" as a whole). 'shop-wall' and 'shop-floor' are
+-- two distinct, named viewpoints — docs/decisions.md D-71's "sixth
+-- correction" points both at the SAME (2000, 1200) spot, not either side
+-- of 'shop' (y ± 1200) as originally laid out here: the owner's own 3D
+-- room design shows the walls and floor together as one continuous
+-- scene, so there's nothing distinct left at a separate "floor" position
+-- for the second viewpoint to show — see src/features/shop/ShopRegion.
+-- tsx's own comment for the real CI failure (a Playwright strict-mode
+-- violation on a duplicated product name) this traces back to.
 insert into public.viewpoints (key, label, x, y, zoom, sort_order, in_guided_path)
 values
   ('landing', 'Landing', 0, 0, 1, 0, true),
@@ -34,7 +37,7 @@ values
   ('collage', 'Collage', 2000, -1200, 1, 2, true),
   ('shop', 'Shop', 2000, 1800, 1, 3, false),
   ('shop-wall', 'Shop (wall)', 2000, 1200, 1, 4, true),
-  ('shop-floor', 'Shop (floor)', 2000, 2400, 1, 5, true),
+  ('shop-floor', 'Shop (floor)', 2000, 1200, 1, 5, true),
   ('contact', 'Contact', -2000, 1200, 1, 6, true)
 on conflict (key) do update set
   x = excluded.x, y = excluded.y, zoom = excluded.zoom,

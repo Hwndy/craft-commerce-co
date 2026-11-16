@@ -81,10 +81,12 @@ const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 // overridable via --zone/--region for a second run seeding the wall's own
 // item. Unlike the collage's generative phyllotaxis layout (a real product
 // display is curated, not algorithmic), so this script seeds the node's own
-// position directly — centred on supabase/seed.sql's 'shop-floor'
-// viewpoint (2000, 2400 — docs/decisions.md D-71, Step 6's board
-// reposition). Taller than wide: ShopRegion.tsx stacks a poster tile
-// above the ProductLabel card within this one box.
+// position directly. Taller than wide: ShopRegion.tsx stacks a poster
+// tile above the ProductLabel card within this one box. This node x/y is
+// no longer read for real layout at all, though (docs/decisions.md D-71's
+// "fourth correction" — ShopRoomScene.tsx lays products out with its own
+// fixed CSS grid, keyed only by which region a node belongs to) — kept
+// here only because `region`/`zone` still determine that bucket.
 const SAMPLE_PRODUCT = {
   slug: overrides.get("slug") ?? "sample-belt-no-5",
   name: overrides.get("name") ?? "Sample Belt No.5",

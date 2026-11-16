@@ -1,0 +1,27 @@
+-- Migration 0008_shop_floor_matches_wall (docs/decisions.md D-71's "sixth
+-- correction"). Points the 'shop-floor' viewpoint at the exact same
+-- (2000, 1200) spot as 'shop-wall', instead of its own separate position
+-- 1200 units below. The owner's own 3D room design shows the two walls
+-- and the floor together as one continuous scene, not as two
+-- separately-navigable copies of it — Gallery.tsx used to mount that
+-- scene twice, once per viewpoint, which put two full copies of every
+-- product in the DOM at once (confirmed by a real CI run's Playwright
+-- strict-mode violation: getByRole("button", { name: /Sample Belt
+-- No\.2/ }) resolved to 2 elements). Gallery.tsx now mounts the scene
+-- once; this migration lets 'shop-floor' fly to that one, real region
+-- instead of an empty spot where its own duplicate used to be.
+--
+-- Data-only: the viewpoints table itself, its columns and RLS policies
+-- are unchanged. Still a migration, not a hand-edit, for the same reason
+-- migration 0006 was (CLAUDE.md: "when you create or change a database
+-- object, write a migration...") — this changes a real row already live
+-- in production.
+--
+-- No canvas_nodes translation needed this time (unlike migration 0006):
+-- src/features/shop/ShopRegion.tsx stopped reading each product's own
+-- stored canvas_node x/y back in the "fourth correction" rebuild — the
+-- 3D room scene lays products out with a fixed CSS grid now, keyed only
+-- by which region a product's canvas_node belongs to (wall vs floor
+-- zone), never by that node's own x/y. Moving the viewpoint doesn't move
+-- anything that's actually read for layout.
+update public.viewpoints set x = 2000, y = 1200 where key = 'shop-floor';

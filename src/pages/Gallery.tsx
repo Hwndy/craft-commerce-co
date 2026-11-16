@@ -203,28 +203,27 @@ export default function Gallery() {
           onOpenPhoto={(id) => navigate(`/gallery/photo/${id}`)}
         />
 
-        {/* Phase 3 T2 — Shop regions live on the same persistent Board as
-         * Gallery/Collage, same reasoning as Collage's own comment above:
-         * Explore-mode panning and Guided-mode Next/Previous move between
-         * every region without a route change. onOpenProduct navigates
-         * within this same /gallery/* splat (T3's ProductOverlay reads the
-         * slug back out via productSlugFromSplat) rather than to a real
-         * top-level /shop/:slug route, for the exact same remount reason
-         * the photo viewer's own deep link does (App.tsx's comment) — a
-         * bare /shop/:slug link (bookmarked/shared) still works, via
-         * App.tsx's redirect into this same splat before Gallery mounts. */}
+        {/* Phase 3 T2 — the Shop region lives on the same persistent Board
+         * as Gallery/Collage, same reasoning as Collage's own comment
+         * above: Explore-mode panning and Guided-mode Next/Previous move
+         * between every region without a route change. onOpenProduct
+         * navigates within this same /gallery/* splat (T3's ProductOverlay
+         * reads the slug back out via productSlugFromSplat) rather than to
+         * a real top-level /shop/:slug route, for the exact same remount
+         * reason the photo viewer's own deep link does (App.tsx's comment)
+         * — a bare /shop/:slug link (bookmarked/shared) still works, via
+         * App.tsx's redirect into this same splat before Gallery mounts.
+         *
+         * One mount, not two (docs/decisions.md D-71's "sixth correction")
+         * — the owner's own design is one continuous room, not two
+         * separately-navigable copies of it. "shop-wall" and "shop-floor"
+         * are still two distinct viewpoints (CanvasChrome's guided path,
+         * the minimap, /list), both now pointing at this single region's
+         * own centre (supabase/migrations/0008). */}
         <ShopRegion
-          region="shop-wall"
-          title="Shop (wall)"
+          title="Shop"
           centerX={getViewpoint("shop-wall").x}
           centerY={getViewpoint("shop-wall").y}
-          onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
-        />
-        <ShopRegion
-          region="shop-floor"
-          title="Shop (floor)"
-          centerX={getViewpoint("shop-floor").x}
-          centerY={getViewpoint("shop-floor").y}
           onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
         />
 

@@ -242,10 +242,16 @@ test.describe("canvas gestures", () => {
       .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.2/ }));
 
+    // "Shop (floor)" is a distinct named viewpoint but flies to the exact
+    // same spot "Shop (wall)" just did (docs/decisions.md D-71's "sixth
+    // correction") — there's only one Shop room now, not two separately
+    // mounted copies of it, so the camera doesn't actually move here.
+    // Sample Belt No.5 (a floor-zone product) is part of that same one
+    // room, already on screen from the click above.
     await page.getByRole("button", { name: "Next: Shop (floor)" }).click();
     await expect
       .poll(() => getCamera(page))
-      .toEqual({ x: 2000 - viewport.width / 2, y: 2400 - viewport.height / 2, zoom: 1 });
+      .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.5/ }));
   });
 });

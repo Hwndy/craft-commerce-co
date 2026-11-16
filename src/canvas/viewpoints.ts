@@ -74,11 +74,18 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
     sortOrder: 3,
     inGuidedPath: true,
   },
+  // Points at the exact same spot as "shop-wall" (docs/decisions.md D-71's
+  // "sixth correction") — the Shop room is one continuous scene now, not
+  // two separately-mounted copies 1200 units apart, so there's nothing
+  // distinct left at this viewpoint's old position to fly to. Still its
+  // own named, guided-path viewpoint (CanvasChrome's Next/Previous, the
+  // minimap, /list all key off it) — it just lands on "shop-wall"'s own
+  // region instead of a duplicate.
   "shop-floor": {
     key: "shop-floor",
     label: "Shop (floor)",
     x: 2000,
-    y: 2400,
+    y: 1200,
     zoom: 1,
     sortOrder: 4,
     inGuidedPath: true,

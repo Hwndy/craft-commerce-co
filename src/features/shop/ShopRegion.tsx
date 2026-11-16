@@ -4,7 +4,6 @@ import { ShopRoomScene } from "./ShopRoomScene";
 import { useProductNodes } from "./lib/useProducts";
 
 export interface ShopRegionProps {
-  region: "shop-wall" | "shop-floor";
   title: string;
   centerX: number;
   centerY: number;
@@ -20,16 +19,21 @@ const SCENE_WIDTH = 1600;
 const SCENE_HEIGHT = 900;
 
 /**
- * Both Shop regions ("shop-wall" and "shop-floor") render the exact same
- * 3D room corner — the owner's own design shows the two walls and the
+ * The one Shop room — the owner's own design shows the two walls and the
  * floor together as one continuous scene, not as two separately-navigable
- * flat panels, so there is nothing distinct left to show per region.
- * Keeping both as real Board regions (rather than deleting one) leaves
- * every existing viewpoint/minimap-rectangle/guided-path/e2e reference to
- * "shop-wall"/"shop-floor" by key untouched; flying to either one lands on
- * the identical, complete room.
+ * flat panels, so there's only ever one of these to mount (docs/
+ * decisions.md D-71's "sixth correction" — Gallery.tsx used to mount
+ * this twice, once as "shop-wall" and once as "shop-floor", each at a
+ * different world position 1200 units apart, which put two full copies
+ * of the identical room in the DOM at once: every product's own
+ * accessible name existed twice, which is what a real CI run's Playwright
+ * strict-mode violation on `getByRole("button", { name: /Sample Belt
+ * No\.2/ })` caught. "shop-wall" and "shop-floor" still both exist as
+ * named viewpoints — Gallery.tsx just points both cameras at this one
+ * physical region now, rather than mounting a duplicate for the second
+ * one to fly to.
  */
-export function ShopRegion({ region, title, centerX, centerY, onOpenProduct }: ShopRegionProps) {
+export function ShopRegion({ title, centerX, centerY, onOpenProduct }: ShopRegionProps) {
   const { data: wallNodes } = useProductNodes("shop-wall");
   const { data: floorNodes } = useProductNodes("shop-floor");
 
@@ -43,7 +47,7 @@ export function ShopRegion({ region, title, centerX, centerY, onOpenProduct }: S
 
   return (
     <Region
-      id={region}
+      id="shop-wall"
       title={title}
       x={centerX - SCENE_WIDTH / 2}
       y={centerY - SCENE_HEIGHT / 2}
