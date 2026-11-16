@@ -53,10 +53,16 @@ select results_eq(
   'shop-wall: moved to sit above the shop anchor in the new quadrant'
 );
 
+-- Superseded by migration 0008_shop_floor_matches_wall (docs/
+-- decisions.md D-71's "sixth correction") — shop-floor no longer sits
+-- below the shop anchor on its own; it points at the exact same spot
+-- shop-wall does. This migration's own job (moving it to 1200 below the
+-- anchor, same spatial relationship as gallery/collage) was correct at
+-- the time; 0008's own test file covers the current, real value instead.
 select results_eq(
   $$ select x, y from public.viewpoints where key = 'shop-floor' $$,
-  $$ values (2000::double precision, 2400::double precision) $$,
-  'shop-floor: moved to sit below the shop anchor in the new quadrant'
+  $$ values (2000::double precision, 1200::double precision) $$,
+  'shop-floor: superseded by migration 0008 — now matches shop-wall, not its own separate position'
 );
 
 select results_eq(

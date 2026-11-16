@@ -77,7 +77,24 @@ export function Board({ children, className }: BoardProps) {
     const el = viewportRef.current;
     if (!el) return;
 
-    const updateSize = () => setViewport(el.clientWidth, el.clientHeight);
+    // Guards against a real CI-observed ResizeObserver quirk: its very
+    // first callback can fire with a transient 0×0 measurement for an
+    // element that's genuinely `position: fixed; inset: 0` (viewportStyle
+    // above) and therefore can never legitimately BE 0×0 — the browser
+    // just hasn't finished layout yet. Writing that transient 0×0 into
+    // the store (even briefly) is exactly what let FilmStage's Continue
+    // handler (T10) read a zero viewport and anchor the camera at the
+    // wrong screen position — src/canvas/store.ts's own module-level
+    // default already seeds a correct real value from window.innerWidth/
+    // innerHeight for the gap before this effect runs at all; this just
+    // makes sure nothing *overwrites* that correct value with a glitchy
+    // zero later. A real resize to 0×0 isn't a case this app needs to
+    // support (the viewport is always the whole window).
+    const updateSize = () => {
+      const { clientWidth, clientHeight } = el;
+      if (clientWidth === 0 && clientHeight === 0) return;
+      setViewport(clientWidth, clientHeight);
+    };
     updateSize();
 
     if (typeof ResizeObserver === "undefined") {
