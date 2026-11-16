@@ -73,6 +73,23 @@ async function clickAnUnobstructedPhoto(page: Page) {
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
+  // TEMPORARY diagnostic, round 3 — the stripsLayout inset fix (src/
+  // features/collage/lib/layout.ts) still didn't clear CI. Logging the
+  // collage Region's own world rect (its style.left/top, i.e. rect.x/y
+  // from Collage.tsx), the camera, and every candidate's own left/top
+  // style (node.x - rect.x) alongside its boundingBox, so the real world
+  // position of each photo can be reconstructed with zero assumptions.
+  // Removed again once the real cause is found.
+  const cameraEl = page.locator("[data-camera-x]").first();
+  const collageRegion = page.locator('[data-region-id="collage"]');
+  const regionStyle = await collageRegion.evaluate((el) => ({ left: (el as HTMLElement).style.left, top: (el as HTMLElement).style.top }));
+  console.log(
+    `[diag3] camera=${JSON.stringify({
+      x: await cameraEl.getAttribute("data-camera-x"),
+      y: await cameraEl.getAttribute("data-camera-y"),
+      zoom: await cameraEl.getAttribute("data-camera-zoom"),
+    })} viewport=${JSON.stringify(viewport)} regionStyle=${JSON.stringify(regionStyle)} count=${count}`
+  );
   for (let i = 0; i < count; i++) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
@@ -87,6 +104,11 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
+    const nodeStyle = await candidate.evaluate((el) => {
+      const wrapper = el.parentElement as HTMLElement;
+      return { left: wrapper.style.left, top: wrapper.style.top };
+    });
+    console.log(`[diag3] i=${i} id=${id} nodeStyle=${JSON.stringify(nodeStyle)} box=${JSON.stringify(box)}`);
     if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
