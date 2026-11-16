@@ -73,24 +73,19 @@ async function clickAnUnobstructedPhoto(page: Page) {
   const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
-  // TEMPORARY diagnostic, round 3 — the stripsLayout inset fix (src/
-  // features/collage/lib/layout.ts) still didn't clear CI. Logging the
-  // collage Region's own world rect (its style.left/top, i.e. rect.x/y
-  // from Collage.tsx), the camera, and every candidate's own left/top
-  // style (node.x - rect.x) alongside its boundingBox, so the real world
-  // position of each photo can be reconstructed with zero assumptions.
-  // Removed again once the real cause is found.
-  const cameraEl = page.locator("[data-camera-x]").first();
-  const collageRegion = page.locator('[data-region-id="collage"]');
-  const regionStyle = await collageRegion.evaluate((el) => ({ left: (el as HTMLElement).style.left, top: (el as HTMLElement).style.top }));
-  console.log(
-    `[diag3] camera=${JSON.stringify({
-      x: await cameraEl.getAttribute("data-camera-x"),
-      y: await cameraEl.getAttribute("data-camera-y"),
-      zoom: await cameraEl.getAttribute("data-camera-zoom"),
-    })} viewport=${JSON.stringify(viewport)} regionStyle=${JSON.stringify(regionStyle)} count=${count}`
-  );
-  for (let i = 0; i < count; i++) {
+  // Iterates from the LAST candidate backward, not the first forward.
+  // stripsLayout (lib/layout.ts) deliberately overlaps consecutive photos
+  // within a stack (the owner's own "fanned-deck" sketch, D-62) and paints
+  // later array indices over earlier ones — confirmed on real CI: the
+  // geometrically first on-screen, chrome-clear candidate can still have
+  // its own clickable centre covered by a later card stacked on top of
+  // it, which Playwright's default centre-point click reports as another
+  // element's subtree "intercepting pointer events" (a real timeout, not
+  // this function's own thrown error). The LAST candidate in a stack is
+  // always the topmost in paint order, so nothing can be covering *it* —
+  // trying candidates highest-index-first finds a genuinely clickable one
+  // immediately instead of discovering the cover-up only at click time.
+  for (let i = count - 1; i >= 0; i--) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
     // `nth(i)` re-resolves live on every action, so if NodeLayer's
@@ -104,11 +99,6 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    const nodeStyle = await candidate.evaluate((el) => {
-      const wrapper = el.parentElement as HTMLElement;
-      return { left: wrapper.style.left, top: wrapper.style.top };
-    });
-    console.log(`[diag3] i=${i} id=${id} nodeStyle=${JSON.stringify(nodeStyle)} box=${JSON.stringify(box)}`);
     if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
     // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
     // mobile viewport genuinely doesn't contain every seeded photo: the
