@@ -117,6 +117,25 @@ describe("stripsLayout", () => {
     }
   });
 
+  // docs/decisions.md D-71's "seventh correction": "collage" is
+  // deliberately NOT a centred region (src/canvas/viewpoints.ts) — its
+  // camera lands with centerX/centerY as its raw *top-left*, not its
+  // centre. Every card's own world position must sit far enough into the
+  // positive quadrant from centerX/centerY to clear its own half-size
+  // once rendered relative to that corner, or it ends up straddling the
+  // camera's edge (a real CI failure this reproduces: every seeded photo
+  // thumbnail came back off-screen/overlapping chrome, every time).
+  it("insets every stack's own origin well clear of centerX/centerY, not sitting exactly on it", () => {
+    const layouts = stripsLayout(photos(1), { centerX: 1000, centerY: 2000 });
+    const [layout] = layouts;
+    // Before this fix, the first card's own left/top edge sat at
+    // `centerX/centerY - halfSize` — i.e. *before* the camera's own
+    // top-left corner, off-screen. It must now sit strictly after it,
+    // with real margin (not just barely positive).
+    expect(layout.x).toBeGreaterThan(1000 + 50);
+    expect(layout.y).toBeGreaterThan(2000 + 50);
+  });
+
   it("starts a new, non-overlapping stack once itemsPerStack is reached", () => {
     const layouts = stripsLayout(photos(DEFAULT_ITEMS_PER_STACK * 2), { centerX: 0, centerY: 0 });
     const firstStack = layouts.slice(0, DEFAULT_ITEMS_PER_STACK);
