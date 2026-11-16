@@ -4,36 +4,38 @@ import { describe, expect, it, vi } from "vitest";
 import { PriceTagLabel } from "./PriceTagLabel";
 
 describe("PriceTagLabel", () => {
-  it("renders the item name, formatted price, and a Size line from a Length bullet", () => {
+  it("wall layout renders the name, price and status pill", () => {
+    render(<PriceTagLabel name="RIYO — Sample 3" price={35} status="available" layout="wall" />);
+    expect(screen.getByText("RIYO — Sample 3 · £35.00")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.queryByText(/Black tyre belt/)).not.toBeInTheDocument();
+  });
+
+  it("floor layout renders name, price, description and status separately", () => {
     render(
       <PriceTagLabel
-        name="RIYO — Sample 3"
-        price={35}
-        bullets={["Length: 124cm / 49in", "Buckle sand-cast using discarded aluminium"]}
-        status="available"
+        name="Sample Belt No.5"
+        price={40}
+        status="made_to_order"
+        description="Black tyre belt with aluminium buckle"
+        layout="floor"
       />
     );
-    expect(screen.getByText("RIYO — Sample 3")).toBeInTheDocument();
-    expect(screen.getByText("£35.00")).toBeInTheDocument();
-    expect(screen.getByText("Size: 124cm / 49in")).toBeInTheDocument();
+    expect(screen.getByText("Sample Belt No.5")).toBeInTheDocument();
+    expect(screen.getByText("£40.00")).toBeInTheDocument();
+    expect(screen.getByText("Black tyre belt with aluminium buckle")).toBeInTheDocument();
+    expect(screen.getByText("Made to order")).toBeInTheDocument();
   });
 
-  it("omits the Size line when there's no matching bullet", () => {
-    render(<PriceTagLabel name="Belt" price={10} bullets={["Hand-finished"]} status="available" />);
-    expect(screen.queryByText(/Size:/)).not.toBeInTheDocument();
-  });
-
-  it("shows a Sale badge only when onSale is true", () => {
-    const { rerender } = render(<PriceTagLabel name="Belt" price={10} bullets={[]} status="available" />);
-    expect(screen.queryByText("Sale")).not.toBeInTheDocument();
-
-    rerender(<PriceTagLabel name="Belt" price={10} bullets={[]} status="available" onSale />);
-    expect(screen.getByText("Sale")).toBeInTheDocument();
+  it("floor layout omits the description line when there's none", () => {
+    render(<PriceTagLabel name="Belt" price={10} status="sold" layout="floor" />);
+    expect(screen.getByText("Sold")).toBeInTheDocument();
+    expect(screen.queryByText(/description/i)).not.toBeInTheDocument();
   });
 
   it("calls onClick when provided, and is a real button either way", () => {
     const onClick = vi.fn();
-    render(<PriceTagLabel name="Belt" price={10} bullets={[]} status="available" onClick={onClick} />);
+    render(<PriceTagLabel name="Belt" price={10} status="available" layout="wall" onClick={onClick} />);
     fireEvent.click(screen.getByRole("button", { name: /Belt/ }));
     expect(onClick).toHaveBeenCalledTimes(1);
   });

@@ -65,12 +65,16 @@ export default {
 				// not used outside the rebuilt Product Display section.
 				shop: {
 					wall: 'hsl(var(--shop-wall))',
+					'wall-back': 'hsl(var(--shop-wall-back))',
+					floor: 'hsl(var(--shop-floor))',
 					pink: 'hsl(var(--shop-accent-pink))',
 					cream: 'hsl(var(--shop-cream))',
 					teal: 'hsl(var(--shop-teal))',
 					green: 'hsl(var(--shop-green))',
 					sky: 'hsl(var(--shop-sky))',
-					gold: 'hsl(var(--shop-gold))'
+					gold: 'hsl(var(--shop-gold))',
+					ink: 'hsl(var(--shop-ink))',
+					peg: 'hsl(var(--shop-peg))'
 				},
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',

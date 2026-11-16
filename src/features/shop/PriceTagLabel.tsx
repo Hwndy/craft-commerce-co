@@ -1,55 +1,96 @@
-import { formatGbp, STATUS_COPY, STATUS_VARIANT, type ProductStatus } from "@/components/brand/ProductLabel";
-import { Badge } from "@/components/ui/badge";
-import { extractSizeFromBullets } from "@/features/enquiry/lib/mailto";
+import { formatGbp } from "@/components/brand/ProductLabel";
 import { cn } from "@/lib/utils";
 
+import type { Product } from "./lib/queries";
+
 export interface PriceTagLabelProps {
-  /** Doubles as the client's "item number" line (docs/decisions.md D-71,
-   * client feedback: no SKU column, so the product's own name is it). */
   name: string;
   price: number;
   currency?: string;
-  /** Looked up for a "Length: …" bullet to show as Size — see
-   * extractSizeFromBullets (mailto.ts), the same lookup the buy-email uses. */
-  bullets: string[];
-  status: ProductStatus;
-  onSale?: boolean;
+  status: Product["status"];
+  /** Only the floor badge has room for this — the wall chip is just name/price/status. */
+  description?: string | null;
+  layout: "wall" | "floor";
   onClick?: () => void;
   className?: string;
 }
 
+const STATUS_LABEL: Record<Product["status"], string> = {
+  available: "Available",
+  made_to_order: "Made to order",
+  sold: "Sold",
+};
+
+function StatusPill({ status }: { status: Product["status"] }) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide",
+        status === "available" && "bg-shop-ink text-shop-gold",
+        status === "made_to_order" && "border border-shop-ink bg-white text-shop-ink",
+        status === "sold" && "border border-shop-ink/70 bg-shop-ink/10 text-shop-ink/70"
+      )}
+    >
+      {STATUS_LABEL[status]}
+    </span>
+  );
+}
+
 /**
- * The Product Display's own price-tag-style label (docs/decisions.md
- * D-71, client feedback Step 7) — distinct from the generic ProductLabel
- * (still used by Contact/ProductOverlay/list-view fallback): shows the
- * item name doubling as an item number, a price "tag", and the product's
- * own size when it has a matching bullet. Uses the client-supplied Shop
- * palette tokens (Step 1), scoped to this section only.
+ * The Product Display's own price tag (docs/decisions.md D-71, client
+ * feedback Step 7 — rebuilt to match the owner's own hand-built design,
+ * shared directly, rather than a further guess from the PDF). Two
+ * layouts, matching the two surfaces in ShopRegion.tsx: a rounded white
+ * chip below each wall item (name · price, then a status pill), and a
+ * thicker gold-ringed circular badge over each floor item (name, price,
+ * a short description, then the same status pill). `status` comes
+ * straight off the real `products.status` column (available/sold/
+ * made_to_order) — already in the schema, just unused by this
+ * component's previous version.
  */
-export function PriceTagLabel({ name, price, currency = "GBP", bullets, status, onSale, onClick, className }: PriceTagLabelProps) {
-  const size = extractSizeFromBullets(bullets);
+export function PriceTagLabel({
+  name,
+  price,
+  currency = "GBP",
+  status,
+  description,
+  layout,
+  onClick,
+  className,
+}: PriceTagLabelProps) {
+  if (layout === "floor") {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className={cn(
+          "flex flex-col items-center gap-1 rounded-full border-4 border-shop-gold bg-white p-4 text-center shadow-lg",
+          onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
+          className
+        )}
+      >
+        <strong className="font-heading text-xs font-bold uppercase leading-tight text-shop-ink">{name}</strong>
+        <span className="text-sm font-semibold text-shop-ink">{formatGbp(price, currency)}</span>
+        {description && <span className="text-[11px] leading-tight text-shop-ink/70">{description}</span>}
+        <StatusPill status={status} />
+      </button>
+    );
+  }
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col gap-1 rounded-lg border border-shop-teal bg-shop-cream p-3 text-left text-black",
+        "flex flex-col items-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-center shadow-md",
         onClick && "cursor-pointer transition-transform hover:-translate-y-0.5",
         className
       )}
     >
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="font-heading text-sm font-bold uppercase tracking-wide">{name}</span>
-        <span className="shrink-0 rounded-full bg-shop-gold px-2 py-0.5 font-heading text-sm font-bold">
-          {formatGbp(price, currency)}
-        </span>
-      </div>
-      {size && <span className="text-xs text-black/70">Size: {size}</span>}
-      <div className="flex items-center gap-1.5">
-        <Badge variant={STATUS_VARIANT[status]}>{STATUS_COPY[status]}</Badge>
-        {onSale && <Badge variant="outline">Sale</Badge>}
-      </div>
+      <strong className="font-heading text-sm font-bold text-shop-ink">
+        {name} · {formatGbp(price, currency)}
+      </strong>
+      <StatusPill status={status} />
     </button>
   );
 }

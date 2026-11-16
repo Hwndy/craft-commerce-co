@@ -48,20 +48,30 @@
     --surface-light: 45 32% 93%;
     --surface-light-foreground: 0 0% 10%;
 
-    /* Shop/Product Display palette — client-supplied "ALLIFEWORKS 2026 COLOUR
-       PALETTE" (client feedback PDF, 14 Nov 2026; docs/decisions.md D-71).
-       Scoped to the Product Display section's retail-signage rebuild (client
-       feedback Step 7) — additive, the site-wide dark/gold tokens above are
-       unchanged. Mapped from the mockup's own usage: coral/pink wall panels,
-       teal borders/strokes, yellow price tag, cream base, green/blue as
-       secondary accents not yet assigned a specific use. */
-    --shop-wall: 14 83% 57%; /* EC6136 */
+    /* Shop/Product Display palette — superseded by the owner's own
+       hand-built design (docs/decisions.md D-71, client feedback Step 7,
+       second correction): the owner built the Product Display mockup
+       themselves after two of my attempts from the PDF/plan text missed the
+       mark, and shared its real computed colours directly. Scoped to the
+       Product Display section only — the site-wide dark/gold tokens above
+       are unchanged. --shop-wall is the one dusty-pink used for BOTH wall
+       faces (the room's two angled panels read as one continuous surface,
+       not two different-coloured walls — the exact thing corrected twice);
+       --shop-floor is the same family, one shade lighter, for the floor
+       panel only (a lighting cue, not a second colour). --shop-teal/green/
+       sky/accent-pink are no longer used by this section but are kept
+       defined in case another area still references them. */
+    --shop-wall: 348 49% 82%; /* E7B9C2 — right wall */
+    --shop-wall-back: 348 52% 85%; /* EDC6CE — back/left wall, one shade lighter */
+    --shop-floor: 348 49% 88%; /* F0D3D9 */
     --shop-accent-pink: 343 100% 47%; /* F10044 */
-    --shop-cream: 348 24% 96%; /* F7F2F3 */
+    --shop-cream: 42 51% 94%; /* F7F2E6 */
     --shop-teal: 188 46% 41%; /* 398D99 */
     --shop-green: 140 38% 61%; /* 77C290 */
     --shop-sky: 199 52% 63%; /* 6EB2D1 */
-    --shop-gold: 45 100% 67%; /* FFD455 */
+    --shop-gold: 45 88% 57%; /* F2C230 */
+    --shop-ink: 40 17% 7%; /* 15130F */
+    --shop-peg: 345 22% 45%; /* 8C5A66 */
 
     /* Gradients */
     --gradient-brand: linear-gradient(135deg, hsl(var(--brand-yellow)), hsl(51 100% 60%));
