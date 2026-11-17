@@ -9,7 +9,7 @@ import { siteMediaUrl } from "@/lib/storage";
 import { FilmControls } from "./components/FilmControls";
 import { useFilmControllerStore } from "./filmControllerStore";
 import { useGateStore } from "./gateStore";
-import { exitFullscreenIfActive, requestFullscreen } from "./lib/fullscreen";
+import { exitFullscreenIfActive, isFullscreenActive, requestFullscreen } from "./lib/fullscreen";
 import { attachHls, type FatalPlaybackError } from "./lib/hls";
 import { useFilm } from "./lib/useFilm";
 
@@ -231,7 +231,18 @@ export function FilmStage() {
   }, [isLocked]);
   useEffect(() => {
     if (isRevealed) {
-      if (isLockedRef.current && stageRef.current) void requestFullscreen(stageRef.current);
+      // LandingVideo.tsx's own click handler already requests fullscreen
+      // synchronously, within the real "Click to enter" gesture itself —
+      // this effect fires seconds later (an async `ended`/timer callback,
+      // well past real browsers' transient-activation window), so it's too
+      // late to request fullscreen for the first time here. Skip when
+      // already active rather than calling it again pointlessly; still the
+      // only path that requests it for reveal() calls LandingVideo.tsx
+      // doesn't drive (e.g. Gallery's own "watch" card, Replay), which fire
+      // from their own fresh click and don't have this problem.
+      if (isLockedRef.current && stageRef.current && !isFullscreenActive()) {
+        void requestFullscreen(stageRef.current);
+      }
     } else {
       void exitFullscreenIfActive();
     }
