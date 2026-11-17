@@ -166,6 +166,28 @@ test.describe("first-watch gate", () => {
     await expect(video).toBeVisible();
     await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
 
+    // TEMP diagnostics (removed once the real cause is found): compare the
+    // camera this test actually lands on, the viewport it's computed from,
+    // and however many [data-photo-id] nodes are currently mounted.
+    const diag = await page.evaluate(() => {
+      const viewportEl = document.querySelector("[data-camera-zoom]");
+      const photoEls = Array.from(document.querySelectorAll("[data-photo-id]"));
+      return {
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        cameraX: viewportEl?.getAttribute("data-camera-x"),
+        cameraY: viewportEl?.getAttribute("data-camera-y"),
+        cameraZoom: viewportEl?.getAttribute("data-camera-zoom"),
+        photoCount: photoEls.length,
+        firstFewIds: photoEls.slice(0, 3).map((el) => el.getAttribute("data-photo-id")),
+        firstFewRects: photoEls.slice(0, 3).map((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
+        }),
+      };
+    });
+    console.log("GATE_DIAG", JSON.stringify(diag));
+
     // Grab a real seeded photo id to deep-link to (data-photo-id is a plain
     // DOM read, not a click, so it's fine that the full-screen film layer
     // visually covers the collage underneath right now).
