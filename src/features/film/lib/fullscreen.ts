@@ -56,6 +56,13 @@ export function isFullscreenSupported(): boolean {
   return typeof document !== "undefined" && Boolean(document.fullscreenEnabled);
 }
 
+/** True if *any* element is currently the browser's real Fullscreen-API element. */
+export function isFullscreenActive(): boolean {
+  if (typeof document === "undefined") return false;
+  const doc = document as WebkitFullscreenDocument;
+  return Boolean(doc.fullscreenElement ?? doc.webkitFullscreenElement);
+}
+
 export async function requestFullscreen(element: HTMLElement): Promise<void> {
   if (!isFullscreenSupported()) return;
   const target = element as WebkitFullscreenElement;

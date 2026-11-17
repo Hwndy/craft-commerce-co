@@ -74,7 +74,11 @@ export default function ListRegion() {
         <section aria-label="Photos">
           <ul>
             {photos.map((photo) => (
-              <li key={photo.id}>
+              // data-photo-id matches PhotoThumbnail.tsx's own convention on
+              // the Board — lets anything (e2e specs included) look up a
+              // real seeded photo id from this plain, camera/gate-agnostic
+              // list instead of the Board's own culled, lock-gated one.
+              <li key={photo.id} data-photo-id={photo.id}>
                 {photo.title}
                 {photo.takenOn ? ` — ${photo.takenOn}` : ""}
               </li>

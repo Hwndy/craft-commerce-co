@@ -36,9 +36,11 @@ vi.mock("./lib/useFilm", () => ({
 
 const requestFullscreen = vi.fn().mockResolvedValue(undefined);
 const exitFullscreenIfActive = vi.fn().mockResolvedValue(undefined);
+const isFullscreenActive = vi.fn().mockReturnValue(false);
 vi.mock("./lib/fullscreen", () => ({
   requestFullscreen: (...args: unknown[]) => requestFullscreen(...args),
   exitFullscreenIfActive: (...args: unknown[]) => exitFullscreenIfActive(...args),
+  isFullscreenActive: () => isFullscreenActive(),
 }));
 
 import { useFilmControllerStore } from "./filmControllerStore";
@@ -80,6 +82,7 @@ describe("FilmStage", () => {
     window.localStorage.clear();
     requestFullscreen.mockClear();
     exitFullscreenIfActive.mockClear();
+    isFullscreenActive.mockReturnValue(false);
   });
 
   function liveRegion(container: HTMLElement) {
@@ -225,6 +228,23 @@ describe("FilmStage", () => {
         useFilmControllerStore.getState().hide();
       });
       expect(exitFullscreenIfActive).toHaveBeenCalled();
+    });
+
+    // docs/decisions.md D-74: LandingVideo.tsx's own click handler now
+    // requests fullscreen synchronously, within the real "Click to enter"
+    // gesture itself, before ever navigating here — by the time this
+    // effect runs (reveal() fired from an async `ended`/timer callback,
+    // well outside any real browser's transient-activation window), a
+    // second request for the same thing would be redundant at best.
+    it("does not request fullscreen again if it's already active (e.g. requested by the click that led here)", () => {
+      isFullscreenActive.mockReturnValue(true);
+      render(<FilmStage />);
+
+      act(() => {
+        useFilmControllerStore.getState().reveal();
+      });
+
+      expect(requestFullscreen).not.toHaveBeenCalled();
     });
   });
 

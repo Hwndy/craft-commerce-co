@@ -96,6 +96,12 @@ test.describe("accessibility", () => {
     });
     await page.getByRole("button", { name: "Continue" }).click();
 
+    // Safe on any viewport width: clicking Continue above always flies the
+    // camera to "collage" first (FilmStage.tsx), which is centred and
+    // zoom 1 — unlike the bare /gallery route's fixed-zoom overview camera,
+    // it always includes its own photos regardless of viewport width (see
+    // docs/decisions.md and e2e/gate.spec.ts's deep-link test, which hit
+    // this the one place that reads [data-photo-id] before Continue).
     const photoId = await page.locator("[data-photo-id]").first().getAttribute("data-photo-id");
     expect(photoId).toBeTruthy();
     await page.goto(`/gallery/photo/${photoId}`);

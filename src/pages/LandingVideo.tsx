@@ -6,6 +6,7 @@ import { FloodOverlay } from "@/features/entry/FloodOverlay";
 import { preloadFilmAssets } from "@/features/entry/preload";
 import { useEntryOrchestrator } from "@/features/entry/useEntryOrchestrator";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
+import { requestFullscreen } from "@/features/film/lib/fullscreen";
 
 // Comfortably longer than the transition clip's own ~7.77s runtime, in case
 // its `ended` event never fires (autoplay quirks, a slow first decode).
@@ -66,6 +67,16 @@ const LandingVideo = () => {
     // counts as gesture-unlocked even though the transition takes several
     // seconds.
     useFilmControllerStore.getState().prime();
+    // Same reasoning as prime() above, for the same reason: real browsers'
+    // Fullscreen API requires a fresh user gesture (transient activation),
+    // which expires well before this transition's ~7.77s runtime ends.
+    // FilmStage.tsx's own isRevealed-driven requestFullscreen() call fires
+    // from handleDone() below — seconds from now, via the transition
+    // video's `ended` event — too late to carry it. Requesting it here
+    // instead, synchronously inside the click itself, is what actually
+    // lands the film full screen on arrival (FR-2.1) rather than silently
+    // falling back to the CSS layer every time on a real device.
+    void requestFullscreen(document.documentElement);
 
     if (!entry.reducedMotion) {
       const transitionVideo = transitionVideoRef.current;

@@ -161,19 +161,30 @@ test.describe("first-watch gate", () => {
     browserName,
   }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await page.goto("/gallery");
-    const video = page.locator("video").last();
-    await expect(video).toBeVisible();
-    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
-
-    // Grab a real seeded photo id to deep-link to (data-photo-id is a plain
-    // DOM read, not a click, so it's fine that the full-screen film layer
-    // visually covers the collage underneath right now).
+    // docs/decisions.md D-75: grab a real seeded photo id from /list/collage,
+    // not from the Board. /gallery/collage was tried first and was wrong —
+    // the "/gallery/*" splat route only recognises "contact" as a viewpoint
+    // key (initialViewpointKeyFromSplat, src/pages/galleryRoute.ts); every
+    // other value, "collage" included, falls through to the exact same
+    // fixed-zoom OVERVIEW_VIEWPOINT camera as bare "/gallery", so it didn't
+    // fix anything (caught in review, confirmed still red in CI). Clicking
+    // Continue (the mechanism every *other* test relies on) isn't available
+    // either — it's gated on `hasEnded && isUnlocked`, i.e. only ever shown
+    // after a genuine watch-through, which is the one state this test must
+    // never actually reach before the deep link below (that would persist
+    // isUnlocked to localStorage via recordTimeUpdate and silently turn the
+    // "still locked" assertions that follow into a false pass).
+    // /list/collage sidesteps all of it: a plain, unconditional list of
+    // every real published photo (ListRegion.tsx), with no camera/culling
+    // and no gate-store interaction of any kind.
+    await page.goto("/list/collage");
     const photoId = await page.locator("[data-photo-id]").first().getAttribute("data-photo-id");
     expect(photoId).toBeTruthy();
 
     await page.goto(`/gallery/photo/${photoId}`);
+    const video = page.locator("video").last();
     await expect(video).toBeVisible();
+    await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
     await expect(page.getByTestId("film-lock-pill")).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     // CanvasChrome mustn't be reachable either while locked.
