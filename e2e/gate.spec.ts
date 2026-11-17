@@ -161,32 +161,21 @@ test.describe("first-watch gate", () => {
     browserName,
   }) => {
     test.skip(browserName === "webkit", "WebKit build in this environment cannot decode HLS — see D-27");
-    await page.goto("/gallery");
+    // "/gallery/collage", not bare "/gallery" (docs/decisions.md): this is
+    // the one e2e test that reads [data-photo-id] before ever clicking
+    // Continue (every other test that does this read gets away with the
+    // bare route only because Continue's own handler flies the camera to
+    // "collage" first — FilmStage.tsx — which this test deliberately never
+    // clicks, since it's testing the *locked* gate). Gating is global
+    // (useGateStore), not per-route, so the locked overlay/video below
+    // behaves identically either way — only the camera underneath differs,
+    // and "collage" (zoom 1, centred on the real viewport) always includes
+    // its own photos regardless of viewport width, unlike the bare route's
+    // fixed-zoom overview camera.
+    await page.goto("/gallery/collage");
     const video = page.locator("video").last();
     await expect(video).toBeVisible();
     await expect.poll(() => video.evaluate((el: HTMLVideoElement) => el.readyState)).toBeGreaterThanOrEqual(1);
-
-    // TEMP diagnostics (removed once the real cause is found): compare the
-    // camera this test actually lands on, the viewport it's computed from,
-    // and however many [data-photo-id] nodes are currently mounted.
-    const diag = await page.evaluate(() => {
-      const viewportEl = document.querySelector("[data-camera-zoom]");
-      const photoEls = Array.from(document.querySelectorAll("[data-photo-id]"));
-      return {
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
-        cameraX: viewportEl?.getAttribute("data-camera-x"),
-        cameraY: viewportEl?.getAttribute("data-camera-y"),
-        cameraZoom: viewportEl?.getAttribute("data-camera-zoom"),
-        photoCount: photoEls.length,
-        firstFewIds: photoEls.slice(0, 3).map((el) => el.getAttribute("data-photo-id")),
-        firstFewRects: photoEls.slice(0, 3).map((el) => {
-          const r = el.getBoundingClientRect();
-          return { x: r.x, y: r.y, width: r.width, height: r.height };
-        }),
-      };
-    });
-    console.log("GATE_DIAG", JSON.stringify(diag));
 
     // Grab a real seeded photo id to deep-link to (data-photo-id is a plain
     // DOM read, not a click, so it's fine that the full-screen film layer

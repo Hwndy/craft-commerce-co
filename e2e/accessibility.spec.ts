@@ -96,25 +96,12 @@ test.describe("accessibility", () => {
     });
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // TEMP diagnostics (removed once the real cause of e2e/gate.spec.ts's
-    // mobile-chrome-only failure on the exact same [data-photo-id] read is
-    // found) — this test does the same read and, per CI history, doesn't
-    // fail; compare its own camera/viewport/photo-count against gate.spec's.
-    const diag = await page.evaluate(() => {
-      const viewportEl = document.querySelector("[data-camera-zoom]");
-      const photoEls = Array.from(document.querySelectorAll("[data-photo-id]"));
-      return {
-        innerWidth: window.innerWidth,
-        innerHeight: window.innerHeight,
-        cameraX: viewportEl?.getAttribute("data-camera-x"),
-        cameraY: viewportEl?.getAttribute("data-camera-y"),
-        cameraZoom: viewportEl?.getAttribute("data-camera-zoom"),
-        photoCount: photoEls.length,
-        firstFewIds: photoEls.slice(0, 3).map((el) => el.getAttribute("data-photo-id")),
-      };
-    });
-    console.log("A11Y_DIAG", JSON.stringify(diag));
-
+    // Safe on any viewport width: clicking Continue above always flies the
+    // camera to "collage" first (FilmStage.tsx), which is centred and
+    // zoom 1 — unlike the bare /gallery route's fixed-zoom overview camera,
+    // it always includes its own photos regardless of viewport width (see
+    // docs/decisions.md and e2e/gate.spec.ts's deep-link test, which hit
+    // this the one place that reads [data-photo-id] before Continue).
     const photoId = await page.locator("[data-photo-id]").first().getAttribute("data-photo-id");
     expect(photoId).toBeTruthy();
     await page.goto(`/gallery/photo/${photoId}`);
