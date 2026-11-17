@@ -12,7 +12,8 @@ test.describe("entry sequence", () => {
     await page.goto("/");
     await page.getByRole("button", { name: "Enter ALL LIFE" }).click();
 
-    // The full sequence runs ~7.3s; give it generous headroom in CI.
+    // The real transition clip runs ~7.77s end to end; give it generous
+    // headroom in CI.
     await expect(page).toHaveURL(/\/gallery$/, { timeout: 15000 });
 
     const video = page.locator("video").last();
@@ -112,10 +113,12 @@ test.describe("entry sequence", () => {
     await page.getByRole("button", { name: "Enter ALL LIFE" }).click();
 
     // computeReducedMotionState's total duration is 400ms — should land on
-    // /gallery well under the full-motion sequence's ~7.3s.
+    // /gallery well under the real transition clip's ~7.77s.
     await expect(page).toHaveURL(/\/gallery$/, { timeout: 3000 });
 
-    // RaysCanvas is never mounted under reduced motion (src/pages/LandingVideo.tsx).
+    // RaysCanvas doesn't exist any more at all (the real transition video
+    // replaced it, see src/pages/LandingVideo.tsx) — this just re-confirms
+    // reduced motion never draws to a canvas.
     const raysCanvasCount = await page.locator("canvas").count();
     expect(raysCanvasCount).toBe(0);
   });
