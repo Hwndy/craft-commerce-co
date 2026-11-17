@@ -45,35 +45,31 @@ async function revealBoard(page: Page) {
     .toEqual({ x: 2000, y: -1200, zoom: 1 });
 }
 
-function boxesOverlap(
-  a: { x: number; y: number; width: number; height: number },
-  b: { x: number; y: number; width: number; height: number }
-) {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-}
-
 /**
- * Clicks a seeded photo thumbnail, skipping any that one of CanvasChrome's
- * or CollageChrome's fixed regions (top bar, minimap, bottom bar, Home;
- * shoot chips, zoom + Recentre — D-45) happens to sit on top of — both
- * are screen-anchored (D-44) and both render at
- * the same time once Continue hands off to the collage. Each photo's
- * seeded id is random per CI run, so exactly which one the phyllotaxis
- * layout places nearest a chrome region isn't something `.first()` can
- * assume is always clickable — Continue's own flyTo (T10) already centres
- * the camera on collage at zoom 1, so no extra panning/zooming is needed
- * here just to reach a clickable photo.
+ * Clicks a seeded photo thumbnail that's genuinely clickable at its own
+ * centre point — not just "on-screen and not overlapping a known chrome
+ * box", which turned out to still miss a real case (confirmed on CI):
+ * stripsLayout (lib/layout.ts) deliberately overlaps consecutive photos
+ * within a stack (the owner's own "fanned-deck" sketch, D-62), and a
+ * narrower viewport can leave a later, topmost-in-paint-order card
+ * off-screen on its own right/bottom edge while the *overlapping part*
+ * of it still covers an earlier card's own centre — a case no fixed set
+ * of "known obstruction" boxes (CanvasChrome/CollageChrome fixed
+ * regions, or the viewport's own edge) can enumerate ahead of time.
+ * `document.elementFromPoint` is the same real hit-test the browser
+ * itself uses to decide what a click actually lands on, so checking it
+ * directly — at exactly the point Playwright's own default click would
+ * use — is authoritative instead of another geometric approximation.
+ * Tries the *last* DOM index first (stripsLayout paints later array
+ * indices over earlier ones, so the last candidate is always the
+ * topmost of anything still in the running) purely as an ordering
+ * heuristic to find a hit on the first or second try, not as the check
+ * itself.
  */
 async function clickAnUnobstructedPhoto(page: Page) {
-  const chromeBoxes = (
-    await Promise.all(
-      (await page.locator("[data-canvas-chrome], [data-collage-chrome]").all()).map((el) => el.boundingBox())
-    )
-  ).filter((box): box is NonNullable<typeof box> => box !== null);
-  const viewport = page.viewportSize();
   const candidates = page.getByRole("button", { name: /^Placeholder photo \d+/ });
   const count = await candidates.count();
-  for (let i = 0; i < count; i++) {
+  for (let i = count - 1; i >= 0; i--) {
     // Reads this candidate's stable id, then clicks through a locator
     // scoped by that id — not the positional `nth(i)` locator itself.
     // `nth(i)` re-resolves live on every action, so if NodeLayer's
@@ -87,20 +83,19 @@ async function clickAnUnobstructedPhoto(page: Page) {
     if (!id) continue;
     const candidate = page.locator(`[data-photo-id="${id}"]`);
     const box = await candidate.boundingBox();
-    if (!box || chromeBoxes.some((chromeBox) => boxesOverlap(box, chromeBox))) continue;
-    // At zoom 1 (collage's own viewpoint — no extra zoom-out), a narrower
-    // mobile viewport genuinely doesn't contain every seeded photo: the
-    // phyllotaxis cluster's radius can exceed half the viewport width.
-    // Confirmed on real CI ("element is outside of the viewport") once
-    // the chrome-overlap check alone let a fully off-screen candidate
-    // through.
-    if (viewport && (box.x < 0 || box.y < 0 || box.x + box.width > viewport.width || box.y + box.height > viewport.height)) {
-      continue;
-    }
+    if (!box) continue;
+    const isGenuinelyClickable = await page.evaluate(
+      ({ x, y, id: photoId }) => {
+        const hit = document.elementFromPoint(x, y);
+        return hit?.closest(`[data-photo-id="${photoId}"]`) != null;
+      },
+      { x: box.x + box.width / 2, y: box.y + box.height / 2, id }
+    );
+    if (!isGenuinelyClickable) continue;
     await candidate.click();
     return candidate;
   }
-  throw new Error("no seeded photo thumbnail is both on-screen and unobstructed by CanvasChrome");
+  throw new Error("no seeded photo thumbnail is genuinely clickable at its own centre point");
 }
 
 test.describe("photo viewer", () => {

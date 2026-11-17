@@ -44,6 +44,27 @@ export const DEFAULT_STACK_OFFSET_Y = 12;
 export const DEFAULT_STACKS_PER_ROW = 3;
 export const DEFAULT_STACK_COL_SPACING = 650;
 export const DEFAULT_STACK_ROW_SPACING = 560;
+// The real root cause of a CI-only obstruction failure (docs/decisions.md's
+// "seventh correction" — found after two earlier, wrong diagnoses chasing
+// a "camera race" that never existed): "collage" is deliberately NOT a
+// centred region (src/canvas/viewpoints.ts's own CENTERED_REGION_KEYS
+// comment — Gallery/Collage's `centerX`/`centerY` land as the camera's raw
+// *top-left*, not its centre, already-tested/intentional). Every stack's
+// first card (withinStack=0) used to sit exactly AT that top-left corner,
+// with only a small, always-positive offset (stackOffsetX/Y * up to
+// itemsPerStack-1) separating the rest of the stack from it — nowhere near
+// enough to clear even one card's own half-width/half-height, so every
+// card in a small stack ended up straddling the viewport's edge, mostly
+// off-screen. phyllotaxisLayout's circular spread happened to still leave
+// some points comfortably on-screen by sheer luck (it spans in every
+// direction from the centre as radius grows); stripsLayout's own small,
+// always-positive cascade never had that luck. Insets every stack's own
+// origin into the visible area by enough to clear the largest jittered
+// card's own half-size (baseSize * max size-jitter factor / 2, ≈123 at the
+// defaults below) plus a safety margin that also clears CanvasChrome's
+// own top bar (~68px tall) for the very first card, not just the
+// viewport's bare edge.
+export const DEFAULT_STACK_ORIGIN_INSET = 200;
 
 export type CollageLayoutMode = "circular" | "strips";
 
@@ -80,6 +101,7 @@ export interface CollageLayoutOptions {
   stacksPerRow?: number;
   stackColSpacing?: number;
   stackRowSpacing?: number;
+  stackOriginInset?: number;
 }
 
 /**
@@ -158,6 +180,7 @@ export function stripsLayout(
     stacksPerRow = DEFAULT_STACKS_PER_ROW,
     stackColSpacing = DEFAULT_STACK_COL_SPACING,
     stackRowSpacing = DEFAULT_STACK_ROW_SPACING,
+    stackOriginInset = DEFAULT_STACK_ORIGIN_INSET,
   } = options;
 
   return photos.map((photo, index) => {
@@ -169,8 +192,8 @@ export function stripsLayout(
     const sizeFactor = 1 + (hashUnitInterval(photo.id, "size") * 2 - 1) * sizeJitter;
     const { width, height } = sizeFromAspect(photo.aspectRatio, baseSize * sizeFactor);
 
-    const stackOriginX = centerX + stackCol * stackColSpacing;
-    const stackOriginY = centerY + stackRow * stackRowSpacing;
+    const stackOriginX = centerX + stackOriginInset + stackCol * stackColSpacing;
+    const stackOriginY = centerY + stackOriginInset + stackRow * stackRowSpacing;
     const cx = stackOriginX + withinStack * stackOffsetX;
     const cy = stackOriginY + withinStack * stackOffsetY;
     const tiltJitter = (hashUnitInterval(photo.id, "tilt") * 2 - 1) * stackTiltJitterDeg;
