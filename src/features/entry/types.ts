@@ -1,28 +1,14 @@
-export type EntryPhase =
-  | "idle"
-  | "accelerating"
-  | "burst"
-  | "flood"
-  | "reveal"
-  | "done";
+// "accelerating"/"burst"/"flood"/"reveal" (the CSS-faked sub-stages) are
+// gone — the owner's own transition video (docs/decisions.md) replaced
+// that fakery with one real clip played start to finish, so there's
+// nothing left to sub-divide for normal motion. "transitioning" covers
+// the whole thing, from click to the video's own `ended` event.
+export type EntryPhase = "idle" | "transitioning" | "done";
 
 export interface EntryState {
   phase: EntryPhase;
   elapsedMs: number;
-  /** Seal playback-rate multiplier (1x idle to ~6x). */
-  speedMultiplier: number;
-  /** RaysCanvas intensity, 0..1. */
-  rayIntensity: number;
-  /** FloodOverlay opacity, 0..1. Never decreases before the reveal phase. */
+  /** FloodOverlay opacity, 0..1. Reduced motion only — see computeReducedMotionState. */
   floodOpacity: number;
-  /** SealController.setLuminous argument, 0..1. */
-  luminousAmount: number;
   isComplete: boolean;
-}
-
-/** What the seal implementation this phase found (docs/landing-audit.md) exposes. */
-export interface SealController {
-  setSpeed(multiplier: number): void;
-  setLuminous(amount: number): void;
-  destroy(): void;
 }

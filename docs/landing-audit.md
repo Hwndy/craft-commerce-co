@@ -11,6 +11,7 @@ The seal is **not** CSS, an image sequence, a live canvas, three.js or Lottie. I
 - Playback is forced via a `loadeddata`/`canplay` listener that calls `video.play()` repeatedly for autoplay reliability; this is the only JS driving it.
 - **Consequence for T6 (`SealController`)**: control is limited to what the `<video>` element exposes — `playbackRate` (for the 1x→6x speed ramp) and swapping the source/overlaying effects for the "finer luminous form" at the end. There is no uniform/shader to drive and no frame-stepping API. `playbackRate` changes on a looping low-frame-rate render may look stepped rather than smooth — worth a quick visual check once the entry sequence is wired up, and flagged rather than assumed.
 - No separate "finer luminous form" asset exists anywhere in the repo. Per the Phase 1 brief's own fallback, T6 will build it as a CSS cross-fade/blur/`mix-blend-mode: screen` treatment behind `SealController.setLuminous()`, and this is recorded as an owner follow-up below, not silently decided.
+- **Superseded (17 Nov 2026, docs/decisions.md):** the owner supplied a real animator-made clip (`star_bust_transition.mp4`) of the seal bursting into light — exactly the "finer luminous form" asset this audit flagged as missing. `SealController`/`RaysCanvas` and the CSS fakery described above are deleted; the click-to-enter transition now plays that real footage once, start to finish, via a second `<video>` in `LandingVideo.tsx`. The idle loop this section describes (`all_life_1.mp4`/`.webm`) is unchanged.
 
 ## 2. Current route setup
 
@@ -62,7 +63,7 @@ No `vercel.json` exists yet (added in T2). The repo has no CI workflow yet (adde
 
 ## Owner follow-ups opened by this audit
 
-- No "finer luminous form" asset exists; T6 will use a CSS-based treatment unless the owner supplies a dedicated asset or 3D model (see Phase 1 brief's risk note on the ~24–40 extra creative-dev hours if a new asset is needed).
+- ~~No "finer luminous form" asset exists; T6 will use a CSS-based treatment unless the owner supplies a dedicated asset or 3D model (see Phase 1 brief's risk note on the ~24–40 extra creative-dev hours if a new asset is needed).~~ — **Resolved (17 Nov 2026)**: the owner supplied `star_bust_transition.mp4`; see the superseding note under §1 above.
 - ~~No board-label serif font exists; confirm with the owner before introducing a new family~~ — **Resolved (D-45)**: the owner's design upload confirms Roboto Slab. See `docs/04-design-and-motion.md` §2.
 - ~~Real brand tokens... differ from the build kit's placeholder hex values; recommend updating `docs/04-design-and-motion.md` once the owner confirms these are final~~ — **Resolved (D-45)**: the owner's design mockup's real computed colours match these exact values (near-black `hsl(0 0% 8%)`, gold `hsl(51 100% 50%)`), confirming them as final; `docs/04-design-and-motion.md` §2 updated accordingly.
 - Lighthouse mobile baseline still needs to be run and recorded once a reachable preview URL exists (e.g. after the Vercel preview deploy in T14, or manually against localhost before then).

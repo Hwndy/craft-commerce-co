@@ -33,21 +33,17 @@
 
 Type: **confirmed** — Roboto Slab for headings/board labels (`--font-heading`), Inter for body/UI text (`--font-body`), both loaded via Google Fonts in `index.html` with `font-display: swap`.
 
-## 3. Entry sequence timing (Phase 1)
+## 3. Entry sequence timing (Phase 1, superseded 17 Nov 2026 — real transition video)
 
-| Time (s) | Event |
-|---|---|
-| 0.0 | Click. Button fades. Film element primed. Preloads begin. |
-| 0.0 to 2.5 | Seal speed ramps 1x to 6x (ease-in). Faint rays begin around 0.8 s. |
-| 1.0 to 4.0 | Rays grow in length and brightness. |
-| 3.0 to 5.5 | Light plane opacity ramps 0 to 1 (monotonic, no flashing). |
-| 4.5 to 5.5 | Seal swaps to the finer luminous form while the screen is bright. |
-| 5.5 to 6.1 | Hold at full light. |
-| 6.1 to 7.3 | Light fades to the Gallery; camera flight ends on the film layer. |
+The fixed millisecond timing table that used to live here (seal speed ramp, CSS rays, a light-plane opacity curve, a CSS "luminous form" swap) described CSS standing in for an asset that didn't exist yet. The owner has since supplied that asset directly: `star_bust_transition.mp4`/`.webm` (1920×1080, 30fps, ~7.77s, no audio) — the seal spinning, then bursting into rays that flood the frame to white, filmed rather than approximated.
 
-Total about 7 s. A Skip control is visible from 0 s. Reduced motion: 400 ms cross-fade, no rays, no speed ramp.
+Current behaviour:
 
-Photosensitivity: no element may flash more than 3 times per second, and luminance changes are smooth ramps. Check with a frame-by-frame review before release.
+- **Click** — the idle seal loop (`all_life_1.mp4`/`.webm`) swaps to the real transition clip, played once, muted, start to finish. A Skip control is visible from 0 s.
+- **Clip's own `ended` event** (with a safety-net timeout slightly longer than its ~7.77s runtime, in case `ended` never fires) hands off straight to the Gallery/film layer — there's no fixed-duration timer driving the cut any more; it's whenever the real footage actually finishes.
+- **Reduced motion** — unchanged: a 400 ms cross-fade straight to the Gallery, no transition video played at all, no rays, no speed ramp.
+
+Photosensitivity: the transition clip was checked frame-by-frame before this swap — one smooth, monotonic brightening over ~7s, not a repeated flash. No element may flash more than 3 times per second; re-check by eye if the asset is ever re-encoded or replaced.
 
 ## 4. Camera flights
 
