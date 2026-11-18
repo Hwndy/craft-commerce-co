@@ -1,6 +1,6 @@
 import { Region } from "@/canvas/Region";
 
-import { ShopRoomScene } from "./ShopRoomScene";
+import { FLOOR_CAPACITY, ShopRoomScene, WALL_CAPACITY } from "./ShopRoomScene";
 import { useProductNodes } from "./lib/useProducts";
 
 export interface ShopRegionProps {
@@ -8,6 +8,9 @@ export interface ShopRegionProps {
   centerX: number;
   centerY: number;
   onOpenProduct?: (slug: string) => void;
+  /** Routes past WALL_CAPACITY/FLOOR_CAPACITY's own overflow to the full list for that zone. */
+  onViewAllWall?: () => void;
+  onViewAllFloor?: () => void;
 }
 
 // A fixed footprint for the whole room corner (docs/decisions.md D-71,
@@ -33,17 +36,36 @@ const SCENE_HEIGHT = 900;
  * physical region now, rather than mounting a duplicate for the second
  * one to fly to.
  */
-export function ShopRegion({ title, centerX, centerY, onOpenProduct }: ShopRegionProps) {
+export function ShopRegion({
+  title,
+  centerX,
+  centerY,
+  onOpenProduct,
+  onViewAllWall,
+  onViewAllFloor,
+}: ShopRegionProps) {
   const { data: wallNodes } = useProductNodes("shop-wall");
   const { data: floorNodes } = useProductNodes("shop-floor");
 
   const wall = wallNodes ?? [];
-  // Real wall product count drives the split — not a hardcoded "2 and 3"
-  // (AGENTS.md rule 10: don't invent content to match a mockup's own
-  // placeholder slot count).
-  const splitIndex = Math.ceil(wall.length / 2);
-  const backWallNodes = wall.slice(0, splitIndex);
-  const rightWallNodes = wall.slice(splitIndex);
+  const floor = floorNodes ?? [];
+  // The room has a real, fixed visual capacity (ShopRoomScene.tsx's own
+  // WALL_CAPACITY/FLOOR_CAPACITY, confirmed by screenshot, not guessed) —
+  // past it, items get clipped or overlap rather than fitting, so only the
+  // capacity's worth goes into the fixed 3D grids; the rest is still real,
+  // published, reachable content, just routed to the full list instead
+  // (onViewAllWall/onViewAllFloor) rather than forced into the room.
+  const shownWall = wall.slice(0, WALL_CAPACITY);
+  const wallOverflowCount = wall.length - shownWall.length;
+  const shownFloor = floor.slice(0, FLOOR_CAPACITY);
+  const floorOverflowCount = floor.length - shownFloor.length;
+
+  // Real wall product count (within capacity) drives the split — not a
+  // hardcoded "2 and 3" (AGENTS.md rule 10: don't invent content to match
+  // a mockup's own placeholder slot count).
+  const splitIndex = Math.ceil(shownWall.length / 2);
+  const backWallNodes = shownWall.slice(0, splitIndex);
+  const rightWallNodes = shownWall.slice(splitIndex);
 
   return (
     <Region
@@ -57,8 +79,12 @@ export function ShopRegion({ title, centerX, centerY, onOpenProduct }: ShopRegio
       <ShopRoomScene
         backWallNodes={backWallNodes}
         rightWallNodes={rightWallNodes}
-        floorNodes={floorNodes ?? []}
+        floorNodes={shownFloor}
         onOpenProduct={onOpenProduct}
+        wallOverflowCount={wallOverflowCount}
+        floorOverflowCount={floorOverflowCount}
+        onViewAllWall={onViewAllWall}
+        onViewAllFloor={onViewAllFloor}
       />
     </Region>
   );

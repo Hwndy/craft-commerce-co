@@ -17,6 +17,18 @@ const WALL_H = 470;
 const DEPTH = 760;
 const WIDTH = 980;
 
+// The room's own real visual capacity (docs/decisions.md) — confirmed by
+// rendering real counts against the fixed geometry above and screenshotting
+// the result, not computed from the 3D transform math (too error-prone to
+// trust by itself, same lesson as every other correction to this scene).
+// 2 per wall side (4 total) and one floor row of 3 render cleanly; past
+// that, items get clipped by this scene's own `overflow-hidden` or overlap
+// each other. ShopRegion.tsx caps what it passes in at these numbers and
+// routes the rest through onViewAllWall/onViewAllFloor instead of forcing
+// them into the fixed grids below.
+export const WALL_CAPACITY = 4;
+export const FLOOR_CAPACITY = 3;
+
 interface WallBeltProps {
   node: ProductNode;
   onOpen?: () => void;
@@ -114,6 +126,12 @@ export interface ShopRoomSceneProps {
   rightWallNodes: ProductNode[];
   floorNodes: ProductNode[];
   onOpenProduct?: (slug: string) => void;
+  /** How many real wall/floor products ShopRegion.tsx held back past WALL_CAPACITY/FLOOR_CAPACITY — 0 renders nothing. */
+  wallOverflowCount?: number;
+  floorOverflowCount?: number;
+  /** Routes to the full, uncapped list for that zone (e.g. /list/shop-wall). */
+  onViewAllWall?: () => void;
+  onViewAllFloor?: () => void;
 }
 
 const FLOOR_COLUMNS = 3;
@@ -136,13 +154,28 @@ const FLOOR_ORIGIN_Y = 420;
  * (rotateX(90deg)) — not two differently-coloured walls stacked over a
  * trapezoid, which is the one thing corrected twice already.
  */
-export function ShopRoomScene({ backWallNodes, rightWallNodes, floorNodes, onOpenProduct }: ShopRoomSceneProps) {
+export function ShopRoomScene({
+  backWallNodes,
+  rightWallNodes,
+  floorNodes,
+  onOpenProduct,
+  wallOverflowCount = 0,
+  floorOverflowCount = 0,
+  onViewAllWall,
+  onViewAllFloor,
+}: ShopRoomSceneProps) {
   const isMobile = useIsMobile();
   const anchorTransform = `translateZ(-760px) rotateX(-16deg) rotateY(38deg)${isMobile ? " scale(0.55)" : ""}`;
 
   return (
+    // White, not bg-shop-cream (docs/decisions.md): this fallback is only a
+    // safety net for the 3D transform's own edges at odd viewport sizes —
+    // Region.tsx has no background of its own, so every other region's
+    // content sits directly on the Board's real white (Board.tsx). cream
+    // was a visible, different-toned rectangle behind the room, reading as
+    // a separate card pasted onto the canvas rather than content on it.
     <div
-      className="relative h-[852px] w-full overflow-hidden bg-shop-cream"
+      className="relative h-[852px] w-full overflow-hidden bg-white"
       style={{ perspective: "1600px", perspectiveOrigin: "50% 30%" }}
     >
       <div
@@ -200,6 +233,19 @@ export function ShopRoomScene({ backWallNodes, rightWallNodes, floorNodes, onOpe
               Sample sale
             </span>
           </div>
+          {wallOverflowCount > 0 && (
+            // docs/decisions.md: the wall only has room for WALL_CAPACITY
+            // belts — this routes the rest to the full, uncapped list
+            // (ListRegion.tsx's shop section) instead of silently losing
+            // them off the edge of the fixed 3D grid.
+            <button
+              type="button"
+              onClick={onViewAllWall}
+              className="absolute right-6 top-20 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+            >
+              +{wallOverflowCount} more — view all
+            </button>
+          )}
           <div className="absolute left-8 top-32 grid grid-cols-3 gap-8">
             {rightWallNodes.map((node) => (
               <WallBelt
@@ -240,6 +286,17 @@ export function ShopRoomScene({ backWallNodes, rightWallNodes, floorNodes, onOpe
           >
             The <em className="font-normal italic">floor</em>
           </span>
+          {floorOverflowCount > 0 && (
+            // Same reasoning as the wall's own version above — the floor
+            // only has room for FLOOR_CAPACITY belts (one row).
+            <button
+              type="button"
+              onClick={onViewAllFloor}
+              className="absolute bottom-24 right-10 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+            >
+              +{floorOverflowCount} more — view all
+            </button>
+          )}
         </div>
       </div>
     </div>

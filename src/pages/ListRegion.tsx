@@ -104,9 +104,16 @@ export default function ListRegion() {
           <ul>
             {productNodes.map(({ nodeId, product }) => (
               <li key={nodeId}>
-                {product.name} — {formatGbp(product.priceAmount, product.priceCurrency)} —{" "}
-                {STATUS_COPY[product.status]}
-                {product.onSale ? " (Sale)" : ""}
+                {/* Linked, not plain text (docs/decisions.md) — this list is
+                    now also where ShopRoomScene.tsx's own "+N more" link
+                    sends a visitor once the room's fixed capacity is full,
+                    so it needs to actually open the product, the same
+                    overlay the board's own card does. */}
+                <Link to={`/gallery/shop/${product.slug}`}>
+                  {product.name} — {formatGbp(product.priceAmount, product.priceCurrency)} —{" "}
+                  {STATUS_COPY[product.status]}
+                  {product.onSale ? " (Sale)" : ""}
+                </Link>
               </li>
             ))}
           </ul>
