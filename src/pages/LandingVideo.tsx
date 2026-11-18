@@ -162,7 +162,29 @@ const LandingVideo = () => {
         preload="auto"
         onEnded={handleTransitionEnded}
         className="fixed inset-0 w-full h-full object-contain object-center bg-black"
-        style={{ visibility: isTransitioning ? "visible" : "hidden" }}
+        // Client feedback, 18 Nov 2026 (docs/decisions.md): "the quality
+        // drops as soon as the transition begins... the size also
+        // shrinks" / "it should just flow like a stream" — confirmed in
+        // both the client's own phone recordings: this video only had
+        // object-contain, no fill override, so it visibly letterboxed
+        // (portrait) or pillarboxed (landscape) against the real video's
+        // 16:9 frame instead of filling the screen. The idle video above
+        // already solves this exact problem with the same
+        // object-contain + min-width/min-height: 100vw/100vh combination
+        // (object-contain alone would shrink to fit; the min-size floor
+        // forces it to keep scaling up past that point instead, which
+        // crops slightly rather than ever leaving a gap) — reusing it
+        // here rather than a different technique for the one video that
+        // never had it.
+        style={{
+          maxWidth: "100vw",
+          maxHeight: "100vh",
+          width: "auto",
+          height: "auto",
+          minWidth: "100vw",
+          minHeight: "100vh",
+          visibility: isTransitioning ? "visible" : "hidden",
+        }}
         aria-hidden="true"
       >
         <source src="/videos/all_life_transition.webm" type="video/webm" />
