@@ -236,22 +236,20 @@ test.describe("canvas gestures", () => {
       expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
     }
 
-    await page.getByRole("button", { name: "Next: Shop (wall)" }).click();
+    // Client feedback, 18 Nov 2026 (docs/decisions.md D-78): "merge
+    // wall+floor into one shop space" — "Shop (wall)"/"Shop (floor)" used
+    // to be two distinct named viewpoints flying to the exact same camera
+    // position (D-71's "sixth correction"); migration 0009 dropped
+    // "shop-floor" from the guided path and relabelled "shop-wall" to
+    // "The Shop", since there's only one stop left to arrive at. Both
+    // CI-seeded products (one "wall"-zone, one "floor"-zone) render
+    // together in the one merged floor grid now (ShopRoomScene.tsx), so
+    // both are on screen from this single click — no second step needed.
+    await page.getByRole("button", { name: "Next: The Shop" }).click();
     await expect
       .poll(() => getCamera(page))
       .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.2/ }));
-
-    // "Shop (floor)" is a distinct named viewpoint but flies to the exact
-    // same spot "Shop (wall)" just did (docs/decisions.md D-71's "sixth
-    // correction") — there's only one Shop room now, not two separately
-    // mounted copies of it, so the camera doesn't actually move here.
-    // Sample Belt No.5 (a floor-zone product) is part of that same one
-    // room, already on screen from the click above.
-    await page.getByRole("button", { name: "Next: Shop (floor)" }).click();
-    await expect
-      .poll(() => getCamera(page))
-      .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.5/ }));
   });
 });

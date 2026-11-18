@@ -43,7 +43,10 @@ test.describe("list view", () => {
 
   test("navigating from the index to a region and back works", async ({ page }) => {
     await page.goto("/list");
-    // exact: "Shop (wall)"/"Shop (floor)" also match "Shop" as a substring.
+    // exact: "The Shop"/"Shop (floor)" also match "Shop" as a substring
+    // (docs/decisions.md D-78 renamed "shop-wall" from "Shop (wall)" to
+    // "The Shop" specifically to avoid colliding with this "shop" anchor's
+    // own exact label).
     await page.getByRole("link", { name: "Shop", exact: true }).click();
     await expect(page).toHaveURL(/\/list\/shop$/);
     await page.getByRole("link", { name: "Back to all regions" }).click();
