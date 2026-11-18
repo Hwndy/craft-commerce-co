@@ -37,21 +37,23 @@ function product(name: string): Product {
   };
 }
 
-function nodes(count: number): ProductNode[] {
+function nodes(count: number, prefix: string): ProductNode[] {
   return Array.from({ length: count }, (_, i) => ({
-    nodeId: `n${i}`,
+    nodeId: `${prefix}${i}`,
     x: 0,
     y: 0,
     width: 0,
     height: 0,
     rotation: 0,
-    product: product(`p${i}`),
+    product: product(`${prefix}${i}`),
   }));
 }
 
 function mockRegions(wallCount: number, floorCount: number) {
   useProductNodes.mockImplementation((region: string) =>
-    region === "shop-wall" ? { data: nodes(wallCount) } : { data: nodes(floorCount) }
+    region === "shop-wall"
+      ? { data: nodes(wallCount, "wall-"), isLoading: false }
+      : { data: nodes(floorCount, "floor-"), isLoading: false }
   );
 }
 
@@ -87,9 +89,43 @@ describe("ShopRegion", () => {
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
     const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.nodes).toHaveLength(ROOM_CAPACITY);
+    // Distinct wall-/floor-prefixed fixture ids (found in review,
+    // CodeRabbit, PR #30) so this actually proves which products made the
+    // cut, not just how many — all 6 wall items, then the first 2 floor
+    // items, in that order.
+    expect(props.nodes.map((n: ProductNode) => n.nodeId)).toEqual([
+      "wall-0",
+      "wall-1",
+      "wall-2",
+      "wall-3",
+      "wall-4",
+      "wall-5",
+      "floor-0",
+      "floor-1",
+    ]);
     expect(props.wallOverflowCount).toBe(0);
     expect(props.floorOverflowCount).toBe(6 + 6 - ROOM_CAPACITY);
+  });
+
+  // Found in review (CodeRabbit, PR #30): shownFloor's own capacity now
+  // depends on shownWall's real length (the two queries settle
+  // independently), unlike the old WALL_CAPACITY/FLOOR_CAPACITY split —
+  // computing it before both have resolved could render a floor list
+  // that's about to shrink the moment the wall query catches up,
+  // unmounting whatever a visitor had just focused. Nothing should render
+  // until both are settled.
+  it("renders nothing until both the wall and floor queries have settled", () => {
+    useProductNodes.mockImplementation((region: string) =>
+      region === "shop-wall"
+        ? { data: undefined, isLoading: true }
+        : { data: nodes(8, "floor-"), isLoading: false }
+    );
+    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
+
+    const props = sceneSpy.mock.calls.at(-1)![0];
+    expect(props.nodes).toEqual([]);
+    expect(props.wallOverflowCount).toBe(0);
+    expect(props.floorOverflowCount).toBe(0);
   });
 
   it("reports the real wall overflow once wall items alone exceed ROOM_CAPACITY", () => {

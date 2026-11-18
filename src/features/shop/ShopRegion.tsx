@@ -53,8 +53,8 @@ export function ShopRegion({
   onViewAllWall,
   onViewAllFloor,
 }: ShopRegionProps) {
-  const { data: wallNodes } = useProductNodes("shop-wall");
-  const { data: floorNodes } = useProductNodes("shop-floor");
+  const { data: wallNodes, isLoading: isWallLoading } = useProductNodes("shop-wall");
+  const { data: floorNodes, isLoading: isFloorLoading } = useProductNodes("shop-floor");
 
   const wall = wallNodes ?? [];
   const floor = floorNodes ?? [];
@@ -67,11 +67,25 @@ export function ShopRegion({
   // items fill the shared pool first, then floor items take whatever's
   // left — an arbitrary but stable tie-break, not a guess about which
   // zone's products matter more (AGENTS.md rule 10).
-  const shownWall = wall.slice(0, ROOM_CAPACITY);
-  const wallOverflowCount = wall.length - shownWall.length;
-  const remainingCapacity = Math.max(0, ROOM_CAPACITY - shownWall.length);
-  const shownFloor = floor.slice(0, remainingCapacity);
-  const floorOverflowCount = floor.length - shownFloor.length;
+  //
+  // Found in review (CodeRabbit, PR #30): shownFloor's own capacity now
+  // depends on shownWall's real length, unlike the old, independent
+  // WALL_CAPACITY/FLOOR_CAPACITY split — the two queries above settle at
+  // different times, so computing this split before both have resolved
+  // (isWallLoading/isFloorLoading both false; an error still counts as
+  // "resolved", same as the ?? [] fallback above already treats it) could
+  // render a transient, too-generous floor list the instant the wall
+  // query still reads empty, then yank an item a visitor had just focused
+  // the moment the wall query catches up and the real capacity split
+  // tightens. Rendering nothing yet — the same "nothing published here
+  // yet" state this room already shows before any data arrives — avoids
+  // ever showing a split that's about to change under a visitor's hands.
+  const bothSettled = !isWallLoading && !isFloorLoading;
+  const shownWall = bothSettled ? wall.slice(0, ROOM_CAPACITY) : [];
+  const wallOverflowCount = bothSettled ? wall.length - shownWall.length : 0;
+  const remainingCapacity = bothSettled ? Math.max(0, ROOM_CAPACITY - shownWall.length) : 0;
+  const shownFloor = bothSettled ? floor.slice(0, remainingCapacity) : [];
+  const floorOverflowCount = bothSettled ? floor.length - shownFloor.length : 0;
   const shownNodes = [...shownWall, ...shownFloor];
 
   return (
