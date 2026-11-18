@@ -84,11 +84,17 @@ const fallbackViewpoints: Record<string, Viewpoint> = {
   // guided visitor to the exact same camera position twice in a row under
   // two different names, which reads as a glitch now that there's nothing
   // visually distinct left to arrive at. `inGuidedPath: false` drops it
-  // from Next/Previous and the minimap/bottom-nav without deleting the
-  // row outright — the key is kept for /list/shop-floor's own uncapped
-  // product list (ShopRegion.tsx/ListRegion.tsx still categorise and
-  // query products by it) and for CENTERED_REGION_KEYS below, neither of
-  // which is a guided-path concern.
+  // from Next/Previous and the bottom region-tab row (guidedPathViewpoints
+  // filters on exactly this flag) without deleting the row outright — the
+  // key is kept for /list/shop-floor's own uncapped product list
+  // (ShopRegion.tsx/ListRegion.tsx still categorise and query products by
+  // it) and for CENTERED_REGION_KEYS below, neither of which is a
+  // guided-path concern. The minimap is a separate case: it renders every
+  // viewpoint from `listViewpoints()`, guided or not, so this flag alone
+  // wouldn't stop it drawing a second, perfectly overlapping clickable
+  // rect at this same (x, y) — CanvasChrome.tsx's own
+  // `dedupeByPosition` handles that directly, by position, not by this
+  // flag (found in review, CodeRabbit, PR #30).
   "shop-floor": {
     key: "shop-floor",
     label: "Shop (floor)",

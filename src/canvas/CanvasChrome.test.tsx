@@ -69,6 +69,25 @@ describe("CanvasChrome", () => {
     await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(2000));
   });
 
+  // Found in review (CodeRabbit, PR #30): docs/decisions.md D-78 points
+  // "shop-wall"/"shop-floor" at the exact same (x, y) — without dedup,
+  // the minimap (which renders every entry from listViewpoints(), not
+  // just the guided-path ones) would draw two perfectly stacked,
+  // independently clickable rects at that one position.
+  it("draws only one minimap rect for two viewpoints that share the same position", () => {
+    setViewpointsCache([
+      ...viewpoints,
+      { key: "shop-wall", label: "The Shop", x: 5000, y: 0, zoom: 1, sortOrder: 2, inGuidedPath: true },
+      { key: "shop-floor", label: "Shop (floor)", x: 5000, y: 0, zoom: 1, sortOrder: 3, inGuidedPath: false },
+    ]);
+    renderChrome();
+    const minimap = screen.getByRole("img", { name: "Minimap" });
+    // One rect per distinct viewpoint position — landing, gallery, and the
+    // one shared "shop-wall"/"shop-floor" spot — not one per viewpoint row.
+    const regionRects = minimap.querySelectorAll("rect[style*='cursor: pointer']");
+    expect(regionRects).toHaveLength(3);
+  });
+
   it("toggles between Guided and Explore, keeping the camera in place on Explore", () => {
     renderChrome();
     expect(screen.getByRole("button", { name: "Guided" })).toBeInTheDocument();
