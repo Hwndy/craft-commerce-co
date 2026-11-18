@@ -152,12 +152,20 @@ export function CanvasChrome() {
           instead of a hard flat rectangle: still opaque enough right
           behind the text (from-background/85) to hold the same contrast
           guarantee, fading to transparent by the bar's own bottom edge so
-          there's no visible "bar" shape against the canvas. */}
+          there's no visible "bar" shape against the canvas.
+
+          Client feedback, 18 Nov 2026 (docs/decisions.md): "the header too
+          thick, taking too much space... minimise the noise and
+          distractions" — confirmed in the client's own phone recordings.
+          Shrunk the padding, seal icon and gap so the bar's own real
+          footprint (and therefore the gradient fade's height, which spans
+          this element's own box) takes noticeably less of the screen,
+          without dropping anything it holds. */}
       <div
         data-canvas-chrome
-        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-3 bg-gradient-to-b from-background/85 via-background/50 to-transparent p-4 backdrop-blur-md"
+        className="pointer-events-auto absolute inset-x-0 top-0 flex items-center justify-between gap-2 bg-gradient-to-b from-background/85 via-background/50 to-transparent p-2.5 backdrop-blur-md"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* Client feedback: the seal redirects to the landing page;
               grayscale recolours it black/white as a CSS filter rather
               than a new asset, since no black-and-white source image
@@ -167,12 +175,12 @@ export function CanvasChrome() {
             <img
               src="/videos/all_life_poster.jpg"
               alt=""
-              className="h-8 w-8 rounded-full border border-primary/50 object-cover grayscale"
+              className="h-6 w-6 rounded-full border border-primary/50 object-cover grayscale"
             />
           </Link>
-          <span className="font-heading text-sm font-bold uppercase tracking-wider">ALL LIFE WORKS</span>
+          <span className="font-heading text-xs font-bold uppercase tracking-wider">ALL LIFE WORKS</span>
           <span className="hidden text-xs text-muted-foreground sm:inline">You are at</span>
-          <span data-current-region-label className="text-sm font-semibold text-primary">
+          <span data-current-region-label className="text-xs font-semibold text-primary">
             {current?.label ?? ""}
           </span>
         </div>
