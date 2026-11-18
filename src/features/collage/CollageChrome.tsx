@@ -64,9 +64,19 @@ export function CollageChrome() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
       {shoots.length > 1 && (
-        // Stacked above CanvasChrome's minimap (bottom-20 left-4, ~100px
-        // tall), not beside it — a variable-width, possibly-wrapping chip
-        // row next to a fixed-width box risks running off narrow screens.
+        // Client feedback, 18 Nov 2026 (docs/decisions.md): "the all, Lagos
+        // & London buttons should be on the same side as the recentre and
+        // zoom buttons... keep all buttons tucked neatly to the bottom
+        // right corner" — confirmed in the client's own phone recordings
+        // (both portrait and landscape): this row sat bottom-left while
+        // the zoom/Recentre cluster below sat bottom-right, opposite
+        // corners. Moved to right-4, stacked directly above that cluster
+        // (bottom-48 already clears it without changing any offsets) —
+        // CanvasChrome's minimap this used to dodge is on the *left*
+        // (bottom-20 left-4), so it no longer needs avoiding; this now
+        // only needs to clear CanvasChrome's Home button (bottom-20
+        // right-4) and the zoom/Recentre row directly below (bottom-36
+        // right-4), which it already does.
         // bg-background/80 + backdrop-blur: the board's own backdrop is
         // white, not dark (Board.tsx, "make the board's own empty backdrop
         // white") — that commit's audit covered every region/overlay
@@ -81,7 +91,7 @@ export function CollageChrome() {
         // same visual family as CanvasChrome's minimap (bg-background/70).
         <div
           data-collage-chrome
-          className="pointer-events-auto absolute bottom-48 left-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center gap-1.5 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
+          className="pointer-events-auto absolute bottom-48 right-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-1.5 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
         >
           <Button
             type="button"
