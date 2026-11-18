@@ -1,0 +1,22 @@
+-- Migration 0009_shop_merge_guided_path (docs/decisions.md D-78, client
+-- feedback 18 Nov 2026: "merge wall+floor into one shop space"). The
+-- room's own wall/floor *labels* are gone now too (ShopRoomScene.tsx no
+-- longer renders "The wall"/"The floor"), so having 'shop-floor' as a
+-- second guided-path stop right next to 'shop-wall' — flying a guided
+-- visitor to the exact same camera position twice in a row under two
+-- different names — reads as a glitch now that there's nothing visually
+-- distinct left to arrive at the second time.
+--
+-- 'shop-floor' is dropped from the guided path (in_guided_path = false)
+-- rather than deleted outright: ShopRegion.tsx/ListRegion.tsx still
+-- categorise and query real products by it ('shop-floor' stays a valid
+-- canvas_nodes.region value and a real /list/shop-floor page), and
+-- src/canvas/viewpoints.ts's CENTERED_REGION_KEYS still names it — neither
+-- of those is a guided-path concern. 'shop-wall' is renamed from its old
+-- "Shop (wall)" label to "The Shop", since it's now the only stop for
+-- the whole room.
+--
+-- Data-only, same reasoning as migration 0008: the viewpoints table's
+-- columns and RLS are unchanged; this just updates two already-live rows.
+update public.viewpoints set label = 'The Shop' where key = 'shop-wall';
+update public.viewpoints set in_guided_path = false where key = 'shop-floor';

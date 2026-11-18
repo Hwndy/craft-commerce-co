@@ -29,14 +29,22 @@ describe("viewpoints", () => {
     });
     expect(getViewpoint("shop-wall")).toEqual({
       key: "shop-wall",
-      label: "Shop (wall)",
+      label: "The Shop",
       x: 2000,
       y: 1200,
       zoom: 1,
       sortOrder: 3,
       inGuidedPath: true,
     });
-    expect(getViewpoint("shop-floor").y).toBe(1200);
+    expect(getViewpoint("shop-floor")).toEqual({
+      key: "shop-floor",
+      label: "Shop (floor)",
+      x: 2000,
+      y: 1200,
+      zoom: 1,
+      sortOrder: 4,
+      inGuidedPath: false,
+    });
     expect(getViewpoint("contact").y).toBe(1200);
   });
 
