@@ -46,9 +46,15 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 
   return (
     <>
+      {/* w-[190px], not the original 240px: at this grid's 220px column
+          pitch, a 240px-wide poster rotated 6deg has an axis-aligned
+          bounding width of ~254px — wider than the pitch, so adjacent
+          posters overlapped by ~34px even with zero overflow (found in
+          review, CodeRabbit, PR #30). 190px keeps that bounding width
+          (~205px) comfortably under the pitch. */}
       <div
         aria-hidden="true"
-        className="absolute h-[150px] w-[240px] overflow-hidden rounded-md bg-white shadow-lg"
+        className="absolute h-[150px] w-[190px] overflow-hidden rounded-md bg-white shadow-lg"
         style={{ left, top, transform: "rotate(6deg)" }}
       >
         <div
@@ -209,6 +215,12 @@ export function ShopRoomScene({
               top={FLOOR_ORIGIN_Y + Math.floor(index / FLOOR_COLUMNS) * FLOOR_CELL_HEIGHT}
             />
           ))}
+          {/* Pinned to the floor's own top-right corner, in the strip above
+              FLOOR_ORIGIN_Y (380) — the grid never places a product there
+              regardless of count, unlike the previous bottom-right
+              placement: found in review (CodeRabbit, PR #30) that with a
+              full 8-item grid, the bottom-right corner is exactly where
+              the last poster sits, so the buttons covered part of it. */}
           {wallOverflowCount > 0 && (
             // docs/decisions.md D-78: the room only has room for
             // ROOM_CAPACITY belts total — this routes the rest of what was
@@ -218,7 +230,7 @@ export function ShopRoomScene({
             <button
               type="button"
               onClick={onViewAllWall}
-              className="absolute bottom-24 right-10 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+              className="absolute right-10 top-4 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
             >
               +{wallOverflowCount} more (wall) — view all
             </button>
@@ -228,7 +240,7 @@ export function ShopRoomScene({
             <button
               type="button"
               onClick={onViewAllFloor}
-              className="absolute bottom-10 right-10 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+              className="absolute right-10 top-12 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
             >
               +{floorOverflowCount} more (floor) — view all
             </button>
