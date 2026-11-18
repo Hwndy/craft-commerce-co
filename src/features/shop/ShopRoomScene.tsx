@@ -1,6 +1,5 @@
 import { useIsMobile } from "@/hooks/use-mobile";
 import { siteMediaUrl } from "@/lib/storage";
-import { cn } from "@/lib/utils";
 
 import { PriceTagLabel } from "./PriceTagLabel";
 import type { ProductNode } from "./lib/queries";
@@ -17,57 +16,19 @@ const WALL_H = 470;
 const DEPTH = 760;
 const WIDTH = 980;
 
-// The room's own real visual capacity (docs/decisions.md) — confirmed by
-// rendering real counts against the fixed geometry above and screenshotting
-// the result, not computed from the 3D transform math (too error-prone to
-// trust by itself, same lesson as every other correction to this scene).
-// 2 per wall side (4 total) and one floor row of 3 render cleanly; past
-// that, items get clipped by this scene's own `overflow-hidden` or overlap
-// each other. ShopRegion.tsx caps what it passes in at these numbers and
-// routes the rest through onViewAllWall/onViewAllFloor instead of forcing
-// them into the fixed grids below.
-export const WALL_CAPACITY = 4;
-export const FLOOR_CAPACITY = 3;
-
-interface WallBeltProps {
-  node: ProductNode;
-  onOpen?: () => void;
-}
-
-/** A wall-mounted belt: pin + string, a white framed photo (greyscale once
- * sold), and the wall's own pill price tag underneath. */
-function WallBelt({ node, onOpen }: WallBeltProps) {
-  const posterPath = node.product.poster?.renditions[POSTER_RENDITION];
-  const posterSrc = posterPath ? siteMediaUrl(posterPath) : undefined;
-  const sold = node.product.status === "sold";
-
-  return (
-    <div className="flex flex-col items-center gap-1.5">
-      <span aria-hidden="true" className="h-2 w-2 rounded-full bg-shop-peg" />
-      <span aria-hidden="true" className="h-3.5 w-0.5 bg-shop-peg" />
-      <div className="relative h-28 w-40 overflow-hidden rounded-md bg-white shadow-md">
-        <div
-          aria-hidden="true"
-          className={cn("h-full w-full bg-black/10 bg-cover bg-center", sold && "grayscale")}
-          style={posterSrc ? { backgroundImage: `url(${posterSrc})` } : undefined}
-        />
-        <span className="absolute bottom-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/70">
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
-            <path d="M7 4l13 8-13 8z" />
-          </svg>
-        </span>
-      </div>
-      <PriceTagLabel
-        name={node.product.name}
-        price={node.product.priceAmount}
-        currency={node.product.priceCurrency}
-        status={node.product.status}
-        layout="wall"
-        onClick={onOpen}
-      />
-    </div>
-  );
-}
+// Client feedback, 18 Nov 2026 (docs/decisions.md D-78): "no belts on the
+// wall, only writing; true 3D depth with belts resting on the floor" and
+// "merge wall+floor into one shop space". Every product now rests on the
+// one floor plane — the walls are signage only (the back wall keeps the
+// shop's own title card; the right wall is now a plain, undecorated
+// surface). The room's real visual capacity, confirmed the same way as
+// every earlier correction to this scene (rendering real counts against
+// the fixed geometry below and screenshotting the result, not computed
+// from the 3D transform math): a 4-column, 2-row floor grid holds 8 belts
+// cleanly. ShopRegion.tsx caps what it passes in at this number and routes
+// the rest through onViewAllWall/onViewAllFloor instead of forcing it into
+// the fixed grid below.
+export const ROOM_CAPACITY = 8;
 
 interface FloorBeltProps {
   node: ProductNode;
@@ -85,9 +46,15 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 
   return (
     <>
+      {/* w-[190px], not the original 240px: at this grid's 220px column
+          pitch, a 240px-wide poster rotated 6deg has an axis-aligned
+          bounding width of ~254px — wider than the pitch, so adjacent
+          posters overlapped by ~34px even with zero overflow (found in
+          review, CodeRabbit, PR #30). 190px keeps that bounding width
+          (~205px) comfortably under the pitch. */}
       <div
         aria-hidden="true"
-        className="absolute h-[150px] w-[240px] overflow-hidden rounded-md bg-white shadow-lg"
+        className="absolute h-[150px] w-[190px] overflow-hidden rounded-md bg-white shadow-lg"
         style={{ left, top, transform: "rotate(6deg)" }}
       >
         <div
@@ -120,25 +87,25 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 }
 
 export interface ShopRoomSceneProps {
-  /** Products placed on the back/left wall — first share of the wall zone. */
-  backWallNodes: ProductNode[];
-  /** Products placed on the right wall — the rest of the wall zone. */
-  rightWallNodes: ProductNode[];
-  floorNodes: ProductNode[];
+  /** Every product shown in the room — all on the floor now (D-78). */
+  nodes: ProductNode[];
   onOpenProduct?: (slug: string) => void;
-  /** How many real wall/floor products ShopRegion.tsx held back past WALL_CAPACITY/FLOOR_CAPACITY — 0 renders nothing. */
+  /** How many real products ShopRegion.tsx held back past ROOM_CAPACITY, by
+   * which underlying admin zone they were categorised under (still two
+   * separate, uncapped list pages — /list/shop-wall, /list/shop-floor —
+   * D-78 only merged the room's own *visual* presentation, not the admin's
+   * wall/floor categorisation or those list routes). 0 renders nothing. */
   wallOverflowCount?: number;
   floorOverflowCount?: number;
-  /** Routes to the full, uncapped list for that zone (e.g. /list/shop-wall). */
   onViewAllWall?: () => void;
   onViewAllFloor?: () => void;
 }
 
-const FLOOR_COLUMNS = 3;
-const FLOOR_CELL_WIDTH = 280;
-const FLOOR_CELL_HEIGHT = 220;
-const FLOOR_ORIGIN_X = 50;
-const FLOOR_ORIGIN_Y = 420;
+const FLOOR_COLUMNS = 4;
+const FLOOR_CELL_WIDTH = 220;
+const FLOOR_CELL_HEIGHT = 190;
+const FLOOR_ORIGIN_X = 40;
+const FLOOR_ORIGIN_Y = 380;
 
 /**
  * The Product Display's own 3D room corner (docs/decisions.md D-71,
@@ -155,9 +122,7 @@ const FLOOR_ORIGIN_Y = 420;
  * trapezoid, which is the one thing corrected twice already.
  */
 export function ShopRoomScene({
-  backWallNodes,
-  rightWallNodes,
-  floorNodes,
+  nodes,
   onOpenProduct,
   wallOverflowCount = 0,
   floorOverflowCount = 0,
@@ -188,7 +153,9 @@ export function ShopRoomScene({
         }}
       >
         {/* Back/left wall — sits in the anchor's own plane (z = 0), facing
-            the viewer directly; no transform of its own beyond that. */}
+            the viewer directly; no transform of its own beyond that. The
+            shop's own title card is the only thing on it now (D-78): no
+            belts, no "The wall" label. */}
         <div
           className="absolute bg-shop-wall-back shadow-[inset_40px_0_60px_-10px_rgba(120,40,60,0.12)]"
           style={{ left: -WIDTH, top: 0, width: WIDTH, height: WALL_H }}
@@ -201,19 +168,13 @@ export function ShopRoomScene({
               belts from repurposed bike tyre · sand-cast aluminium buckles
             </span>
           </div>
-          <div className="absolute left-10 top-32 grid grid-cols-2 gap-10">
-            {backWallNodes.map((node) => (
-              <WallBelt
-                key={node.nodeId}
-                node={node}
-                onOpen={onOpenProduct ? () => onOpenProduct(node.product.slug) : undefined}
-              />
-            ))}
-          </div>
           <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-3.5 bg-[#C98F9C]" />
         </div>
 
-        {/* Right wall — swings out from the corner toward the viewer. */}
+        {/* Right wall — swings out from the corner toward the viewer. Now a
+            plain, undecorated surface (D-78): no belts, no "The wall"
+            label, no sample-sale tag — the room reads as one space rather
+            than two zones meeting at a seam. */}
         <div
           className="absolute bg-shop-wall shadow-[inset_-40px_0_60px_-10px_rgba(120,40,60,0.12)]"
           style={{
@@ -225,40 +186,14 @@ export function ShopRoomScene({
             transform: "rotateY(-90deg)",
           }}
         >
-          <div className="absolute right-6 top-8 flex items-baseline gap-3 whitespace-nowrap">
-            <span className="font-heading text-3xl font-semibold text-shop-ink">
-              The <em className="font-normal italic">wall</em>
-            </span>
-            <span className="rounded-full bg-shop-gold px-2.5 py-0.5 font-heading text-xs font-semibold uppercase tracking-wide text-shop-ink">
-              Sample sale
-            </span>
-          </div>
-          {wallOverflowCount > 0 && (
-            // docs/decisions.md: the wall only has room for WALL_CAPACITY
-            // belts — this routes the rest to the full, uncapped list
-            // (ListRegion.tsx's shop section) instead of silently losing
-            // them off the edge of the fixed 3D grid.
-            <button
-              type="button"
-              onClick={onViewAllWall}
-              className="absolute right-6 top-20 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
-            >
-              +{wallOverflowCount} more — view all
-            </button>
-          )}
-          <div className="absolute left-8 top-32 grid grid-cols-3 gap-8">
-            {rightWallNodes.map((node) => (
-              <WallBelt
-                key={node.nodeId}
-                node={node}
-                onOpen={onOpenProduct ? () => onOpenProduct(node.product.slug) : undefined}
-              />
-            ))}
-          </div>
           <div aria-hidden="true" className="absolute inset-x-0 bottom-0 h-3.5 bg-[#C98F9C]" />
         </div>
 
-        {/* Floor — hinged flat off the back wall's own bottom edge. */}
+        {/* Floor — hinged flat off the back wall's own bottom edge. Every
+            product in the room rests here now (D-78: "true 3D depth with
+            belts resting on the floor"), in one 4-column grid rather than
+            split between a wall grid and a separate floor row. No "The
+            floor" label either — there's only one space left to name. */}
         <div
           className="absolute bg-shop-floor shadow-[inset_0_40px_60px_-10px_rgba(120,40,60,0.12)]"
           style={{
@@ -271,7 +206,7 @@ export function ShopRoomScene({
             transformStyle: "preserve-3d",
           }}
         >
-          {floorNodes.map((node, index) => (
+          {nodes.map((node, index) => (
             <FloorBelt
               key={node.nodeId}
               node={node}
@@ -280,21 +215,34 @@ export function ShopRoomScene({
               top={FLOOR_ORIGIN_Y + Math.floor(index / FLOOR_COLUMNS) * FLOOR_CELL_HEIGHT}
             />
           ))}
-          <span
-            className="absolute bottom-10 right-10 whitespace-nowrap font-heading text-4xl font-semibold text-shop-ink/85"
-            style={{ transform: "rotate(-4deg)" }}
-          >
-            The <em className="font-normal italic">floor</em>
-          </span>
+          {/* Pinned to the floor's own top-right corner, in the strip above
+              FLOOR_ORIGIN_Y (380) — the grid never places a product there
+              regardless of count, unlike the previous bottom-right
+              placement: found in review (CodeRabbit, PR #30) that with a
+              full 8-item grid, the bottom-right corner is exactly where
+              the last poster sits, so the buttons covered part of it. */}
+          {wallOverflowCount > 0 && (
+            // docs/decisions.md D-78: the room only has room for
+            // ROOM_CAPACITY belts total — this routes the rest of what was
+            // categorised "wall" to the full, uncapped list
+            // (ListRegion.tsx's shop section) instead of silently losing
+            // them off the edge of the fixed grid.
+            <button
+              type="button"
+              onClick={onViewAllWall}
+              className="absolute right-10 top-4 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+            >
+              +{wallOverflowCount} more (wall) — view all
+            </button>
+          )}
           {floorOverflowCount > 0 && (
-            // Same reasoning as the wall's own version above — the floor
-            // only has room for FLOOR_CAPACITY belts (one row).
+            // Same reasoning, for whatever was categorised "floor".
             <button
               type="button"
               onClick={onViewAllFloor}
-              className="absolute bottom-24 right-10 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
+              className="absolute right-10 top-12 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
             >
-              +{floorOverflowCount} more — view all
+              +{floorOverflowCount} more (floor) — view all
             </button>
           )}
         </div>

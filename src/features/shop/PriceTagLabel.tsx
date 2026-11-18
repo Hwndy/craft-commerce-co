@@ -71,7 +71,18 @@ export function PriceTagLabel({
       >
         <strong className="font-heading text-xs font-bold uppercase leading-tight text-shop-ink">{name}</strong>
         <span className="text-sm font-semibold text-shop-ink">{formatGbp(price, currency)}</span>
-        {description && <span className="text-[11px] leading-tight text-shop-ink/70">{description}</span>}
+        {/* line-clamp-2: the circular badge is a fixed 150x150px box
+            (ShopRoomScene.tsx) with no overflow handling of its own —
+            found in review (CodeRabbit, PR #30): docs/decisions.md D-78
+            now renders every product through this layout, including
+            former wall-zone products whose descriptions were never shown
+            (and so never reviewed against this space) before. Truncating
+            here keeps the badge's own circular shape intact regardless of
+            description length; the full text is still one tap away, in
+            the product overlay. */}
+        {description && (
+          <span className="line-clamp-2 text-[11px] leading-tight text-shop-ink/70">{description}</span>
+        )}
         <StatusPill status={status} />
       </button>
     );

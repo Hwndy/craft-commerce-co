@@ -47,7 +47,10 @@ test.describe("product overlay (T3)", () => {
     test.skip(isMobile, "region tabs used to reach the Shop node are desktop-only");
 
     await revealBoard(page);
-    await page.getByRole("button", { name: "Shop (floor)" }).click();
+    // docs/decisions.md D-78: "Shop (floor)" is no longer its own
+    // guided-path/region-tab stop (merged into "The Shop" — migration
+    // 0009); both CI-seeded products render in the one merged room now.
+    await page.getByRole("button", { name: "The Shop" }).click();
 
     const productButton = page.getByRole("button", { name: /Sample Belt No\.5/ });
     await expect(productButton).toBeVisible({ timeout: 10000 });

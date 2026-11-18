@@ -35,8 +35,31 @@ interface MinimapGeometry {
   worldToMinimap: (x: number, y: number) => { x: number; y: number };
 }
 
-function computeMinimapGeometry(viewpoints: Viewpoint[]): MinimapGeometry | null {
-  if (viewpoints.length === 0) return null;
+/**
+ * Two viewpoints at the exact same world position (docs/decisions.md D-78:
+ * "shop-wall"/"shop-floor" both point at the one Shop room now) would
+ * otherwise draw two identical, perfectly stacked `<rect>`s here — found
+ * in review (CodeRabbit, PR #30): the minimap renders every entry from
+ * `listViewpoints()`, not just the guided-path ones, so `shop-floor`'s own
+ * `inGuidedPath: false` (which only filters Next/Previous and the bottom
+ * region-tab row) doesn't stop it from still getting a redundant, invisibly
+ * overlapping clickable rect here. Keeps the first viewpoint at each
+ * distinct (x, y) — `listViewpoints()`'s own sortOrder means that's
+ * "shop-wall" ("The Shop"), the one actually in the guided path.
+ */
+function dedupeByPosition(viewpoints: Viewpoint[]): Viewpoint[] {
+  const seen = new Set<string>();
+  return viewpoints.filter((v) => {
+    const key = `${v.x},${v.y}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function computeMinimapGeometry(allViewpoints: Viewpoint[]): MinimapGeometry | null {
+  if (allViewpoints.length === 0) return null;
+  const viewpoints = dedupeByPosition(allViewpoints);
 
   const minX = Math.min(...viewpoints.map((v) => v.x - MINIMAP_REGION_WIDTH / 2));
   const maxX = Math.max(...viewpoints.map((v) => v.x + MINIMAP_REGION_WIDTH / 2));

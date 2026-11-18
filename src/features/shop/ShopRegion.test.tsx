@@ -19,7 +19,7 @@ vi.mock("./ShopRoomScene", async () => {
 });
 
 import { ShopRegion } from "./ShopRegion";
-import { FLOOR_CAPACITY, WALL_CAPACITY } from "./ShopRoomScene";
+import { ROOM_CAPACITY } from "./ShopRoomScene";
 
 function product(name: string): Product {
   return {
@@ -37,59 +37,105 @@ function product(name: string): Product {
   };
 }
 
-function nodes(count: number): ProductNode[] {
+function nodes(count: number, prefix: string): ProductNode[] {
   return Array.from({ length: count }, (_, i) => ({
-    nodeId: `n${i}`,
+    nodeId: `${prefix}${i}`,
     x: 0,
     y: 0,
     width: 0,
     height: 0,
     rotation: 0,
-    product: product(`p${i}`),
+    product: product(`${prefix}${i}`),
   }));
 }
 
 function mockRegions(wallCount: number, floorCount: number) {
   useProductNodes.mockImplementation((region: string) =>
-    region === "shop-wall" ? { data: nodes(wallCount) } : { data: nodes(floorCount) }
+    region === "shop-wall"
+      ? { data: nodes(wallCount, "wall-"), isLoading: false }
+      : { data: nodes(floorCount, "floor-"), isLoading: false }
   );
 }
 
 describe("ShopRegion", () => {
-  // docs/decisions.md: the room's own fixed geometry has a real visual
-  // capacity (ShopRoomScene.tsx's WALL_CAPACITY/FLOOR_CAPACITY, confirmed
-  // by screenshot) — ShopRegion.tsx must cap what it hands the scene at
-  // those numbers rather than forcing the real catalogue's full count in,
+  // docs/decisions.md D-78: the room's own fixed geometry has a real
+  // visual capacity (ShopRoomScene.tsx's ROOM_CAPACITY, confirmed by
+  // screenshot) shared across both admin zones now (no more separate wall
+  // vs floor grids) — ShopRegion.tsx must cap what it hands the scene at
+  // that number rather than forcing the real catalogue's full count in,
   // which is what clipped a real product even at today's actual counts.
   it("passes every product straight through, with zero overflow, when under capacity", () => {
     mockRegions(2, 2);
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
     const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.backWallNodes.length + props.rightWallNodes.length).toBe(2);
-    expect(props.floorNodes).toHaveLength(2);
+    expect(props.nodes).toHaveLength(4);
     expect(props.wallOverflowCount).toBe(0);
     expect(props.floorOverflowCount).toBe(0);
   });
 
-  it("caps the floor at FLOOR_CAPACITY and reports the real overflow count, matching today's real catalogue (4 floor products, D-70)", () => {
+  it("matches today's real catalogue (4 wall + 4 floor, D-70) with zero overflow at ROOM_CAPACITY=8", () => {
     mockRegions(4, 4);
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
     const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.floorNodes).toHaveLength(FLOOR_CAPACITY);
-    expect(props.floorOverflowCount).toBe(4 - FLOOR_CAPACITY);
+    expect(props.nodes).toHaveLength(8);
+    expect(props.wallOverflowCount).toBe(0);
+    expect(props.floorOverflowCount).toBe(0);
   });
 
-  it("caps the wall at WALL_CAPACITY total, split no more than evenly across both sides", () => {
-    mockRegions(6, 0);
+  it("fills the shared pool with wall items first, then reports the real floor overflow once ROOM_CAPACITY is exceeded", () => {
+    mockRegions(6, 6);
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
     const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.backWallNodes.length + props.rightWallNodes.length).toBe(WALL_CAPACITY);
-    expect(props.wallOverflowCount).toBe(6 - WALL_CAPACITY);
-    expect(props.backWallNodes.length).toBeLessThanOrEqual(2);
-    expect(props.rightWallNodes.length).toBeLessThanOrEqual(2);
+    // Distinct wall-/floor-prefixed fixture ids (found in review,
+    // CodeRabbit, PR #30) so this actually proves which products made the
+    // cut, not just how many — all 6 wall items, then the first 2 floor
+    // items, in that order.
+    expect(props.nodes.map((n: ProductNode) => n.nodeId)).toEqual([
+      "wall-0",
+      "wall-1",
+      "wall-2",
+      "wall-3",
+      "wall-4",
+      "wall-5",
+      "floor-0",
+      "floor-1",
+    ]);
+    expect(props.wallOverflowCount).toBe(0);
+    expect(props.floorOverflowCount).toBe(6 + 6 - ROOM_CAPACITY);
+  });
+
+  // Found in review (CodeRabbit, PR #30): shownFloor's own capacity now
+  // depends on shownWall's real length (the two queries settle
+  // independently), unlike the old WALL_CAPACITY/FLOOR_CAPACITY split —
+  // computing it before both have resolved could render a floor list
+  // that's about to shrink the moment the wall query catches up,
+  // unmounting whatever a visitor had just focused. Nothing should render
+  // until both are settled.
+  it("renders nothing until both the wall and floor queries have settled", () => {
+    useProductNodes.mockImplementation((region: string) =>
+      region === "shop-wall"
+        ? { data: undefined, isLoading: true }
+        : { data: nodes(8, "floor-"), isLoading: false }
+    );
+    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
+
+    const props = sceneSpy.mock.calls.at(-1)![0];
+    expect(props.nodes).toEqual([]);
+    expect(props.wallOverflowCount).toBe(0);
+    expect(props.floorOverflowCount).toBe(0);
+  });
+
+  it("reports the real wall overflow once wall items alone exceed ROOM_CAPACITY", () => {
+    mockRegions(10, 0);
+    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
+
+    const props = sceneSpy.mock.calls.at(-1)![0];
+    expect(props.nodes).toHaveLength(ROOM_CAPACITY);
+    expect(props.wallOverflowCount).toBe(10 - ROOM_CAPACITY);
+    expect(props.floorOverflowCount).toBe(0);
   });
 
   it("forwards onViewAllWall/onViewAllFloor through to the scene untouched", () => {
