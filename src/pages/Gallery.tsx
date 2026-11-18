@@ -225,6 +225,12 @@ export default function Gallery() {
           centerX={getViewpoint("shop-wall").x}
           centerY={getViewpoint("shop-wall").y}
           onOpenProduct={(slug) => navigate(`/gallery/shop/${slug}`)}
+          // The room's own fixed capacity (ShopRoomScene.tsx) routes
+          // whatever doesn't fit to the plain, uncapped list for that zone
+          // — a real top-level route (ListRegion.tsx), not this splat, so
+          // this is a genuine navigation away from the board, by design.
+          onViewAllWall={() => navigate("/list/shop-wall")}
+          onViewAllFloor={() => navigate("/list/shop-floor")}
         />
 
         {/* T6: real content at its own world position, same precedent as
