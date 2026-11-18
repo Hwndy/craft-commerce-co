@@ -151,7 +151,28 @@ export default function Gallery() {
   return (
     <>
       <Board>
-        <Region id="gallery" title="Gallery" x={1600} y={-300} width={800} height={600}>
+        {/* Client feedback, 18 Nov 2026 (docs/decisions.md): "the film is
+            in the wrong place" — confirmed directly in both phone
+            recordings. Root cause: this Region's own x/y were hardcoded
+            literals (1600, -300) that never moved when D-71 Step 6
+            repositioned the "gallery" viewpoint itself to (-2000, -1200)
+            ("top-left" of the board, per that step's own grid) — the card
+            and the viewpoint anyone flies here to see it from had drifted
+            completely apart, into different quadrants. Reading the same
+            getViewpoint("gallery") coordinate Collage/ShopRegion/Contact
+            already source their own positions from (below, and T2/T6)
+            puts the card exactly where flying to "gallery" lands the
+            camera's own top-left corner (gallery is not in viewpoints.ts's
+            CENTERED_REGION_KEYS, so that landing IS this Region's own
+            top-left, by construction — no separate centring needed). */}
+        <Region
+          id="gallery"
+          title="Gallery"
+          x={getViewpoint("gallery").x}
+          y={getViewpoint("gallery").y}
+          width={800}
+          height={600}
+        >
           {/* Board quadrant card (docs/decisions.md D-45) — the region's
               poster image fills the card's own background rather than
               sitting in RegionLabel's icon tile, so the whole 800x600
