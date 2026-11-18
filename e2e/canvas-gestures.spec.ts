@@ -251,5 +251,13 @@ test.describe("canvas gestures", () => {
       .toEqual({ x: 2000 - viewport.width / 2, y: 1200 - viewport.height / 2, zoom: 1 });
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.2/ }));
     await expectFullyInViewport(page.getByRole("button", { name: /Sample Belt No\.5/ }));
+
+    // Found in review (CodeRabbit, PR #30): the assertions above would
+    // still pass even if "shop-floor" had stayed in the guided path (both
+    // belts are visible the moment "The Shop" is reached regardless) — so
+    // on their own they don't actually prove the extra stop is gone. This
+    // does: the very next guided-path target is "Contact" directly, with
+    // nothing in between.
+    await expect(page.getByRole("button", { name: "Next: Contact" })).toBeVisible();
   });
 });
