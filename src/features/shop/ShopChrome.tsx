@@ -45,25 +45,33 @@ export function ShopChrome() {
 
   return (
     <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
-      {/* Fully opaque bg-background, not a translucent one — found via
-          real CI (axe): the first attempt here used bg-background/70
-          (CanvasChrome's own minimap convention, found in review,
-          Greptile, PR #4), but a translucent dark bar still blends
-          toward white once the canvas itself turns white (D-61), which
-          axe measured as failing WCAG AA contrast on CanvasChrome's
-          identical bottom bar. Opaque can't dilute regardless of what's
-          behind it. */}
+      {/* Client feedback, 18 Nov 2026 (docs/decisions.md): "the shop area
+          and the black description bar... Remove this black bar please"
+          / "Let the shop float on the white canvas" — confirmed in the
+          client's own phone recordings. No background at all now, not a
+          lighter one: this app's default text colour (`text-foreground`,
+          used implicitly below) is near-white, built for the dark theme
+          everywhere *except* the Board's own white backdrop — that's why
+          the previous version needed an opaque dark bar just to keep its
+          own text legible at all. Switched every span here to
+          `text-shop-ink` (src/index.css's shop palette, already proven at
+          ≈16.6:1 on the shop's own lightest surface, D-71's "second
+          correction") instead, which reads clearly straight on the white
+          board with no backing needed — same "content floats directly on
+          the canvas" convention every other region already follows
+          (Region.tsx has no background of its own; see also D-76's
+          identical fix for the Shop room's own surrounding box). */}
       <div
         data-shop-chrome
-        className="pointer-events-auto absolute inset-x-0 top-20 flex items-start justify-between gap-3 bg-background px-4 py-2"
+        className="pointer-events-auto absolute inset-x-0 top-20 flex items-start justify-between gap-3 px-4 py-2"
       >
         <div className="flex items-baseline gap-2">
-          <span className="font-heading text-sm font-bold uppercase tracking-wider">Shop</span>
-          <span className="hidden text-xs text-muted-foreground sm:inline">
+          <span className="font-heading text-sm font-bold uppercase tracking-wider text-shop-ink">Shop</span>
+          <span className="hidden text-xs text-shop-ink/70 sm:inline">
             Handcrafted belts · repurposed bike tyre, sand-cast aluminium
           </span>
         </div>
-        <p className="hidden text-xs text-muted-foreground md:block">Buy by email — tap a belt to see it turn</p>
+        <p className="hidden text-xs text-shop-ink/70 md:block">Buy by email — tap a belt to see it turn</p>
       </div>
     </div>
   );
