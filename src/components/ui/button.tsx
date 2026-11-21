@@ -27,6 +27,20 @@ const buttonVariants = cva(
         // Explore state, region-tab chips (docs/decisions.md D-45, D-71).
         "pill-outline":
           "rounded-full border border-white/40 bg-transparent text-foreground hover:bg-white/10",
+        // Client feedback, 21 Nov 2026 (docs/decisions.md D-80): board-chrome
+        // headings/labels should use the Shop's own already-established
+        // palette instead of gold-on-black — scoped to two new variants,
+        // not a rewrite of "pill"/"pill-outline" themselves, since those are
+        // shared by FilmStage, the Shop's own Buy/Enquire button, Admin and
+        // the enquiry form, none of which this change is meant to touch.
+        // text stays shop-ink throughout, never the accent colour itself —
+        // shop-accent-pink/shop-teal/shop-gold all measure under WCAG AA's
+        // 4.5:1 as text on a light background (computed directly, not
+        // assumed), so they're used only as borders/fills here.
+        "chrome-pill":
+          "rounded-full border border-shop-accent-pink bg-shop-accent-pink/10 text-shop-ink hover:bg-shop-accent-pink/20",
+        "chrome-pill-outline":
+          "rounded-full border border-shop-ink/30 bg-transparent text-shop-ink hover:bg-shop-ink/10",
       },
       size: {
         default: "h-10 px-4 py-2",
