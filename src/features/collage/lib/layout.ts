@@ -33,17 +33,24 @@ export const DEFAULT_SIZE_JITTER = 0.12;
 export const DEFAULT_ITEMS_PER_STACK = 20;
 export const DEFAULT_STACK_TILT_DEG = -6;
 export const DEFAULT_STACK_TILT_JITTER_DEG = 3;
-// Small per-card offset within a stack — deliberately *less* than baseSize
-// so consecutive cards overlap (a fanned-deck look), unlike
-// DEFAULT_RADIUS_STEP above, which is tuned for the opposite (no overlap).
-export const DEFAULT_STACK_OFFSET_X = 16;
-export const DEFAULT_STACK_OFFSET_Y = 12;
+// Client feedback, 21 Nov 2026 (docs/decisions.md D-79): "there should be
+// more spacing on that diagonal arrangement" — re-checked directly against
+// the owner's own freeform reference image (the same "IDEA 1" sketch D-62
+// already cites), which this confirms also used before: deliberately less
+// than baseSize so consecutive cards still overlap into a fanned-deck
+// look (unlike DEFAULT_RADIUS_STEP above, tuned for the opposite), just
+// not as tightly as before.
+export const DEFAULT_STACK_OFFSET_X = 22;
+export const DEFAULT_STACK_OFFSET_Y = 18;
 // Stacks themselves are arranged in a simple grid, spaced far enough apart
 // that one stack's fanned footprint (baseSize + (itemsPerStack-1)*offset)
-// never reaches its neighbour's.
+// never reaches its neighbour's — widened along with the offsets above so
+// that margin doesn't shrink (at itemsPerStack=20: footprint goes from
+// baseSize+19*16=524 to baseSize+19*22=638, so the old 650 column spacing
+// would have left only 12px of clearance).
 export const DEFAULT_STACKS_PER_ROW = 3;
-export const DEFAULT_STACK_COL_SPACING = 650;
-export const DEFAULT_STACK_ROW_SPACING = 560;
+export const DEFAULT_STACK_COL_SPACING = 780;
+export const DEFAULT_STACK_ROW_SPACING = 680;
 // The real root cause of a CI-only obstruction failure (docs/decisions.md's
 // "seventh correction" — found after two earlier, wrong diagnoses chasing
 // a "camera race" that never existed): "collage" is deliberately NOT a
