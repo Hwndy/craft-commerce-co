@@ -7,9 +7,29 @@ export interface SealProps {
   centerY: number;
 }
 
-const WIDTH = 960;
-const HEIGHT = 600;
-const WORD_PADDING = 8;
+// 1.75× the first version's numbers (and content/seal.ts's ray scale,
+// 0.16 → 0.28) — the owner found that version "very small compared to
+// every other thing on the board" next to Gallery's own 800×600 region
+// (Gallery.tsx). The whole composition scales by this one factor —
+// geometry, text and stroke widths alike — so nothing reads thinner or
+// smaller relative to anything else in it than the first version did.
+//
+// This does shrink the real-world clearance to Gallery's own fixed
+// position, not preserve it: Gallery doesn't grow, only the seal does.
+// The Gallery ray's endpoint to Gallery's nearest corner (-1200,-600) was
+// ~970 units in the first version; it's ~692 units now (computed
+// directly, not assumed) — still a real, confirmed gap, just a smaller
+// one than before.
+const SCALE = 1.75;
+const WIDTH = 960 * SCALE;
+const HEIGHT = 600 * SCALE;
+const SEAL_IMAGE_SIZE = 160 * SCALE;
+const WORD_PADDING = 8 * SCALE;
+const RAY_STROKE_WIDTH = 1 * SCALE;
+const HEADING_FONT_SIZE = 30 * SCALE; // text-3xl
+const TAGLINE_FONT_SIZE = 14 * SCALE; // text-sm
+const LABEL_FONT_SIZE = 12 * SCALE; // text-xs
+const STACK_GAP = 4 * SCALE; // gap-1
 
 /**
  * The board's centre seal (docs/decisions.md D-81) — the "middle spot"
@@ -52,18 +72,41 @@ export function Seal({ centerX, centerY }: SealProps) {
         aria-hidden="true"
       >
         {sealRays.map((ray) => (
-          <line key={ray.label} x1={0} y1={0} x2={ray.x} y2={ray.y} stroke="rgba(21,19,15,0.25)" strokeWidth={1} />
+          <line
+            key={ray.label}
+            x1={0}
+            y1={0}
+            x2={ray.x}
+            y2={ray.y}
+            stroke="rgba(21,19,15,0.25)"
+            strokeWidth={RAY_STROKE_WIDTH}
+          />
         ))}
       </svg>
 
       {/* The seal mark + wordmark, dead-centre. */}
       <div
-        className="absolute flex flex-col items-center gap-1"
-        style={{ left: WIDTH / 2, top: HEIGHT / 2, transform: "translate(-50%, -50%)" }}
+        className="absolute flex flex-col items-center"
+        style={{ left: WIDTH / 2, top: HEIGHT / 2, transform: "translate(-50%, -50%)", gap: STACK_GAP }}
       >
-        <img src="/videos/all_life_seal.png" alt="" className="h-40 w-40 object-contain" />
-        <span className="whitespace-nowrap font-heading text-3xl font-semibold text-shop-ink">{sealHeading}</span>
-        <span className="whitespace-nowrap font-body text-sm italic text-shop-ink/70">{sealTagline}</span>
+        <img
+          src="/videos/all_life_seal.png"
+          alt=""
+          className="object-contain"
+          style={{ width: SEAL_IMAGE_SIZE, height: SEAL_IMAGE_SIZE }}
+        />
+        <span
+          className="whitespace-nowrap font-heading font-semibold text-shop-ink"
+          style={{ fontSize: HEADING_FONT_SIZE }}
+        >
+          {sealHeading}
+        </span>
+        <span
+          className="whitespace-nowrap font-body italic text-shop-ink/70"
+          style={{ fontSize: TAGLINE_FONT_SIZE }}
+        >
+          {sealTagline}
+        </span>
       </div>
 
       {/* One label per ray, starting just past its tip and flowing
@@ -73,11 +116,12 @@ export function Seal({ centerX, centerY }: SealProps) {
         return (
           <span
             key={ray.label}
-            className="absolute whitespace-nowrap font-body text-xs italic text-shop-ink/70"
+            className="absolute whitespace-nowrap font-body italic text-shop-ink/70"
             style={{
               left: WIDTH / 2 + ray.x + (isLeft ? -WORD_PADDING : WORD_PADDING),
               top: HEIGHT / 2 + ray.y,
               transform: isLeft ? "translate(-100%, -50%)" : "translate(0, -50%)",
+              fontSize: LABEL_FONT_SIZE,
             }}
           >
             {ray.label}

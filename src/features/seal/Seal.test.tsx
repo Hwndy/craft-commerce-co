@@ -32,7 +32,7 @@ describe("Seal", () => {
   it("is positioned around its exact world centre", () => {
     const { container } = render(<Seal centerX={500} centerY={-300} />);
     const root = container.querySelector("[data-board-seal]") as HTMLElement;
-    expect(root.style.left).toBe("20px");
-    expect(root.style.top).toBe("-600px");
+    expect(root.style.left).toBe("-340px");
+    expect(root.style.top).toBe("-825px");
   });
 });
