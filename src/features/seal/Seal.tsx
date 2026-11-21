@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { sealHeading, sealTagline } from "@/content/seal";
+import { sealHeading } from "@/content/seal";
 
 export interface SealProps {
   centerX: number;
@@ -15,7 +15,6 @@ export interface SealProps {
 const SCALE = 1.75;
 const SEAL_IMAGE_SIZE = 160 * SCALE;
 const HEADING_FONT_SIZE = 30 * SCALE; // text-3xl
-const TAGLINE_FONT_SIZE = 14 * SCALE; // text-sm
 const STACK_GAP = 4 * SCALE; // gap-1
 
 // Just large enough to comfortably hold the mark + wordmark with margin —
@@ -68,12 +67,6 @@ export function Seal({ centerX, centerY }: SealProps) {
           style={{ fontSize: HEADING_FONT_SIZE }}
         >
           {sealHeading}
-        </span>
-        <span
-          className="whitespace-nowrap font-body italic text-shop-ink/70"
-          style={{ fontSize: TAGLINE_FONT_SIZE }}
-        >
-          {sealTagline}
         </span>
       </div>
     </div>

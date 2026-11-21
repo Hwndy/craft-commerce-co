@@ -1,15 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { sealHeading, sealTagline } from "@/content/seal";
+import { sealHeading } from "@/content/seal";
 
 import { Seal } from "./Seal";
 
 describe("Seal", () => {
-  it("renders the heading and tagline", () => {
+  it("renders the heading", () => {
     render(<Seal centerX={0} centerY={0} />);
     expect(screen.getByText(sealHeading)).toBeInTheDocument();
-    expect(screen.getByText(sealTagline)).toBeInTheDocument();
   });
 
   // Purely decorative, not clickable (confirmed directly with the owner) —
