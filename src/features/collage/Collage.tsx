@@ -146,7 +146,21 @@ export function Collage({ centerX, centerY, onOpenPhoto }: CollageProps) {
         renderNode={(node, lod) => {
           const isRising = node.id === risingId;
           return (
+            // Client feedback, 21 Nov 2026 (docs/decisions.md D-79): "on
+            // hover, those pictures should pop up from the stack... it
+            // should pop up properly" — PhotoThumbnail.tsx's own
+            // hover:-translate-y lift already ran, but with no z-index
+            // change it only visually cleared a stack's *later* neighbours
+            // if the hovered card was already on top in paint order;
+            // anything earlier in the stack stayed covered by the cards
+            // painted over it, which doesn't read as "popping up" at all.
+            // hover:z-20 (above isRising's own z-10, so the rare case of
+            // hovering mid-rise still favours the rise) fixes that at the
+            // one level where it actually works — z-index only resolves
+            // between siblings in the same stacking context, which is this
+            // wrapper, not PhotoThumbnail's own button nested inside it.
             <div
+              className="hover:z-20"
               style={{
                 position: "absolute",
                 left: node.x - rect.x,
