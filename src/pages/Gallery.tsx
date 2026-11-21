@@ -17,6 +17,7 @@ import { Contact } from "@/features/contact/Contact";
 import { useFilmControllerStore } from "@/features/film/filmControllerStore";
 import { useGateStore } from "@/features/film/gateStore";
 import { useFilm } from "@/features/film/lib/useFilm";
+import { Seal } from "@/features/seal/Seal";
 import { useProduct } from "@/features/shop/lib/useProducts";
 import { ProductOverlay } from "@/features/shop/ProductOverlay";
 import { ShopChrome } from "@/features/shop/ShopChrome";
@@ -261,6 +262,11 @@ export default function Gallery() {
          * now holds the board's "middle" spot Step 6 centred everything
          * else around.) */}
         <Contact centerX={getViewpoint("contact").x} centerY={getViewpoint("contact").y} />
+
+        {/* Purely decorative — see docs/decisions.md D-81. Sits dead-centre
+         * at "landing" (0,0), the board's own middle point everything else
+         * is centred around (the comment above already promised this). */}
+        <Seal centerX={getViewpoint("landing").x} centerY={getViewpoint("landing").y} />
 
         <PhotoViewer
           photos={viewerPhotos}
