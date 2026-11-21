@@ -684,6 +684,15 @@ Consequences: `npm run typecheck`/`lint`/`test` (511/511)/`build` all pass (195.
 
 Consequences: `npm run typecheck`/`lint`/`test` (511/511)/`build` all pass, same bundle size. Scaffolding reverted (`git status` clean) after the comparison screenshot.
 
+**Update (2026-11-21, owner feedback on the live result):** "the picture you are using for the seal is blurry" and "remove those arrows and the description. I would show you a description of how I want those arrows to be." Two changes:
+
+1. **Replaced the seal image.** The owner attached two sharper candidate images and said to use whichever reads sharper and clearer. Measured objectively rather than guessed (Laplacian edge-energy on each, Python/PIL/NumPy): the second candidate scored ~5× higher (133.8 vs 26.6), matching the visual read (a polished, reflective gold-metal rendering vs. the first's softer marbled texture) — used that one. It's white-background (not black like the original JPG), so the previous luminance-as-alpha approach doesn't apply; used the blue-channel deficit instead (gold reads high R/G, low B; white reads ~equal across all three) with the same black-point-threshold + contrast-stretch safety as before. Verified: all 4 corners read alpha 0 (this source was already much cleaner than the first — raw corner deficit was 1–2, not the 32–34 haze the JPG had), confirmed by compositing onto cream.
+2. **Removed the 4 rays and their region labels entirely** — `src/content/seal.ts` no longer exports `sealRays`, `Seal.tsx` no longer renders the `<svg>`/labels, down to just the mark + "ALL LIFE"/tagline stack. The owner is providing their own spec for how the rays should look; building another guess now would just be replaced again. `WIDTH`/`HEIGHT` shrunk from 1680×1050 to a plain 600×600 — with no rays to reach a specific world distance, the box is purely cosmetic (anything large enough to hold the stack works, since there's no `overflow:hidden` to clip against). The 1.75× `SCALE` constant from the previous update is kept for the image/heading/tagline/gap sizing — that fix stands; only the rays/labels are gone.
+
+Consequences: `npm run typecheck`/`lint`/`test` (511/511)/`build` all pass. Visual check via the same throwaway `/dev/canvas` technique confirmed the new mark renders sharp with a clean transparent background and the simplified heading/tagline-only layout reads cleanly.
+
+**Update (2026-11-21, same owner message, a direct follow-up instruction): "remove this the all light emerging from darkness statements from that seal area."** Removed `sealTagline` ("light entering from darkness") from `src/content/seal.ts` and its render from `Seal.tsx` — the seal is now just the mark + "ALL LIFE", nothing else. `"ALL LIFE"` itself wasn't named for removal, so it stays.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
