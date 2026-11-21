@@ -114,8 +114,21 @@ test.describe("canvas gestures", () => {
     await revealBoard(page);
 
     const before = await getCamera(page);
-    await page.mouse.dblclick(400, 300);
-    await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(before!.zoom);
+
+    // A native "dblclick" only fires if the browser's own click-coalescing
+    // window isn't missed between the two synthetic clicks. Under CI's
+    // shared-CPU-across-4-parallel-projects load (docs/decisions.md D-65/
+    // D-66, playwright.config.ts's own comment) that window is occasionally
+    // missed, landing as two separate single clicks instead — no dblclick
+    // event ever reaches handleDoubleClick, so polling the same failed
+    // attempt for longer never helps (CI has shown zoom stuck at exactly
+    // `1` for the full 5s poll). Re-issuing the dblclick is what actually
+    // gives this a second chance, same as the repeated events the passing
+    // wheel/drag gestures in this file already get "for free".
+    await expect(async () => {
+      await page.mouse.dblclick(400, 300);
+      await expect.poll(async () => (await getCamera(page))?.zoom, { timeout: 2000 }).toBeGreaterThan(before!.zoom);
+    }).toPass({ timeout: 8000 });
   });
 
   test("keyboard: arrows pan, +/- zoom, 0 returns home", async ({ page, browserName }) => {
