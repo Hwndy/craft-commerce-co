@@ -1,35 +1,28 @@
 import type { CSSProperties } from "react";
 
-import { sealHeading, sealRays, sealTagline } from "@/content/seal";
+import { sealHeading, sealTagline } from "@/content/seal";
 
 export interface SealProps {
   centerX: number;
   centerY: number;
 }
 
-// 1.75× the first version's numbers (and content/seal.ts's ray scale,
-// 0.16 → 0.28) — the owner found that version "very small compared to
-// every other thing on the board" next to Gallery's own 800×600 region
-// (Gallery.tsx). The whole composition scales by this one factor —
-// geometry, text and stroke widths alike — so nothing reads thinner or
-// smaller relative to anything else in it than the first version did.
-//
-// This does shrink the real-world clearance to Gallery's own fixed
-// position, not preserve it: Gallery doesn't grow, only the seal does.
-// The Gallery ray's endpoint to Gallery's nearest corner (-1200,-600) was
-// ~970 units in the first version; it's ~692 units now (computed
-// directly, not assumed) — still a real, confirmed gap, just a smaller
-// one than before.
+// Kept from the D-81 1.75× size fix (owner found the mark "very small
+// compared to every other thing on the board") — only the rays/labels are
+// gone (owner: "remove those arrows and the description... I would show
+// you a description of how I want those arrows to be" — a future,
+// owner-specified design, not guessed at here).
 const SCALE = 1.75;
-const WIDTH = 960 * SCALE;
-const HEIGHT = 600 * SCALE;
 const SEAL_IMAGE_SIZE = 160 * SCALE;
-const WORD_PADDING = 8 * SCALE;
-const RAY_STROKE_WIDTH = 1 * SCALE;
 const HEADING_FONT_SIZE = 30 * SCALE; // text-3xl
 const TAGLINE_FONT_SIZE = 14 * SCALE; // text-sm
-const LABEL_FONT_SIZE = 12 * SCALE; // text-xs
 const STACK_GAP = 4 * SCALE; // gap-1
+
+// Just large enough to comfortably hold the mark + wordmark with margin —
+// unlike the previous ray-pointing version, nothing here needs to reach a
+// specific world distance, so this is cosmetic, not load-bearing.
+const WIDTH = 600;
+const HEIGHT = 600;
 
 /**
  * The board's centre seal (docs/decisions.md D-81) — the "middle spot"
@@ -60,31 +53,6 @@ export function Seal({ centerX, centerY }: SealProps) {
 
   return (
     <div data-board-seal aria-hidden="true" className="pointer-events-none" style={rootStyle}>
-      {/* One ray per real region (sealRays' x/y already points in that
-          region's true direction — see content/seal.ts) — real (x2,y2)
-          endpoints rather than a per-ray rotate()+width pair, since each
-          ray has both a different length and angle. SVG for vector
-          decoration is existing precedent here (CanvasChrome's own
-          minimap). */}
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox={`${-WIDTH / 2} ${-HEIGHT / 2} ${WIDTH} ${HEIGHT}`}
-        aria-hidden="true"
-      >
-        {sealRays.map((ray) => (
-          <line
-            key={ray.label}
-            x1={0}
-            y1={0}
-            x2={ray.x}
-            y2={ray.y}
-            stroke="rgba(21,19,15,0.25)"
-            strokeWidth={RAY_STROKE_WIDTH}
-          />
-        ))}
-      </svg>
-
-      {/* The seal mark + wordmark, dead-centre. */}
       <div
         className="absolute flex flex-col items-center"
         style={{ left: WIDTH / 2, top: HEIGHT / 2, transform: "translate(-50%, -50%)", gap: STACK_GAP }}
@@ -108,26 +76,6 @@ export function Seal({ centerX, centerY }: SealProps) {
           {sealTagline}
         </span>
       </div>
-
-      {/* One label per ray, starting just past its tip and flowing
-          further outward (away from centre). */}
-      {sealRays.map((ray) => {
-        const isLeft = ray.x < 0;
-        return (
-          <span
-            key={ray.label}
-            className="absolute whitespace-nowrap font-body italic text-shop-ink/70"
-            style={{
-              left: WIDTH / 2 + ray.x + (isLeft ? -WORD_PADDING : WORD_PADDING),
-              top: HEIGHT / 2 + ray.y,
-              transform: isLeft ? "translate(-100%, -50%)" : "translate(0, -50%)",
-              fontSize: LABEL_FONT_SIZE,
-            }}
-          >
-            {ray.label}
-          </span>
-        );
-      })}
     </div>
   );
 }

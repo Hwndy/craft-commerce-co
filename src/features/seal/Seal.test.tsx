@@ -1,18 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { sealHeading, sealRays, sealTagline } from "@/content/seal";
+import { sealHeading, sealTagline } from "@/content/seal";
 
 import { Seal } from "./Seal";
 
 describe("Seal", () => {
-  it("renders the heading, tagline and a label for each of the 4 real regions", () => {
+  it("renders the heading and tagline", () => {
     render(<Seal centerX={0} centerY={0} />);
     expect(screen.getByText(sealHeading)).toBeInTheDocument();
     expect(screen.getByText(sealTagline)).toBeInTheDocument();
-    sealRays.forEach((ray) => {
-      expect(screen.getByText(ray.label)).toBeInTheDocument();
-    });
   });
 
   // Purely decorative, not clickable (confirmed directly with the owner) —
@@ -32,7 +29,7 @@ describe("Seal", () => {
   it("is positioned around its exact world centre", () => {
     const { container } = render(<Seal centerX={500} centerY={-300} />);
     const root = container.querySelector("[data-board-seal]") as HTMLElement;
-    expect(root.style.left).toBe("-340px");
-    expect(root.style.top).toBe("-825px");
+    expect(root.style.left).toBe("200px");
+    expect(root.style.top).toBe("-600px");
   });
 });
