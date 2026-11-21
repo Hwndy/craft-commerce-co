@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 import { screenToWorld } from "./math";
 import { useCameraStore } from "./store";
-import { getViewpoint } from "./viewpoints";
+import { cameraForViewpoint, getViewpoint } from "./viewpoints";
 import { zoomAtViewportCenter, ZOOM_STEP_FACTOR } from "./zoomControl";
 
 const PAN_STEP_SCREEN_PX = 80;
@@ -91,10 +91,18 @@ export function useBoardKeyboard(viewportRef: React.RefObject<HTMLElement>) {
           event.preventDefault();
           zoomAtViewportCenter(1 / ZOOM_STEP_FACTOR);
           break;
-        case "0":
+        case "0": {
           event.preventDefault();
-          void flyTo(getViewpoint("landing"), { reducedMotion });
+          // cameraForViewpoint: see CanvasChrome.tsx's flyToViewpoint — a
+          // no-op for every viewpoint except those in CENTERED_REGION_KEYS
+          // (viewpoints.ts), "landing" among them since docs/decisions.md
+          // D-81's board-centre seal. A raw flyTo(getViewpoint("landing"))
+          // here would land camera.x/y = 0,0 as the viewport's top-left
+          // corner instead, cropping the seal to its bottom-right quarter.
+          const { viewport } = useCameraStore.getState();
+          void flyTo(cameraForViewpoint(getViewpoint("landing"), viewport), { reducedMotion });
           break;
+        }
         case "Escape":
           event.preventDefault();
           zoomAtViewportCenter(0.5);

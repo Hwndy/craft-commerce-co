@@ -74,7 +74,10 @@ describe("next / previous", () => {
   it("previous clamps at the start of the path", async () => {
     await useGuidedModeStore.getState().previous();
     expect(useGuidedModeStore.getState().currentIndex).toBe(0);
-    expect(useCameraStore.getState().camera.x).toBeCloseTo(0);
+    // Clamping still re-flies to path[0] ("landing"), which centres (D-81)
+    // rather than landing at its own raw x=0 — viewport width 1000 gives
+    // x = 0 - 1000 / (2 * 1) = -500.
+    expect(useCameraStore.getState().camera.x).toBeCloseTo(-500);
   });
 });
 

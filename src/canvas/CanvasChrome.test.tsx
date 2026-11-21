@@ -53,11 +53,14 @@ describe("CanvasChrome", () => {
     );
   });
 
-  it("Home flies the camera to the landing viewpoint", async () => {
+  it("Home flies the camera to the landing viewpoint, centred (docs/decisions.md D-81)", async () => {
     useCameraStore.setState({ camera: { x: 2000, y: 0, zoom: 1 }, viewport: { width: 1000, height: 800 }, isFlying: false });
     renderChrome();
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
-    await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(0));
+    // "landing" is a CENTERED_REGION_KEYS entry (D-81, the board's centre
+    // seal) — the camera centres the viewport on world (0,0), landing at
+    // x = 0 - viewport.width / (2 * zoom) = -500, not raw x = 0.
+    await waitFor(() => expect(useCameraStore.getState().camera.x).toBeCloseTo(-500));
   });
 
   it("clicking a minimap region flies the camera there", async () => {

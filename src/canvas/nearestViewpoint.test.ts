@@ -15,7 +15,10 @@ describe("nearestViewpoint", () => {
   });
 
   it("returns the closest viewpoint for an in-between position", () => {
-    expect(nearestViewpoint({ x: 900, y: 0, zoom: 1 }, viewpoints, 1000, 800)?.key).toBe("landing");
+    // "landing" is itself a CENTERED_REGION_KEYS entry (D-81), so its true
+    // centre is exactly (0,0) rather than a raw-camera-style (vw/2, vh/2) —
+    // x=400 is closer to that than x=900 was under the old, uncentred math.
+    expect(nearestViewpoint({ x: 400, y: 0, zoom: 1 }, viewpoints, 1000, 800)?.key).toBe("landing");
     expect(nearestViewpoint({ x: 1100, y: 0, zoom: 1 }, viewpoints, 1000, 800)?.key).toBe("gallery");
   });
 

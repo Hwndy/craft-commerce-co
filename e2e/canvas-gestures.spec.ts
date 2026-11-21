@@ -146,8 +146,13 @@ test.describe("canvas gestures", () => {
     await expect.poll(async () => (await getCamera(page))?.zoom).toBeGreaterThan(panned!.zoom);
 
     await page.keyboard.press("0");
-    // flyTo animates to the landing viewpoint (x=0, zoom=1) — poll until settled.
-    await expect.poll(async () => (await getCamera(page))?.x).toBeCloseTo(0, 0);
+    // flyTo animates to the landing viewpoint, centred (docs/decisions.md
+    // D-81, the board's centre seal) — not raw x=0 as the viewport's own
+    // top-left corner, which would crop the seal. Poll until settled.
+    const viewport = page.viewportSize();
+    if (!viewport) throw new Error("expected a real viewport size");
+    await expect.poll(async () => (await getCamera(page))?.x).toBeCloseTo(0 - viewport.width / 2, 0);
+    await expect.poll(async () => (await getCamera(page))?.y).toBeCloseTo(0 - viewport.height / 2, 0);
     await expect.poll(async () => (await getCamera(page))?.zoom).toBeCloseTo(1, 1);
   });
 
