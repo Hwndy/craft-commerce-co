@@ -26,6 +26,12 @@ const DevCanvas = lazy(() => import("./pages/DevCanvas"));
 const DevFilm = lazy(() => import("./pages/DevFilm"));
 const DevUpload = lazy(() => import("./pages/DevUpload"));
 
+// Unlike the DEV-gated routes above, this one is reachable in the exact
+// production build Playwright's e2e suite tests against — see
+// E2EShopRoom.tsx's own comment for why, and why that's still safe for
+// real visitors (VITE_E2E_TEST_ROUTES, .env.example).
+const E2EShopRoom = lazy(() => import("./pages/E2EShopRoom"));
+
 // Admin (Phase 4) is its own, fully lazy route tree — kept out of the
 // public bundle the same way Gallery/FilmStage already are, since it'll
 // pull in its own forms/upload-pipeline code public visitors never need.
@@ -214,6 +220,16 @@ const App = () => (
               </Suspense>
             }
           />
+          {import.meta.env.VITE_E2E_TEST_ROUTES === "true" && (
+            <Route
+              path="/e2e/shop-room"
+              element={
+                <Suspense fallback={null}>
+                  <E2EShopRoom />
+                </Suspense>
+              }
+            />
+          )}
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
