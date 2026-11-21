@@ -7,9 +7,16 @@ export interface SealProps {
   centerY: number;
 }
 
-const WIDTH = 960;
-const HEIGHT = 600;
-const WORD_PADDING = 8;
+// 1.75× the first version's numbers (and content/seal.ts's ray scale,
+// 0.16 → 0.28) — the owner found that version "very small compared to
+// every other thing on the board" next to Gallery's own 800×600 region
+// (Gallery.tsx). Every clearance already checked (farthest ray/label point
+// vs. Gallery's nearest corner at world (-1200,-600), ~1341 units out)
+// scales by the same uniform factor, so it still holds.
+const WIDTH = 1680;
+const HEIGHT = 1050;
+const SEAL_IMAGE_SIZE = 280;
+const WORD_PADDING = 14;
 
 /**
  * The board's centre seal (docs/decisions.md D-81) — the "middle spot"
@@ -61,7 +68,12 @@ export function Seal({ centerX, centerY }: SealProps) {
         className="absolute flex flex-col items-center gap-1"
         style={{ left: WIDTH / 2, top: HEIGHT / 2, transform: "translate(-50%, -50%)" }}
       >
-        <img src="/videos/all_life_seal.png" alt="" className="h-40 w-40 object-contain" />
+        <img
+          src="/videos/all_life_seal.png"
+          alt=""
+          className="object-contain"
+          style={{ width: SEAL_IMAGE_SIZE, height: SEAL_IMAGE_SIZE }}
+        />
         <span className="whitespace-nowrap font-heading text-3xl font-semibold text-shop-ink">{sealHeading}</span>
         <span className="whitespace-nowrap font-body text-sm italic text-shop-ink/70">{sealTagline}</span>
       </div>
