@@ -49,7 +49,33 @@ function syntheticNode(index: number): ProductNode {
  * synthetic catalogue size (docs/decisions.md D-82); pagination state here
  * mirrors ShopRegion.tsx's own (kept duplicated, deliberately: this file is
  * test fixture code, not a production code path).
+ *
+ * Wrapped in a fixed 1600×900 box (`SCENE_WIDTH`/`SCENE_HEIGHT`,
+ * `ShopRegion.tsx`) rather than left to fill the bare viewport — found in
+ * review (CodeRabbit, PR #36): `ShopRoomScene`'s own `w-full`/anchor
+ * position (`calc(50% + 230px)`) resolve against *whatever contains it*,
+ * and in production that's always this fixed 1600×900 world-space box
+ * (`Region.tsx` sets an explicit pixel width/height, independent of the
+ * real device's viewport — the Board's own camera pans/zooms that fixed
+ * box into view, same as every other region on this board), never the
+ * bare browser viewport this route used to leave it against. Testing
+ * containment against the real browser window at 1280px or a 390px phone
+ * width was measuring a geometry that production never actually produces.
+ *
+ * Also wrapped in `Board.tsx`'s own `position: fixed; overflow: hidden`
+ * top-level clip (same values) — without it, a real mobile browser's
+ * layout viewport expands to fit this unconstrained 1600px-wide content
+ * (confirmed directly: `window.innerWidth` read back 1601 on an emulated
+ * 412px-wide device), which fed `useIsMobile()`'s `window.innerWidth < 768`
+ * check a wrong, inflated value and silently skipped `ShopRoomScene`'s own
+ * mobile `scale(0.55)` branch entirely — a second harness fidelity gap,
+ * not a real production behaviour (`Board.tsx`'s real top-level container
+ * already clips the same way, so `window.innerWidth` there always reflects
+ * the device's true width regardless of how wide any region's content is).
  */
+const SCENE_WIDTH = 1600;
+const SCENE_HEIGHT = 900;
+
 export default function E2EShopRoom() {
   const [params] = useSearchParams();
   const total = Math.max(0, Number(params.get("total") ?? PRODUCTS_PER_PAGE));
@@ -61,12 +87,16 @@ export default function E2EShopRoom() {
   const shownNodes = allNodes.slice(currentPage * PRODUCTS_PER_PAGE, (currentPage + 1) * PRODUCTS_PER_PAGE);
 
   return (
-    <ShopRoomScene
-      nodes={shownNodes}
-      page={currentPage}
-      totalPages={totalPages}
-      onPrevPage={() => setPage((p) => Math.max(0, p - 1))}
-      onNextPage={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-    />
+    <div style={{ position: "fixed", inset: 0, overflow: "hidden" }}>
+      <div data-testid="e2e-shop-room-scene-box" style={{ position: "relative", width: SCENE_WIDTH, height: SCENE_HEIGHT }}>
+        <ShopRoomScene
+          nodes={shownNodes}
+          page={currentPage}
+          totalPages={totalPages}
+          onPrevPage={() => setPage((p) => Math.max(0, p - 1))}
+          onNextPage={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        />
+      </div>
+    </div>
   );
 }

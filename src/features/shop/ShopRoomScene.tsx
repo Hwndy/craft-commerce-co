@@ -60,11 +60,19 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
           merely "wider than one poster" at column 0 can still overlap at
           column 3. These values were increased/shrunk until the e2e spec's
           real getBoundingClientRect() measurements showed zero overlap
-          across every column and row this grid actually renders. */}
+          across every column and row this grid actually renders — *and*
+          every poster/badge stays inside this scene's own clipped box
+          (found in review, CodeRabbit, PR #36: an earlier, much larger
+          pitch killed the overlap but pushed row 2's posters far enough
+          down/right that they were clipped by this component's own
+          `overflow-hidden`, invisible and unclickable despite being "on"
+          the page — the overlap check alone never caught that, only a
+          separate containment check against the scene's real rendered
+          box does). */}
       <div
         aria-hidden="true"
         data-testid={`floor-poster-${node.nodeId}`}
-        className="absolute h-[98px] w-[122px] overflow-hidden rounded-md bg-white shadow-lg"
+        className="absolute h-[72px] w-[90px] overflow-hidden rounded-md bg-white shadow-lg"
         style={{ left, top, transform: "rotate(6deg)" }}
       >
         <div
@@ -73,12 +81,12 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
         />
       </div>
       <div
-        className="absolute h-[110px] w-[110px]"
+        className="absolute h-[72px] w-[72px]"
         style={{
-          left: left + 20,
-          top: top - 70,
+          left: left + 26,
+          top: top - 64,
           transformOrigin: "50% 100%",
-          transform: "translateY(-140px) rotateX(-90deg)",
+          transform: "translateY(-128px) rotateX(-90deg)",
         }}
       >
         <PriceTagLabel
@@ -121,10 +129,10 @@ export interface ShopRoomSceneProps {
 }
 
 const FLOOR_COLUMNS = 4;
-const FLOOR_CELL_WIDTH = 400;
-const FLOOR_CELL_HEIGHT = 450;
-const FLOOR_ORIGIN_X = 40;
-const FLOOR_ORIGIN_Y = 380;
+const FLOOR_CELL_WIDTH = 260;
+const FLOOR_CELL_HEIGHT = 320;
+const FLOOR_ORIGIN_X = 20;
+const FLOOR_ORIGIN_Y = 74;
 
 /**
  * The Product Display's own 3D room corner (docs/decisions.md D-71,
