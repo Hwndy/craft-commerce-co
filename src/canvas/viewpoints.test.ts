@@ -111,8 +111,8 @@ describe("cameraForViewpoint", () => {
 
   const viewport = { width: 1000, height: 800 };
 
-  it("returns the raw viewpoint unchanged for every region except contact/shop-wall/shop-floor", () => {
-    for (const key of ["landing", "gallery", "collage"]) {
+  it("returns the raw viewpoint unchanged for every region except landing/contact/shop-wall/shop-floor", () => {
+    for (const key of ["gallery", "collage"]) {
       const viewpoint = getViewpoint(key);
       expect(cameraForViewpoint(viewpoint, viewport)).toEqual(viewpoint);
     }
@@ -126,8 +126,10 @@ describe("cameraForViewpoint", () => {
   // decisions.md D-60): each is seeded with exactly one small product card
   // deliberately centred on the region's own viewpoint coordinate, so the
   // same raw-top-left landing cropped roughly half of it on arrival.
-  it("centres the camera on contact/shop-wall/shop-floor's viewpoint instead of using it as the raw top-left", () => {
-    for (const key of ["contact", "shop-wall", "shop-floor"]) {
+  // "landing" joined it last (D-81, the board's centre seal) — same bug,
+  // caught the same way, once something real finally sat at (0,0).
+  it("centres the camera on landing/contact/shop-wall/shop-floor's viewpoint instead of using it as the raw top-left", () => {
+    for (const key of ["landing", "contact", "shop-wall", "shop-floor"]) {
       const viewpoint = getViewpoint(key);
       const camera = cameraForViewpoint(viewpoint, viewport);
       expect(camera).not.toEqual(viewpoint);

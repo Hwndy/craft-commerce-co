@@ -196,8 +196,16 @@ export function listViewpoints(): Viewpoint[] {
  * the same root cause as the pre-fix About/Contact bug, just milder to
  * notice because something (the card's own bottom-right quadrant) was
  * still visible rather than nothing at all.
+ *
+ * "landing" joined this set once it got the same kind of real, immediately-
+ * readable content (docs/decisions.md D-81, the board's centre seal) — the
+ * Home button and keyboard "0" shortcut both already flew here before the
+ * seal existed, raw-top-left, same as "gallery"'s own intentional semantics
+ * (harmless when the spot was empty board). Confirmed by screenshot once
+ * the seal was built: landing there showed only its bottom-right quarter,
+ * abruptly cropped, the exact same bug shape Contact/Shop already had.
  */
-const CENTERED_REGION_KEYS = new Set(["contact", "shop-wall", "shop-floor"]);
+const CENTERED_REGION_KEYS = new Set(["landing", "contact", "shop-wall", "shop-floor"]);
 
 /**
  * The camera to use when flying to or setting `viewpoint` directly —
