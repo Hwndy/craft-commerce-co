@@ -96,8 +96,14 @@ export function ShopRegion({
         onOpenProduct={onOpenProduct}
         page={currentPage}
         totalPages={totalPages}
-        onPrevPage={() => setPage((p) => Math.max(0, p - 1))}
-        onNextPage={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+        // Based on currentPage (the clamped, actually-displayed page), not
+        // the raw stored page state — found in review (CodeRabbit, PR #36):
+        // if the catalogue shrinks while a visitor is on a later page (e.g.
+        // stored page=2 while totalPages drops to 2, clamped to display
+        // "Page 2 of 2"), computing the next page from the stale stored
+        // value needed two Prev clicks to move the display back by one.
+        onPrevPage={() => setPage(Math.max(0, currentPage - 1))}
+        onNextPage={() => setPage(Math.min(totalPages - 1, currentPage + 1))}
         onViewAllWall={onViewAllWall}
         onViewAllFloor={onViewAllFloor}
       />

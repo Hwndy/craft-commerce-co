@@ -22,9 +22,12 @@
  * owner's own "owner inputs needed" item, AGENTS.md rule 10). --slug/--name
  * become the shared prefix ("bulk-belt" / "Bulk Belt" by default) — product
  * i gets slug `${prefix}-${i+1}` and name `${namePrefix} No.${i+1}`, with
- * `--sort-order` as the first item's own sort_order and each later one
- * incrementing by 1, so the whole batch orders after whatever already
- * exists. Every other flag (--price/--zone/--region/etc.) applies to the
+ * `--sort-order` as the first item's own sort_order (default 0) and each
+ * later one incrementing by 1. Default 0 does NOT order the batch after an
+ * existing catalogue — pass a `--sort-order` higher than the current
+ * maximum (`select max(sort_order) from products`) if that's what's
+ * wanted; this script doesn't query or compute that starting value for
+ * you. Every other flag (--price/--zone/--region/etc.) applies to the
  * whole batch alike. canvas_nodes positions aren't read for real layout any
  * more (see the comment on SAMPLE_PRODUCT.node below) — every bulk item
  * reuses the same base --node-x/--node-y, which is harmless for exactly
@@ -96,6 +99,27 @@ if (BULK_COUNT !== null && (!Number.isInteger(BULK_COUNT) || BULK_COUNT < 1)) {
   process.exit(1);
 }
 
+const baseSortOrder = Number(overrides.get("sort-order") ?? 0);
+
+// products.sort_order is a Postgres `int` (supabase/migrations/0003_shop_
+// and_enquiries.sql) — found in review (CodeRabbit, PR #36): a --sort-order
+// close to that column's own max could overflow partway through a bulk
+// run, after earlier items in the batch already committed. Checked before
+// any insert, not discovered mid-batch.
+const POSTGRES_INT_MAX = 2147483647;
+const POSTGRES_INT_MIN = -2147483648;
+if (!Number.isInteger(baseSortOrder)) {
+  console.error(`--sort-order must be an integer, got: ${overrides.get("sort-order")}`);
+  process.exit(1);
+}
+const finalSortOrder = baseSortOrder + (BULK_COUNT ?? 1) - 1;
+if (baseSortOrder < POSTGRES_INT_MIN || finalSortOrder > POSTGRES_INT_MAX) {
+  console.error(
+    `--sort-order=${baseSortOrder}${BULK_COUNT ? ` with --count=${BULK_COUNT}` : ""} would generate a sort_order outside Postgres's int range (${POSTGRES_INT_MIN}..${POSTGRES_INT_MAX}): ${finalSortOrder}.`
+  );
+  process.exit(1);
+}
+
 // T2's two Shop regions both need at least one real product to render
 // against — 'floor' per phases/PHASE-3-shop-and-enquiry.md T2's own
 // description of it as the simpler, single-item-friendly layout ("items
@@ -125,7 +149,6 @@ const SHARED = {
     height: Number(overrides.get("node-height") ?? 360),
   },
 };
-const baseSortOrder = Number(overrides.get("sort-order") ?? 0);
 
 const itemsToSeed =
   BULK_COUNT === null
@@ -251,6 +274,18 @@ async function main() {
   }
   const sourceBuffer = readFileSync(join(folder, imageFiles[0]));
 
+  // A bulk run that fails partway (e.g. item 2 of 5) leaves the items
+  // before it fully committed — found in review (CodeRabbit, PR #36):
+  // simply rerunning the same `--count=N` command then fails on the
+  // first already-seeded slug (`products.slug` is unique), since seedOne
+  // doesn't check for or resume an existing product. Making a rerun
+  // resume safely would mean reconciling every resource it creates
+  // (products row, media row + storage objects, product_media link,
+  // canvas_nodes row), not just skipping an existing slug — out of
+  // proportion for a manual, owner/CI-invoked tool. The supported
+  // recovery is either: delete the partially-seeded rows (and their
+  // uploaded site-media objects) before retrying the same command, or
+  // retry with a different --slug/--name prefix for a fresh batch.
   for (const item of itemsToSeed) {
     await seedOne(item, sourceBuffer);
   }
