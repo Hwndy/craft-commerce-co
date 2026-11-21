@@ -24,7 +24,11 @@ export const RegionLabel = React.forwardRef<HTMLButtonElement, RegionLabelProps>
       className={cn(
         // Thin-line, unfilled card (docs/decisions.md D-71) — was a solid
         // bg-card/80 fill; now just a border on transparent background.
-        "flex flex-col gap-3 rounded-2xl border border-white/20 bg-transparent p-4 text-left transition-colors hover:border-primary/60 hover:bg-white/5",
+        // hover:border-shop-accent-pink/60, not hover:border-primary/60
+        // (docs/decisions.md D-80, client feedback 21 Nov 2026): a hover
+        // border isn't text, so it doesn't need to clear 4.5:1 the way
+        // CanvasChrome's text did — the accent colour is fine here as-is.
+        "flex flex-col gap-3 rounded-2xl border border-white/20 bg-transparent p-4 text-left transition-colors hover:border-shop-accent-pink/60 hover:bg-white/5",
         className
       )}
       {...props}
