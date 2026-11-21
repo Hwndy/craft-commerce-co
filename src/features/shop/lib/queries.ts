@@ -32,6 +32,13 @@ const productSchema = z.object({
   status: z.enum(["available", "sold", "made_to_order"]),
   zone: z.enum(["wall", "floor"]),
   onSale: z.boolean(),
+  // The one real ordering field (FR-4.1/4.2) — previously queried in
+  // fetchProducts() but never actually mapped onto Product, so nothing
+  // ever read it; fetchProductNodes() ordered by canvas_nodes.layer
+  // instead, entirely independent of this column. Exposed now so the
+  // room's own pagination order is tied to the one field an eventual
+  // admin "reorder" feature would actually edit (docs/decisions.md).
+  sortOrder: z.number(),
   poster: mediaSchema.nullable(),
 });
 export type Product = z.infer<typeof productSchema>;
@@ -66,6 +73,7 @@ interface ProductRow {
   status: string;
   zone: string;
   on_sale: boolean;
+  sort_order: number;
   poster_media_id: string | null;
   video_media_id: string | null;
 }
@@ -96,6 +104,7 @@ export function mapProductRow(row: ProductRow, mediaById: Map<string, MediaRow>)
     status: row.status,
     zone: row.zone,
     onSale: row.on_sale,
+    sortOrder: row.sort_order,
     poster: mapMedia(row.poster_media_id ? mediaById.get(row.poster_media_id) : undefined),
   });
 }
@@ -172,6 +181,14 @@ export interface ProductNode {
  * computed like the collage's generative layout (docs/decisions.md D-48).
  * Nodes whose product doesn't exist or isn't published are silently
  * skipped, same spirit as fetchProduct()'s "ready" media filter.
+ *
+ * Returned order is `product.sortOrder` (then `nodeId` as a stable
+ * tiebreak), not the `canvas_nodes` query's own `.order("layer")` — that
+ * query order only exists to make the DB round-trip itself deterministic;
+ * `layer` was never the real admin-facing ordering concept. Re-sorting
+ * client-side (after the join, so it's `sortOrder` on the *product*, not
+ * a column on `canvas_nodes`) ties display order to the one field an
+ * eventual admin "reorder" feature would actually edit.
  */
 export async function fetchProductNodes(region: string): Promise<ProductNode[]> {
   const [{ data: nodes, error: nodesError }, products] = await Promise.all([
@@ -199,7 +216,10 @@ export async function fetchProductNodes(region: string): Promise<ProductNode[]> 
       height: node.height,
       rotation: node.rotation,
       product: productById.get(node.ref_id!)!,
-    }));
+    }))
+    .sort(
+      (a, b) => a.product.sortOrder - b.product.sortOrder || (a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0)
+    );
 }
 
 async function fetchMediaByIds(ids: string[]): Promise<Map<string, MediaRow>> {

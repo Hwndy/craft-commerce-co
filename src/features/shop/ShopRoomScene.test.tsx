@@ -17,35 +17,72 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("ShopRoomScene overflow affordance", () => {
-  // docs/decisions.md: a count of 0 means ShopRegion.tsx is already handing
-  // in the full catalogue for that zone — nothing to route elsewhere, so
-  // no button should exist at all (not just be hidden/disabled).
-  it("renders neither overflow button when both counts are 0", () => {
-    render(<ShopRoomScene nodes={[]} />);
+describe("ShopRoomScene pagination (docs/decisions.md D-82)", () => {
+  it("renders no pagination controls when there's only one page", () => {
+    render(<ShopRoomScene nodes={[]} page={0} totalPages={1} />);
 
-    expect(screen.queryByText(/more \(wall\) — view all/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/more \(floor\) — view all/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Page \d+ of \d+$/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Previous products" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Next products" })).not.toBeInTheDocument();
   });
 
-  it("shows the wall's own overflow count and calls onViewAllWall when clicked", async () => {
-    const onViewAllWall = vi.fn();
+  it("shows the page indicator and wires Prev/Next once there's more than one page", async () => {
+    const onPrevPage = vi.fn();
+    const onNextPage = vi.fn();
     const user = userEvent.setup();
-    render(<ShopRoomScene nodes={[]} wallOverflowCount={3} onViewAllWall={onViewAllWall} />);
+    render(
+      <ShopRoomScene nodes={[]} page={0} totalPages={2} onPrevPage={onPrevPage} onNextPage={onNextPage} />
+    );
 
-    const button = screen.getByText("+3 more (wall) — view all");
-    await user.click(button);
-    expect(onViewAllWall).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Page 1 of 2")).toBeInTheDocument();
+    const prev = screen.getByRole("button", { name: "Previous products" });
+    const next = screen.getByRole("button", { name: "Next products" });
+    expect(prev).toBeDisabled();
+    expect(next).not.toBeDisabled();
+
+    await user.click(next);
+    expect(onNextPage).toHaveBeenCalledTimes(1);
+    expect(onPrevPage).not.toHaveBeenCalled();
   });
 
-  it("shows the floor's own overflow count independently and calls onViewAllFloor when clicked", async () => {
+  it("disables Next (not Prev) on the last page", () => {
+    render(<ShopRoomScene nodes={[]} page={1} totalPages={2} />);
+
+    expect(screen.getByText("Page 2 of 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous products" })).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "Next products" })).toBeDisabled();
+  });
+
+  // The permanent accessibility/SEO affordance (ShopRoomScene.tsx's own
+  // comment) only exists when ShopRegion.tsx actually has a list route to
+  // link to for that zone — docs/decisions.md D-82 dropped the old
+  // overflow-count gate, not the "only render a link that goes somewhere"
+  // rule.
+  it("renders neither 'view all' link when no handler is given", () => {
+    render(<ShopRoomScene nodes={[]} page={0} totalPages={1} />);
+
+    expect(screen.queryByRole("button", { name: "View all (wall)" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View all (floor)" })).not.toBeInTheDocument();
+  });
+
+  it("renders each 'view all' link once its handler is given, and calls it on click", async () => {
+    const onViewAllWall = vi.fn();
     const onViewAllFloor = vi.fn();
     const user = userEvent.setup();
-    render(<ShopRoomScene nodes={[]} floorOverflowCount={1} onViewAllFloor={onViewAllFloor} />);
+    render(
+      <ShopRoomScene
+        nodes={[]}
+        page={0}
+        totalPages={1}
+        onViewAllWall={onViewAllWall}
+        onViewAllFloor={onViewAllFloor}
+      />
+    );
 
-    const buttons = screen.getAllByText("+1 more (floor) — view all");
-    expect(buttons).toHaveLength(1);
-    await user.click(buttons[0]);
+    await user.click(screen.getByRole("button", { name: "View all (wall)" }));
+    expect(onViewAllWall).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "View all (floor)" }));
     expect(onViewAllFloor).toHaveBeenCalledTimes(1);
   });
 });

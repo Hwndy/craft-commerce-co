@@ -14,6 +14,7 @@ function baseRow(overrides: Partial<Parameters<typeof mapProductRow>[0]> = {}) {
     status: "available",
     zone: "floor",
     on_sale: false,
+    sort_order: 0,
     poster_media_id: null,
     video_media_id: null,
     ...overrides,

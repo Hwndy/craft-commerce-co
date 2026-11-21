@@ -21,14 +21,17 @@ const WIDTH = 980;
 // "merge wall+floor into one shop space". Every product now rests on the
 // one floor plane — the walls are signage only (the back wall keeps the
 // shop's own title card; the right wall is now a plain, undecorated
-// surface). The room's real visual capacity, confirmed the same way as
-// every earlier correction to this scene (rendering real counts against
-// the fixed geometry below and screenshotting the result, not computed
-// from the 3D transform math): a 4-column, 2-row floor grid holds 8 belts
-// cleanly. ShopRegion.tsx caps what it passes in at this number and routes
-// the rest through onViewAllWall/onViewAllFloor instead of forcing it into
-// the fixed grid below.
-export const ROOM_CAPACITY = 8;
+// surface). The room's real visual capacity — a 4-column, 2-row floor
+// grid holds this many belts cleanly — is now a *page* size, not a hard
+// cap (docs/decisions.md D-82): ShopRegion.tsx paginates the full,
+// ordered catalogue through this many at a time, instead of silently
+// routing everything past a fixed count to an external page. Confirmed
+// by real measured geometry (e2e/shop-geometry.spec.ts), not by eye —
+// the room is a true CSS `perspective` scene, so flat 2D pixel math
+// (column pitch vs. poster width) doesn't reliably predict the final
+// on-screen bounding boxes once perspective foreshortening applies; every
+// earlier "fits at N" claim here was an assumption, not a measurement.
+export const PRODUCTS_PER_PAGE = 8;
 
 interface FloorBeltProps {
   node: ProductNode;
@@ -46,15 +49,22 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 
   return (
     <>
-      {/* w-[190px], not the original 240px: at this grid's 220px column
-          pitch, a 240px-wide poster rotated 6deg has an axis-aligned
-          bounding width of ~254px — wider than the pitch, so adjacent
-          posters overlapped by ~34px even with zero overflow (found in
-          review, CodeRabbit, PR #30). 190px keeps that bounding width
-          (~205px) comfortably under the pitch. */}
+      {/* Sized and spaced by real measurement (e2e/shop-geometry.spec.ts),
+          not flat 2D pixel math (docs/decisions.md D-82) — this room is a
+          true CSS `perspective` scene, so a poster's local size and the
+          grid's local pitch don't map onto final on-screen bounding boxes
+          by simple rotated-rectangle arithmetic the way the previous fix
+          (190px, found in review, CodeRabbit, PR #30) assumed; foreshort-
+          ening also makes the *column* pitch shrink faster than the poster
+          width as column index increases, so a uniform local pitch that's
+          merely "wider than one poster" at column 0 can still overlap at
+          column 3. These values were increased/shrunk until the e2e spec's
+          real getBoundingClientRect() measurements showed zero overlap
+          across every column and row this grid actually renders. */}
       <div
         aria-hidden="true"
-        className="absolute h-[150px] w-[190px] overflow-hidden rounded-md bg-white shadow-lg"
+        data-testid={`floor-poster-${node.nodeId}`}
+        className="absolute h-[98px] w-[122px] overflow-hidden rounded-md bg-white shadow-lg"
         style={{ left, top, transform: "rotate(6deg)" }}
       >
         <div
@@ -63,12 +73,12 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
         />
       </div>
       <div
-        className="absolute h-[150px] w-[150px]"
+        className="absolute h-[110px] w-[110px]"
         style={{
-          left: left + 30,
-          top: top - 60,
+          left: left + 20,
+          top: top - 70,
           transformOrigin: "50% 100%",
-          transform: "translateY(-150px) rotateX(-90deg)",
+          transform: "translateY(-140px) rotateX(-90deg)",
         }}
       >
         <PriceTagLabel
@@ -87,23 +97,32 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 }
 
 export interface ShopRoomSceneProps {
-  /** Every product shown in the room — all on the floor now (D-78). */
+  /** This page's products — all on the floor now (D-78). */
   nodes: ProductNode[];
   onOpenProduct?: (slug: string) => void;
-  /** How many real products ShopRegion.tsx held back past ROOM_CAPACITY, by
-   * which underlying admin zone they were categorised under (still two
-   * separate, uncapped list pages — /list/shop-wall, /list/shop-floor —
-   * D-78 only merged the room's own *visual* presentation, not the admin's
-   * wall/floor categorisation or those list routes). 0 renders nothing. */
-  wallOverflowCount?: number;
-  floorOverflowCount?: number;
+  /** 0-indexed current page and the total page count, for the Prev/Next
+   * controls (docs/decisions.md D-82) — hidden entirely when there's only
+   * one page, same spirit as the old overflow buttons only appearing once
+   * there was somewhere else to go. */
+  page: number;
+  totalPages: number;
+  onPrevPage?: () => void;
+  onNextPage?: () => void;
+  /** Small, always-visible links to the full, uncapped list for each
+   * admin-side zone (still two separate pages — /list/shop-wall,
+   * /list/shop-floor — D-78 only merged the room's own *visual*
+   * presentation, not the admin's wall/floor categorisation or those list
+   * routes) — kept for keyboard/screen-reader/non-JS visitors the room's
+   * own 3D transforms don't serve well, not gated behind an overflow
+   * count any more (nothing below is ever capped past the point of being
+   * unreachable now that pagination covers the whole catalogue). */
   onViewAllWall?: () => void;
   onViewAllFloor?: () => void;
 }
 
 const FLOOR_COLUMNS = 4;
-const FLOOR_CELL_WIDTH = 220;
-const FLOOR_CELL_HEIGHT = 190;
+const FLOOR_CELL_WIDTH = 400;
+const FLOOR_CELL_HEIGHT = 450;
 const FLOOR_ORIGIN_X = 40;
 const FLOOR_ORIGIN_Y = 380;
 
@@ -124,8 +143,10 @@ const FLOOR_ORIGIN_Y = 380;
 export function ShopRoomScene({
   nodes,
   onOpenProduct,
-  wallOverflowCount = 0,
-  floorOverflowCount = 0,
+  page,
+  totalPages,
+  onPrevPage,
+  onNextPage,
   onViewAllWall,
   onViewAllFloor,
 }: ShopRoomSceneProps) {
@@ -215,34 +236,58 @@ export function ShopRoomScene({
               top={FLOOR_ORIGIN_Y + Math.floor(index / FLOOR_COLUMNS) * FLOOR_CELL_HEIGHT}
             />
           ))}
-          {/* Pinned to the floor's own top-right corner, in the strip above
+          {/* Pinned to the floor's own top corners, in the strip above
               FLOOR_ORIGIN_Y (380) — the grid never places a product there
               regardless of count, unlike the previous bottom-right
               placement: found in review (CodeRabbit, PR #30) that with a
               full 8-item grid, the bottom-right corner is exactly where
-              the last poster sits, so the buttons covered part of it. */}
-          {wallOverflowCount > 0 && (
-            // docs/decisions.md D-78: the room only has room for
-            // ROOM_CAPACITY belts total — this routes the rest of what was
-            // categorised "wall" to the full, uncapped list
-            // (ListRegion.tsx's shop section) instead of silently losing
-            // them off the edge of the fixed grid.
+              the last poster sits, so controls there covered part of it.
+              docs/decisions.md D-82: the room now paginates instead of
+              hard-capping, so these are Prev/Next + a page indicator
+              (left) rather than an overflow count, and the "view all"
+              links (right) are a permanent accessibility/SEO affordance,
+              not something that only appears past a capacity. */}
+          {totalPages > 1 && (
+            <div className="absolute left-10 top-4 flex items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink">
+              <button
+                type="button"
+                onClick={onPrevPage}
+                disabled={page <= 0}
+                aria-label="Previous products"
+                className="disabled:opacity-40"
+              >
+                ←
+              </button>
+              <span>
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={onNextPage}
+                disabled={page >= totalPages - 1}
+                aria-label="Next products"
+                className="disabled:opacity-40"
+              >
+                →
+              </button>
+            </div>
+          )}
+          {onViewAllWall && (
             <button
               type="button"
               onClick={onViewAllWall}
               className="absolute right-10 top-4 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
             >
-              +{wallOverflowCount} more (wall) — view all
+              View all (wall)
             </button>
           )}
-          {floorOverflowCount > 0 && (
-            // Same reasoning, for whatever was categorised "floor".
+          {onViewAllFloor && (
             <button
               type="button"
               onClick={onViewAllFloor}
               className="absolute right-10 top-12 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
             >
-              +{floorOverflowCount} more (floor) — view all
+              View all (floor)
             </button>
           )}
         </div>
