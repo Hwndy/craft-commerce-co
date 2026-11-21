@@ -62,7 +62,7 @@ export function CollageChrome() {
   const shoots = distinctShoots(photos ?? []);
 
   return (
-    <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-foreground">
+    <div className="pointer-events-none fixed inset-0 z-[55] font-body text-sm text-shop-ink">
       {shoots.length > 1 && (
         // Client feedback, 18 Nov 2026 (docs/decisions.md): "the all, Lagos
         // & London buttons should be on the same side as the recentre and
@@ -77,25 +77,23 @@ export function CollageChrome() {
         // only needs to clear CanvasChrome's Home button (bottom-20
         // right-4) and the zoom/Recentre row directly below (bottom-36
         // right-4), which it already does.
-        // bg-background/80 + backdrop-blur: the board's own backdrop is
-        // white, not dark (Board.tsx, "make the board's own empty backdrop
-        // white") — that commit's audit covered every region/overlay
-        // *inside* the board's world, but this chrome is a sibling of it,
-        // same as CanvasChrome, and unlike CanvasChrome's own bars (each
-        // already opaque or near-opaque) these two clusters had no backing
-        // at all, so their pill buttons' gold text measured ~1.38:1 against
-        // the white board — found by axe failing e2e/collage.spec.ts's
-        // accessibility check. /80 composited over white still clears AA
-        // with margin (≈7:1, worked out from the WCAG relative-luminance
-        // formula) while staying a translucent panel, not a flat fill —
-        // same visual family as CanvasChrome's minimap (bg-background/70).
+        //
+        // Client feedback, 21 Nov 2026 (docs/decisions.md D-80): bg-shop-
+        // cream/90, not bg-background/80 — same translucent-panel-over-
+        // white-board idea the original D-61 fix established (a dark panel
+        // was needed then because the pills' own gold text failed contrast
+        // directly on white), just with the panel and the pills both
+        // light now instead of both dark. A thin shop-ink/10 border keeps
+        // the pale cream panel visually distinct from the white board
+        // behind it, since a light panel alone doesn't separate from a
+        // light board the way the old dark one did.
         <div
           data-collage-chrome
-          className="pointer-events-auto absolute bottom-48 right-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-1.5 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
+          className="pointer-events-auto absolute bottom-48 right-4 flex max-w-[calc(100vw-2rem)] flex-wrap items-center justify-end gap-1.5 rounded-full border border-shop-ink/10 bg-shop-cream/90 p-1.5 backdrop-blur-sm"
         >
           <Button
             type="button"
-            variant={activeShootId === null ? "pill" : "pill-outline"}
+            variant={activeShootId === null ? "chrome-pill" : "chrome-pill-outline"}
             size="sm"
             onClick={() => setActiveShootId(null)}
           >
@@ -105,7 +103,7 @@ export function CollageChrome() {
             <Button
               key={shoot.id}
               type="button"
-              variant={activeShootId === shoot.id ? "pill" : "pill-outline"}
+              variant={activeShootId === shoot.id ? "chrome-pill" : "chrome-pill-outline"}
               size="sm"
               onClick={() => setActiveShootId(shoot.id)}
             >
@@ -116,16 +114,16 @@ export function CollageChrome() {
       )}
 
       {/* Stacked above CanvasChrome's Home (bottom-20 right-4), not beside
-       * it. Same bg-background/80 backing as the shoot-filter row above,
+       * it. Same bg-shop-cream/90 backing as the shoot-filter row above,
        * and for the same reason — this cluster had none either. */}
       <div
         data-collage-chrome
-        className="pointer-events-auto absolute bottom-36 right-4 flex items-center gap-2 rounded-full bg-background/80 p-1.5 backdrop-blur-sm"
+        className="pointer-events-auto absolute bottom-36 right-4 flex items-center gap-2 rounded-full border border-shop-ink/10 bg-shop-cream/90 p-1.5 backdrop-blur-sm"
       >
-        <IconButton aria-label="Zoom out" size="sm" onClick={() => zoomAtViewportCenter(1 / ZOOM_STEP_FACTOR)}>
+        <IconButton variant="chrome-pill-outline" aria-label="Zoom out" size="sm" onClick={() => zoomAtViewportCenter(1 / ZOOM_STEP_FACTOR)}>
           −
         </IconButton>
-        <IconButton aria-label="Zoom in" size="sm" onClick={() => zoomAtViewportCenter(ZOOM_STEP_FACTOR)}>
+        <IconButton variant="chrome-pill-outline" aria-label="Zoom in" size="sm" onClick={() => zoomAtViewportCenter(ZOOM_STEP_FACTOR)}>
           +
         </IconButton>
         {/* Not labelled "Home": CanvasChrome already has a real "Home" button
@@ -134,7 +132,7 @@ export function CollageChrome() {
          * for clarity and so the two aren't accessible-name-ambiguous. */}
         <Button
           type="button"
-          variant="pill"
+          variant="chrome-pill"
           size="sm"
           onClick={() => {
             const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
