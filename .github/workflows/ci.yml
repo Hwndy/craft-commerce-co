@@ -180,6 +180,10 @@ jobs:
           # e2e specs to assert against.
           VITE_OWNER_EMAIL: owner-ci@example.com
           VITE_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+          # e2e/shop-geometry.spec.ts's only way to reach ShopRoomScene
+          # with synthetic data (src/pages/E2EShopRoom.tsx's own comment)
+          # — never set for the real Vercel deployment.
+          VITE_E2E_TEST_ROUTES: "true"
         run: npm run build
 
       - name: Install Playwright browsers

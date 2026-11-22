@@ -21,14 +21,17 @@ const WIDTH = 980;
 // "merge wall+floor into one shop space". Every product now rests on the
 // one floor plane — the walls are signage only (the back wall keeps the
 // shop's own title card; the right wall is now a plain, undecorated
-// surface). The room's real visual capacity, confirmed the same way as
-// every earlier correction to this scene (rendering real counts against
-// the fixed geometry below and screenshotting the result, not computed
-// from the 3D transform math): a 4-column, 2-row floor grid holds 8 belts
-// cleanly. ShopRegion.tsx caps what it passes in at this number and routes
-// the rest through onViewAllWall/onViewAllFloor instead of forcing it into
-// the fixed grid below.
-export const ROOM_CAPACITY = 8;
+// surface). The room's real visual capacity — a 4-column, 2-row floor
+// grid holds this many belts cleanly — is now a *page* size, not a hard
+// cap (docs/decisions.md D-82): ShopRegion.tsx paginates the full,
+// ordered catalogue through this many at a time, instead of silently
+// routing everything past a fixed count to an external page. Confirmed
+// by real measured geometry (e2e/shop-geometry.spec.ts), not by eye —
+// the room is a true CSS `perspective` scene, so flat 2D pixel math
+// (column pitch vs. poster width) doesn't reliably predict the final
+// on-screen bounding boxes once perspective foreshortening applies; every
+// earlier "fits at N" claim here was an assumption, not a measurement.
+export const PRODUCTS_PER_PAGE = 8;
 
 interface FloorBeltProps {
   node: ProductNode;
@@ -46,15 +49,30 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 
   return (
     <>
-      {/* w-[190px], not the original 240px: at this grid's 220px column
-          pitch, a 240px-wide poster rotated 6deg has an axis-aligned
-          bounding width of ~254px — wider than the pitch, so adjacent
-          posters overlapped by ~34px even with zero overflow (found in
-          review, CodeRabbit, PR #30). 190px keeps that bounding width
-          (~205px) comfortably under the pitch. */}
+      {/* Sized and spaced by real measurement (e2e/shop-geometry.spec.ts),
+          not flat 2D pixel math (docs/decisions.md D-82) — this room is a
+          true CSS `perspective` scene, so a poster's local size and the
+          grid's local pitch don't map onto final on-screen bounding boxes
+          by simple rotated-rectangle arithmetic the way the previous fix
+          (190px, found in review, CodeRabbit, PR #30) assumed; foreshort-
+          ening also makes the *column* pitch shrink faster than the poster
+          width as column index increases, so a uniform local pitch that's
+          merely "wider than one poster" at column 0 can still overlap at
+          column 3. These values were increased/shrunk until the e2e spec's
+          real getBoundingClientRect() measurements showed zero overlap
+          across every column and row this grid actually renders — *and*
+          every poster/badge stays inside this scene's own clipped box
+          (found in review, CodeRabbit, PR #36: an earlier, much larger
+          pitch killed the overlap but pushed row 2's posters far enough
+          down/right that they were clipped by this component's own
+          `overflow-hidden`, invisible and unclickable despite being "on"
+          the page — the overlap check alone never caught that, only a
+          separate containment check against the scene's real rendered
+          box does). */}
       <div
         aria-hidden="true"
-        className="absolute h-[150px] w-[190px] overflow-hidden rounded-md bg-white shadow-lg"
+        data-testid={`floor-poster-${node.nodeId}`}
+        className="absolute h-[72px] w-[90px] overflow-hidden rounded-md bg-white shadow-lg"
         style={{ left, top, transform: "rotate(6deg)" }}
       >
         <div
@@ -87,25 +105,34 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
 }
 
 export interface ShopRoomSceneProps {
-  /** Every product shown in the room — all on the floor now (D-78). */
+  /** This page's products — all on the floor now (D-78). */
   nodes: ProductNode[];
   onOpenProduct?: (slug: string) => void;
-  /** How many real products ShopRegion.tsx held back past ROOM_CAPACITY, by
-   * which underlying admin zone they were categorised under (still two
-   * separate, uncapped list pages — /list/shop-wall, /list/shop-floor —
-   * D-78 only merged the room's own *visual* presentation, not the admin's
-   * wall/floor categorisation or those list routes). 0 renders nothing. */
-  wallOverflowCount?: number;
-  floorOverflowCount?: number;
+  /** 0-indexed current page and the total page count, for the Prev/Next
+   * controls (docs/decisions.md D-82) — hidden entirely when there's only
+   * one page, same spirit as the old overflow buttons only appearing once
+   * there was somewhere else to go. */
+  page: number;
+  totalPages: number;
+  onPrevPage?: () => void;
+  onNextPage?: () => void;
+  /** Small, always-visible links to the full, uncapped list for each
+   * admin-side zone (still two separate pages — /list/shop-wall,
+   * /list/shop-floor — D-78 only merged the room's own *visual*
+   * presentation, not the admin's wall/floor categorisation or those list
+   * routes) — kept for keyboard/screen-reader/non-JS visitors the room's
+   * own 3D transforms don't serve well, not gated behind an overflow
+   * count any more (nothing below is ever capped past the point of being
+   * unreachable now that pagination covers the whole catalogue). */
   onViewAllWall?: () => void;
   onViewAllFloor?: () => void;
 }
 
-const FLOOR_COLUMNS = 4;
-const FLOOR_CELL_WIDTH = 220;
-const FLOOR_CELL_HEIGHT = 190;
-const FLOOR_ORIGIN_X = 40;
-const FLOOR_ORIGIN_Y = 380;
+const FLOOR_COLUMNS = PRODUCTS_PER_PAGE;
+const FLOOR_CELL_WIDTH = 260;
+const FLOOR_CELL_HEIGHT = 380;
+const FLOOR_ORIGIN_X = 10;
+const FLOOR_ORIGIN_Y = 200;
 
 /**
  * The Product Display's own 3D room corner (docs/decisions.md D-71,
@@ -124,8 +151,10 @@ const FLOOR_ORIGIN_Y = 380;
 export function ShopRoomScene({
   nodes,
   onOpenProduct,
-  wallOverflowCount = 0,
-  floorOverflowCount = 0,
+  page,
+  totalPages,
+  onPrevPage,
+  onNextPage,
   onViewAllWall,
   onViewAllFloor,
 }: ShopRoomSceneProps) {
@@ -215,37 +244,110 @@ export function ShopRoomScene({
               top={FLOOR_ORIGIN_Y + Math.floor(index / FLOOR_COLUMNS) * FLOOR_CELL_HEIGHT}
             />
           ))}
-          {/* Pinned to the floor's own top-right corner, in the strip above
-              FLOOR_ORIGIN_Y (380) — the grid never places a product there
-              regardless of count, unlike the previous bottom-right
-              placement: found in review (CodeRabbit, PR #30) that with a
-              full 8-item grid, the bottom-right corner is exactly where
-              the last poster sits, so the buttons covered part of it. */}
-          {wallOverflowCount > 0 && (
-            // docs/decisions.md D-78: the room only has room for
-            // ROOM_CAPACITY belts total — this routes the rest of what was
-            // categorised "wall" to the full, uncapped list
-            // (ListRegion.tsx's shop section) instead of silently losing
-            // them off the edge of the fixed grid.
-            <button
-              type="button"
-              onClick={onViewAllWall}
-              className="absolute right-10 top-4 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
-            >
-              +{wallOverflowCount} more (wall) — view all
-            </button>
-          )}
-          {floorOverflowCount > 0 && (
-            // Same reasoning, for whatever was categorised "floor".
-            <button
-              type="button"
-              onClick={onViewAllFloor}
-              className="absolute right-10 top-12 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
-            >
-              +{floorOverflowCount} more (floor) — view all
-            </button>
-          )}
         </div>
+      </div>
+      {/* A real sibling of the anchor div above — not nested inside it at
+          any level — so this has no 3D transform of its own and isn't
+          carried along by the anchor's `transformStyle: preserve-3d`/
+          `translateZ/rotateX/rotateY` chain the way a *descendant* of the
+          anchor is, even one with no transform of its own (found in
+          review, this PR's own CI run: a first attempt at a "flat 2D
+          overlay" that was in fact still a child of the anchor div
+          produced the exact same tiny, degenerate, unclickable box the
+          floor's pagination controls originally had — being a plain
+          element doesn't exempt a *descendant* of a 3D-transformed parent
+          from that parent's own projection; only a true sibling does). A
+          second attempt that correctly made it a sibling, but a *child*
+          of the back wall plane instead, hit a different failure: the
+          back wall and the floor are both still real 3D planes inside the
+          same `preserve-3d` anchor, sorted by actual depth rather than
+          DOM order, and at this control's particular screen position the
+          floor's own content (one of the belts) was nearer the camera and
+          intercepted its pointer events even though the button itself
+          wasn't visibly hidden. Being a true, untransformed sibling of
+          the *whole 3D scene* (this entire anchor div, not one plane
+          inside it) sidesteps both problems: no perspective projection
+          applies to it at all, and it paints after (so on top of) the
+          preserve-3d subtree as one block, in ordinary DOM-order stacking
+          — not depth-sorted against anything inside that subtree.
+
+          Positioning still has to land inside whatever the camera is
+          actually framing, which is on *every* project's viewport, not
+          just this component's own 852px-tall box (this box is taller
+          than most real viewports, so its own corners aren't reliable
+          either). The "shop-wall" viewpoint (src/canvas/viewpoints.ts)
+          uses zoom 1 and centres the camera on this box's own local
+          (800, 450) — Board.tsx's camera transform is then a plain
+          translate+uniform-scale (no perspective) applied *outside* this
+          component's own `perspective` context, so an untransformed
+          descendant's final screen position is simple affine math, not
+          projective: local (x, y) maps to screen ((x-640)..(x+640),
+          (y-360)..(y+360)) at a 1280×720 desktop viewport, but only
+          ((x-195)..(x+195), (y-422)..(y+422)) at the narrowest configured
+          project (e2e/playwright.config.ts's `mobile-safari`, iPhone 13,
+          390×844) — the intersection across chromium/webkit (1280×720)
+          and mobile-chrome/mobile-safari (Pixel 7/iPhone 13) is local
+          x∈[605,995], y∈[90,810]. Centred horizontally at x=800 (`left-
+          1/2 -translate-x-1/2`) and placed at y=700 keeps every control
+          well inside that intersection on all four configured projects,
+          confirmed by e2e/shop-geometry.spec.ts's own real-camera-frame
+          and click-through assertions. docs/decisions.md D-82: Prev/Next
+          + a page indicator replace the old overflow count; the "view
+          all" links are a permanent accessibility/SEO affordance, not
+          gated behind any count — both rows stay centred as one group
+          rather than pinned to this box's own left/right corners, which
+          the mobile-width frame is too narrow to reach at the same time. */}
+      <div
+        className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-2"
+        style={{ top: 700 }}
+      >
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink shadow">
+            <button
+              type="button"
+              onClick={onPrevPage}
+              disabled={page <= 0}
+              aria-label="Previous products"
+              className="disabled:opacity-40"
+            >
+              ←
+            </button>
+            <span>
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={onNextPage}
+              disabled={page >= totalPages - 1}
+              aria-label="Next products"
+              className="disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        )}
+        {(onViewAllWall || onViewAllFloor) && (
+          <div className="flex items-center gap-2">
+            {onViewAllWall && (
+              <button
+                type="button"
+                onClick={onViewAllWall}
+                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
+              >
+                View all (wall)
+              </button>
+            )}
+            {onViewAllFloor && (
+              <button
+                type="button"
+                onClick={onViewAllFloor}
+                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
+              >
+                View all (floor)
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

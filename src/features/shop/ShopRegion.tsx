@@ -1,6 +1,9 @@
+import { useState } from "react";
+
 import { Region } from "@/canvas/Region";
 
-import { ROOM_CAPACITY, ShopRoomScene } from "./ShopRoomScene";
+import { PRODUCTS_PER_PAGE, ShopRoomScene } from "./ShopRoomScene";
+import type { ProductNode } from "./lib/queries";
 import { useProductNodes } from "./lib/useProducts";
 
 export interface ShopRegionProps {
@@ -8,7 +11,10 @@ export interface ShopRegionProps {
   centerX: number;
   centerY: number;
   onOpenProduct?: (slug: string) => void;
-  /** Routes past WALL_CAPACITY/FLOOR_CAPACITY's own overflow to the full list for that zone. */
+  /** The small, always-visible "view full list" links (accessibility/
+   * keyboard/non-JS/SEO — the room's own 3D transforms aren't a great
+   * screen-reader experience, so the uncapped list pages stay a real,
+   * linked alternative regardless of pagination). */
   onViewAllWall?: () => void;
   onViewAllFloor?: () => void;
 }
@@ -20,6 +26,10 @@ export interface ShopRegionProps {
 // the region's rect no longer needs computing from a node bounding box.
 const SCENE_WIDTH = 1600;
 const SCENE_HEIGHT = 900;
+
+function byDisplayOrder(a: ProductNode, b: ProductNode): number {
+  return a.product.sortOrder - b.product.sortOrder || (a.nodeId < b.nodeId ? -1 : a.nodeId > b.nodeId ? 1 : 0);
+}
 
 /**
  * The one Shop room — the owner's own design shows the two walls and the
@@ -41,9 +51,10 @@ const SCENE_HEIGHT = 900;
  * product queries below (by `canvas_nodes.region`) stay exactly as they
  * were — that's still how an admin categorises a product, and still what
  * each zone's own "view all" list page filters by — only the *room's own
- * rendering* now pools both into one combined, capacity-sliced list for
- * the single floor grid, rather than splitting them across a wall grid
- * and a separate floor row.
+ * rendering* now pools both into one combined, ordered list, paginated
+ * rather than hard-capped (docs/decisions.md D-82: the room now scales to
+ * however many products are published, instead of silently routing
+ * everything past a fixed count to an external page).
  */
 export function ShopRegion({
   title,
@@ -55,38 +66,21 @@ export function ShopRegion({
 }: ShopRegionProps) {
   const { data: wallNodes, isLoading: isWallLoading } = useProductNodes("shop-wall");
   const { data: floorNodes, isLoading: isFloorLoading } = useProductNodes("shop-floor");
+  const [page, setPage] = useState(0);
 
-  const wall = wallNodes ?? [];
-  const floor = floorNodes ?? [];
-  // The room has a real, fixed visual capacity (ShopRoomScene.tsx's own
-  // ROOM_CAPACITY, confirmed by screenshot, not guessed) — past it, items
-  // get clipped or overlap rather than fitting, so only the capacity's
-  // worth goes into the fixed floor grid; the rest is still real,
-  // published, reachable content, just routed to the full list instead
-  // (onViewAllWall/onViewAllFloor) rather than forced into the room. Wall
-  // items fill the shared pool first, then floor items take whatever's
-  // left — an arbitrary but stable tie-break, not a guess about which
-  // zone's products matter more (AGENTS.md rule 10).
-  //
-  // Found in review (CodeRabbit, PR #30): shownFloor's own capacity now
-  // depends on shownWall's real length, unlike the old, independent
-  // WALL_CAPACITY/FLOOR_CAPACITY split — the two queries above settle at
-  // different times, so computing this split before both have resolved
-  // (isWallLoading/isFloorLoading both false; an error still counts as
-  // "resolved", same as the ?? [] fallback above already treats it) could
-  // render a transient, too-generous floor list the instant the wall
-  // query still reads empty, then yank an item a visitor had just focused
-  // the moment the wall query catches up and the real capacity split
-  // tightens. Rendering nothing yet — the same "nothing published here
-  // yet" state this room already shows before any data arrives — avoids
-  // ever showing a split that's about to change under a visitor's hands.
+  // Same reasoning as the old capacity split (found in review, CodeRabbit,
+  // PR #30): the two queries settle independently, so computing the
+  // combined, paginated list before both have resolved could render a
+  // page that's about to change under a visitor's hands the instant the
+  // slower query catches up. Nothing renders until both are settled —
+  // the same "nothing published here yet" state this room already shows
+  // before any data arrives.
   const bothSettled = !isWallLoading && !isFloorLoading;
-  const shownWall = bothSettled ? wall.slice(0, ROOM_CAPACITY) : [];
-  const wallOverflowCount = bothSettled ? wall.length - shownWall.length : 0;
-  const remainingCapacity = bothSettled ? Math.max(0, ROOM_CAPACITY - shownWall.length) : 0;
-  const shownFloor = bothSettled ? floor.slice(0, remainingCapacity) : [];
-  const floorOverflowCount = bothSettled ? floor.length - shownFloor.length : 0;
-  const shownNodes = [...shownWall, ...shownFloor];
+  const allNodes = bothSettled ? [...(wallNodes ?? []), ...(floorNodes ?? [])].sort(byDisplayOrder) : [];
+
+  const totalPages = Math.max(1, Math.ceil(allNodes.length / PRODUCTS_PER_PAGE));
+  const currentPage = Math.min(page, totalPages - 1);
+  const shownNodes = allNodes.slice(currentPage * PRODUCTS_PER_PAGE, (currentPage + 1) * PRODUCTS_PER_PAGE);
 
   return (
     <Region
@@ -100,8 +94,16 @@ export function ShopRegion({
       <ShopRoomScene
         nodes={shownNodes}
         onOpenProduct={onOpenProduct}
-        wallOverflowCount={wallOverflowCount}
-        floorOverflowCount={floorOverflowCount}
+        page={currentPage}
+        totalPages={totalPages}
+        // Based on currentPage (the clamped, actually-displayed page), not
+        // the raw stored page state — found in review (CodeRabbit, PR #36):
+        // if the catalogue shrinks while a visitor is on a later page (e.g.
+        // stored page=2 while totalPages drops to 2, clamped to display
+        // "Page 2 of 2"), computing the next page from the stale stored
+        // value needed two Prev clicks to move the display back by one.
+        onPrevPage={() => setPage(Math.max(0, currentPage - 1))}
+        onNextPage={() => setPage(Math.min(totalPages - 1, currentPage + 1))}
         onViewAllWall={onViewAllWall}
         onViewAllFloor={onViewAllFloor}
       />

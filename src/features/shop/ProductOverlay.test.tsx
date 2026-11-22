@@ -60,6 +60,7 @@ function product(overrides: Partial<ProductDetail> = {}): ProductDetail {
     status: "available",
     zone: "floor",
     onSale: false,
+    sortOrder: 0,
     poster: media(),
     pictures: [media()],
     video: null,

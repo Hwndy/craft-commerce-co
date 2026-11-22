@@ -1,3 +1,4 @@
+import { act } from "react";
 import { render } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -19,9 +20,9 @@ vi.mock("./ShopRoomScene", async () => {
 });
 
 import { ShopRegion } from "./ShopRegion";
-import { ROOM_CAPACITY } from "./ShopRoomScene";
+import { PRODUCTS_PER_PAGE } from "./ShopRoomScene";
 
-function product(name: string): Product {
+function product(name: string, sortOrder: number): Product {
   return {
     id: name,
     slug: name,
@@ -33,11 +34,12 @@ function product(name: string): Product {
     status: "available",
     zone: "wall",
     onSale: false,
+    sortOrder,
     poster: null,
   };
 }
 
-function nodes(count: number, prefix: string): ProductNode[] {
+function nodes(count: number, prefix: string, sortOrderOffset = 0): ProductNode[] {
   return Array.from({ length: count }, (_, i) => ({
     nodeId: `${prefix}${i}`,
     x: 0,
@@ -45,101 +47,104 @@ function nodes(count: number, prefix: string): ProductNode[] {
     width: 0,
     height: 0,
     rotation: 0,
-    product: product(`${prefix}${i}`),
+    product: product(`${prefix}${i}`, sortOrderOffset + i),
   }));
 }
 
-function mockRegions(wallCount: number, floorCount: number) {
+function mockRegions(wallNodes: ProductNode[], floorNodes: ProductNode[]) {
   useProductNodes.mockImplementation((region: string) =>
-    region === "shop-wall"
-      ? { data: nodes(wallCount, "wall-"), isLoading: false }
-      : { data: nodes(floorCount, "floor-"), isLoading: false }
+    region === "shop-wall" ? { data: wallNodes, isLoading: false } : { data: floorNodes, isLoading: false }
   );
 }
 
-describe("ShopRegion", () => {
-  // docs/decisions.md D-78: the room's own fixed geometry has a real
-  // visual capacity (ShopRoomScene.tsx's ROOM_CAPACITY, confirmed by
-  // screenshot) shared across both admin zones now (no more separate wall
-  // vs floor grids) — ShopRegion.tsx must cap what it hands the scene at
-  // that number rather than forcing the real catalogue's full count in,
-  // which is what clipped a real product even at today's actual counts.
-  it("passes every product straight through, with zero overflow, when under capacity", () => {
-    mockRegions(2, 2);
+function latestProps() {
+  return sceneSpy.mock.calls.at(-1)![0];
+}
+
+describe("ShopRegion pagination (docs/decisions.md D-82)", () => {
+  // The room now scales to the real catalogue instead of hard-capping it
+  // (D-82 superseded D-78's ROOM_CAPACITY/overflow split) — under one
+  // page's worth, everything shows on page 1 with no pagination controls.
+  it("passes every product straight through on a single page when under PRODUCTS_PER_PAGE", () => {
+    mockRegions(nodes(2, "wall-"), nodes(2, "floor-", 2));
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
-    const props = sceneSpy.mock.calls.at(-1)![0];
+    const props = latestProps();
     expect(props.nodes).toHaveLength(4);
-    expect(props.wallOverflowCount).toBe(0);
-    expect(props.floorOverflowCount).toBe(0);
+    expect(props.page).toBe(0);
+    expect(props.totalPages).toBe(1);
   });
 
-  it("matches today's real catalogue (4 wall + 4 floor, D-70) with zero overflow at ROOM_CAPACITY=8", () => {
-    mockRegions(4, 4);
+  it("orders the combined wall+floor catalogue by product.sortOrder, not by zone", () => {
+    // Deliberately seeded so neither zone's own query order matches the
+    // real display order — only sortOrder should decide it.
+    const wall = [product("wall-a", 3), product("wall-b", 0)].map((p, i) => ({
+      nodeId: `wall-${i}`,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      rotation: 0,
+      product: p,
+    }));
+    const floor = [product("floor-a", 1), product("floor-b", 2)].map((p, i) => ({
+      nodeId: `floor-${i}`,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      rotation: 0,
+      product: p,
+    }));
+    mockRegions(wall, floor);
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
-    const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.nodes).toHaveLength(8);
-    expect(props.wallOverflowCount).toBe(0);
-    expect(props.floorOverflowCount).toBe(0);
-  });
-
-  it("fills the shared pool with wall items first, then reports the real floor overflow once ROOM_CAPACITY is exceeded", () => {
-    mockRegions(6, 6);
-    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
-
-    const props = sceneSpy.mock.calls.at(-1)![0];
-    // Distinct wall-/floor-prefixed fixture ids (found in review,
-    // CodeRabbit, PR #30) so this actually proves which products made the
-    // cut, not just how many — all 6 wall items, then the first 2 floor
-    // items, in that order.
-    expect(props.nodes.map((n: ProductNode) => n.nodeId)).toEqual([
-      "wall-0",
-      "wall-1",
-      "wall-2",
-      "wall-3",
-      "wall-4",
-      "wall-5",
-      "floor-0",
-      "floor-1",
+    expect(latestProps().nodes.map((n: ProductNode) => n.product.name)).toEqual([
+      "wall-b",
+      "floor-a",
+      "floor-b",
+      "wall-a",
     ]);
-    expect(props.wallOverflowCount).toBe(0);
-    expect(props.floorOverflowCount).toBe(6 + 6 - ROOM_CAPACITY);
   });
 
-  // Found in review (CodeRabbit, PR #30): shownFloor's own capacity now
-  // depends on shownWall's real length (the two queries settle
-  // independently), unlike the old WALL_CAPACITY/FLOOR_CAPACITY split —
-  // computing it before both have resolved could render a floor list
-  // that's about to shrink the moment the wall query catches up,
-  // unmounting whatever a visitor had just focused. Nothing should render
-  // until both are settled.
+  it("paginates once the combined catalogue exceeds PRODUCTS_PER_PAGE, and Prev/Next page through it", () => {
+    mockRegions(nodes(PRODUCTS_PER_PAGE, "wall-"), nodes(1, "floor-", PRODUCTS_PER_PAGE));
+    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
+
+    let props = latestProps();
+    expect(props.totalPages).toBe(2);
+    expect(props.page).toBe(0);
+    expect(props.nodes).toHaveLength(PRODUCTS_PER_PAGE);
+    expect(props.nodes.map((n: ProductNode) => n.nodeId)).not.toContain("floor-0");
+
+    act(() => props.onNextPage());
+    props = latestProps();
+    expect(props.page).toBe(1);
+    expect(props.nodes.map((n: ProductNode) => n.nodeId)).toEqual(["floor-0"]);
+
+    act(() => props.onPrevPage());
+    props = latestProps();
+    expect(props.page).toBe(0);
+  });
+
+  // Same reasoning as D-78's original version of this test (found in
+  // review, CodeRabbit, PR #30): the two queries settle independently, so
+  // computing the combined, paginated list before both have resolved could
+  // render a page that's about to change under a visitor's hands the
+  // instant the slower query catches up.
   it("renders nothing until both the wall and floor queries have settled", () => {
     useProductNodes.mockImplementation((region: string) =>
-      region === "shop-wall"
-        ? { data: undefined, isLoading: true }
-        : { data: nodes(8, "floor-"), isLoading: false }
+      region === "shop-wall" ? { data: undefined, isLoading: true } : { data: nodes(3, "floor-"), isLoading: false }
     );
     render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
 
-    const props = sceneSpy.mock.calls.at(-1)![0];
+    const props = latestProps();
     expect(props.nodes).toEqual([]);
-    expect(props.wallOverflowCount).toBe(0);
-    expect(props.floorOverflowCount).toBe(0);
-  });
-
-  it("reports the real wall overflow once wall items alone exceed ROOM_CAPACITY", () => {
-    mockRegions(10, 0);
-    render(<ShopRegion title="Shop" centerX={0} centerY={0} />);
-
-    const props = sceneSpy.mock.calls.at(-1)![0];
-    expect(props.nodes).toHaveLength(ROOM_CAPACITY);
-    expect(props.wallOverflowCount).toBe(10 - ROOM_CAPACITY);
-    expect(props.floorOverflowCount).toBe(0);
+    expect(props.totalPages).toBe(1);
   });
 
   it("forwards onViewAllWall/onViewAllFloor through to the scene untouched", () => {
-    mockRegions(1, 1);
+    mockRegions(nodes(1, "wall-"), nodes(1, "floor-", 1));
     const onViewAllWall = vi.fn();
     const onViewAllFloor = vi.fn();
     render(
@@ -152,7 +157,7 @@ describe("ShopRegion", () => {
       />
     );
 
-    const props = sceneSpy.mock.calls.at(-1)![0];
+    const props = latestProps();
     expect(props.onViewAllWall).toBe(onViewAllWall);
     expect(props.onViewAllFloor).toBe(onViewAllFloor);
   });
