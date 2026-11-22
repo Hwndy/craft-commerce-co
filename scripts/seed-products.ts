@@ -53,6 +53,7 @@ import { extname, join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
 import sharp from "sharp";
+import { z } from "zod";
 
 loadEnv({ path: ".env.local" });
 
@@ -93,11 +94,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const RENDITION_WIDTHS = [256, 640, 1280, 2048] as const;
 const IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
-const BULK_COUNT = overrides.has("count") ? Number(overrides.get("count")) : null;
-if (BULK_COUNT !== null && (!Number.isInteger(BULK_COUNT) || BULK_COUNT < 1)) {
+// AGENTS.md rule 3: validate every external input with Zod — found in
+// review (CodeRabbit, PR #36), this was a manual Number.isInteger() check.
+const countSchema = z.coerce.number().int().positive().optional();
+const countParseResult = countSchema.safeParse(overrides.get("count"));
+if (!countParseResult.success) {
   console.error(`--count must be a positive integer, got: ${overrides.get("count")}`);
   process.exit(1);
 }
+const BULK_COUNT = countParseResult.data ?? null;
 
 const baseSortOrder = Number(overrides.get("sort-order") ?? 0);
 
