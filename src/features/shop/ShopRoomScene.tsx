@@ -81,12 +81,12 @@ function FloorBelt({ node, onOpen, left, top }: FloorBeltProps) {
         />
       </div>
       <div
-        className="absolute h-[72px] w-[72px]"
+        className="absolute h-[150px] w-[150px]"
         style={{
-          left: left + 26,
-          top: top - 64,
+          left: left + 30,
+          top: top - 60,
           transformOrigin: "50% 100%",
-          transform: "translateY(-128px) rotateX(-90deg)",
+          transform: "translateY(-150px) rotateX(-90deg)",
         }}
       >
         <PriceTagLabel
@@ -128,11 +128,11 @@ export interface ShopRoomSceneProps {
   onViewAllFloor?: () => void;
 }
 
-const FLOOR_COLUMNS = 4;
+const FLOOR_COLUMNS = PRODUCTS_PER_PAGE;
 const FLOOR_CELL_WIDTH = 260;
-const FLOOR_CELL_HEIGHT = 320;
-const FLOOR_ORIGIN_X = 20;
-const FLOOR_ORIGIN_Y = 74;
+const FLOOR_CELL_HEIGHT = 380;
+const FLOOR_ORIGIN_X = 10;
+const FLOOR_ORIGIN_Y = 200;
 
 /**
  * The Product Display's own 3D room corner (docs/decisions.md D-71,
@@ -244,61 +244,110 @@ export function ShopRoomScene({
               top={FLOOR_ORIGIN_Y + Math.floor(index / FLOOR_COLUMNS) * FLOOR_CELL_HEIGHT}
             />
           ))}
-          {/* Pinned to the floor's own top corners, in the strip above
-              FLOOR_ORIGIN_Y (380) — the grid never places a product there
-              regardless of count, unlike the previous bottom-right
-              placement: found in review (CodeRabbit, PR #30) that with a
-              full 8-item grid, the bottom-right corner is exactly where
-              the last poster sits, so controls there covered part of it.
-              docs/decisions.md D-82: the room now paginates instead of
-              hard-capping, so these are Prev/Next + a page indicator
-              (left) rather than an overflow count, and the "view all"
-              links (right) are a permanent accessibility/SEO affordance,
-              not something that only appears past a capacity. */}
-          {totalPages > 1 && (
-            <div className="absolute left-10 top-4 flex items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink">
-              <button
-                type="button"
-                onClick={onPrevPage}
-                disabled={page <= 0}
-                aria-label="Previous products"
-                className="disabled:opacity-40"
-              >
-                ←
-              </button>
-              <span>
-                Page {page + 1} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={onNextPage}
-                disabled={page >= totalPages - 1}
-                aria-label="Next products"
-                className="disabled:opacity-40"
-              >
-                →
-              </button>
-            </div>
-          )}
-          {onViewAllWall && (
-            <button
-              type="button"
-              onClick={onViewAllWall}
-              className="absolute right-10 top-4 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
-            >
-              View all (wall)
-            </button>
-          )}
-          {onViewAllFloor && (
-            <button
-              type="button"
-              onClick={onViewAllFloor}
-              className="absolute right-10 top-12 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/80 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 hover:underline"
-            >
-              View all (floor)
-            </button>
-          )}
         </div>
+      </div>
+      {/* A real sibling of the anchor div above — not nested inside it at
+          any level — so this has no 3D transform of its own and isn't
+          carried along by the anchor's `transformStyle: preserve-3d`/
+          `translateZ/rotateX/rotateY` chain the way a *descendant* of the
+          anchor is, even one with no transform of its own (found in
+          review, this PR's own CI run: a first attempt at a "flat 2D
+          overlay" that was in fact still a child of the anchor div
+          produced the exact same tiny, degenerate, unclickable box the
+          floor's pagination controls originally had — being a plain
+          element doesn't exempt a *descendant* of a 3D-transformed parent
+          from that parent's own projection; only a true sibling does). A
+          second attempt that correctly made it a sibling, but a *child*
+          of the back wall plane instead, hit a different failure: the
+          back wall and the floor are both still real 3D planes inside the
+          same `preserve-3d` anchor, sorted by actual depth rather than
+          DOM order, and at this control's particular screen position the
+          floor's own content (one of the belts) was nearer the camera and
+          intercepted its pointer events even though the button itself
+          wasn't visibly hidden. Being a true, untransformed sibling of
+          the *whole 3D scene* (this entire anchor div, not one plane
+          inside it) sidesteps both problems: no perspective projection
+          applies to it at all, and it paints after (so on top of) the
+          preserve-3d subtree as one block, in ordinary DOM-order stacking
+          — not depth-sorted against anything inside that subtree.
+
+          Positioning still has to land inside whatever the camera is
+          actually framing, which is on *every* project's viewport, not
+          just this component's own 852px-tall box (this box is taller
+          than most real viewports, so its own corners aren't reliable
+          either). The "shop-wall" viewpoint (src/canvas/viewpoints.ts)
+          uses zoom 1 and centres the camera on this box's own local
+          (800, 450) — Board.tsx's camera transform is then a plain
+          translate+uniform-scale (no perspective) applied *outside* this
+          component's own `perspective` context, so an untransformed
+          descendant's final screen position is simple affine math, not
+          projective: local (x, y) maps to screen ((x-640)..(x+640),
+          (y-360)..(y+360)) at a 1280×720 desktop viewport, but only
+          ((x-195)..(x+195), (y-422)..(y+422)) at the narrowest configured
+          project (e2e/playwright.config.ts's `mobile-safari`, iPhone 13,
+          390×844) — the intersection across chromium/webkit (1280×720)
+          and mobile-chrome/mobile-safari (Pixel 7/iPhone 13) is local
+          x∈[605,995], y∈[90,810]. Centred horizontally at x=800 (`left-
+          1/2 -translate-x-1/2`) and placed at y=700 keeps every control
+          well inside that intersection on all four configured projects,
+          confirmed by e2e/shop-geometry.spec.ts's own real-camera-frame
+          and click-through assertions. docs/decisions.md D-82: Prev/Next
+          + a page indicator replace the old overflow count; the "view
+          all" links are a permanent accessibility/SEO affordance, not
+          gated behind any count — both rows stay centred as one group
+          rather than pinned to this box's own left/right corners, which
+          the mobile-width frame is too narrow to reach at the same time. */}
+      <div
+        className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-2"
+        style={{ top: 700 }}
+      >
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink shadow">
+            <button
+              type="button"
+              onClick={onPrevPage}
+              disabled={page <= 0}
+              aria-label="Previous products"
+              className="disabled:opacity-40"
+            >
+              ←
+            </button>
+            <span>
+              Page {page + 1} of {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={onNextPage}
+              disabled={page >= totalPages - 1}
+              aria-label="Next products"
+              className="disabled:opacity-40"
+            >
+              →
+            </button>
+          </div>
+        )}
+        {(onViewAllWall || onViewAllFloor) && (
+          <div className="flex items-center gap-2">
+            {onViewAllWall && (
+              <button
+                type="button"
+                onClick={onViewAllWall}
+                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
+              >
+                View all (wall)
+              </button>
+            )}
+            {onViewAllFloor && (
+              <button
+                type="button"
+                onClick={onViewAllFloor}
+                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
+              >
+                View all (floor)
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

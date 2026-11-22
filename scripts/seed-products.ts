@@ -104,7 +104,18 @@ if (!countParseResult.success) {
 }
 const BULK_COUNT = countParseResult.data ?? null;
 
-const baseSortOrder = Number(overrides.get("sort-order") ?? 0);
+// AGENTS.md rule 3: validate every external input with Zod — found in
+// review (CodeRabbit, PR #36), same as --count above, this was a manual
+// Number.isInteger() check. No `.positive()` here (unlike --count):
+// sort_order can be 0 or negative — the range check below is the actual
+// bound, not this schema.
+const sortOrderSchema = z.coerce.number().int().default(0);
+const sortOrderParseResult = sortOrderSchema.safeParse(overrides.get("sort-order"));
+if (!sortOrderParseResult.success) {
+  console.error(`--sort-order must be an integer, got: ${overrides.get("sort-order")}`);
+  process.exit(1);
+}
+const baseSortOrder = sortOrderParseResult.data;
 
 // products.sort_order is a Postgres `int` (supabase/migrations/0003_shop_
 // and_enquiries.sql) — found in review (CodeRabbit, PR #36): a --sort-order
@@ -113,10 +124,6 @@ const baseSortOrder = Number(overrides.get("sort-order") ?? 0);
 // any insert, not discovered mid-batch.
 const POSTGRES_INT_MAX = 2147483647;
 const POSTGRES_INT_MIN = -2147483648;
-if (!Number.isInteger(baseSortOrder)) {
-  console.error(`--sort-order must be an integer, got: ${overrides.get("sort-order")}`);
-  process.exit(1);
-}
 const finalSortOrder = baseSortOrder + (BULK_COUNT ?? 1) - 1;
 if (baseSortOrder < POSTGRES_INT_MIN || finalSortOrder > POSTGRES_INT_MAX) {
   console.error(
