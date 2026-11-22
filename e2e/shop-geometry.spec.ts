@@ -84,7 +84,54 @@ function pageIndicator(page: Page): Locator {
   return page.getByText(/^Page \d+ of \d+$/);
 }
 
+// Investigated, not assumed, after a real CI failure (found in review,
+// CodeRabbit, PR #36's containment fix, then a follow-up CI run):
+// e2e/product-overlay.spec.ts's "opening the seeded product from its board
+// node" test reaches the Shop room by clicking "The Shop" region tab — a
+// guided-path camera flight to the real shop-wall viewpoint — then the
+// product button, unlike every other product-overlay test (which deep-
+// link straight to the overlay's URL). Being inside ShopRoomScene's own
+// clipped box (assertWithinScene above) doesn't guarantee a product also
+// lands inside the *camera's own framed window*, a strictly smaller area —
+// src/pages/E2EShopRoom.tsx now reproduces that exact camera transform.
+// Checked directly: both of CI's real seeded products (synthetic total=2
+// here, matching that fixture's actual count) land inside the frame on
+// every configured project, ruling this out as that failure's cause — kept
+// as a real, permanent regression guard either way.
+async function assertWithinRealCameraFrame(page: Page) {
+  const viewportSize = page.viewportSize();
+  if (!viewportSize) throw new Error("page has no viewport size");
+
+  const belts = page.getByRole("button", { name: /^Synthetic Belt No\./ });
+  const count = await belts.count();
+  for (let i = 0; i < count; i += 1) {
+    const el = belts.nth(i);
+    const label = await el.textContent();
+    const box = await el.boundingBox();
+    if (!box) throw new Error(`${label} has no bounding box`);
+    const within =
+      box.x >= 0 && box.y >= 0 && box.x + box.width <= viewportSize.width && box.y + box.height <= viewportSize.height;
+    expect(
+      within,
+      `expected "${label}" to stay inside the real guided-path camera frame (box=${JSON.stringify(box)}, viewport=${JSON.stringify(viewportSize)})`
+    ).toBe(true);
+    // A real click, not just a bounding-box check — Playwright's own
+    // actionability wait (visible, stable, receives pointer events,
+    // genuinely in view) is a stronger signal than geometry alone that
+    // a real visitor could reach this product from this exact viewpoint.
+    await el.click({ timeout: 3000 });
+  }
+}
+
 test.describe("Shop room geometry (docs/decisions.md D-82)", () => {
+  test("page 1 stays reachable from the real guided-path camera viewpoint, for today's real catalogue size", async ({
+    page,
+  }) => {
+    await page.goto("/e2e/shop-room?total=2");
+    await expect(page.getByRole("button", { name: /^Synthetic Belt No\./ })).toHaveCount(2);
+    await assertWithinRealCameraFrame(page);
+  });
+
   test("a full page (PRODUCTS_PER_PAGE products) renders with zero overlap and no pagination controls", async ({
     page,
   }) => {
@@ -127,9 +174,27 @@ test.describe("Shop room geometry (docs/decisions.md D-82)", () => {
   test("a large synthetic catalogue (20 products) still renders every page with zero overlap", async ({ page }) => {
     await page.goto("/e2e/shop-room?total=20");
 
+    // Expected belt numbers per page (1-indexed, matching E2EShopRoom.tsx's
+    // "Synthetic Belt No.N" naming) — found in review (CodeRabbit, PR #36):
+    // an empty page would still pass the geometry checks below (zero rects
+    // is trivially non-overlapping and contained), so this also has to
+    // confirm each page actually holds the products it's supposed to.
+    const expectedBeltsByPage = [
+      Array.from({ length: 8 }, (_, i) => i + 1),
+      Array.from({ length: 8 }, (_, i) => i + 9),
+      Array.from({ length: 4 }, (_, i) => i + 17),
+    ];
+
     await expect(pageIndicator(page)).toHaveText("Page 1 of 3");
     for (let expectedPage = 1; expectedPage <= 3; expectedPage += 1) {
       await expect(pageIndicator(page)).toHaveText(`Page ${expectedPage} of 3`);
+      const belts = page.getByRole("button", { name: /^Synthetic Belt No\./ });
+      const expectedNames = expectedBeltsByPage[expectedPage - 1].map((n) => `Synthetic Belt No.${n}`);
+      await expect(belts).toHaveCount(expectedNames.length);
+      for (const name of expectedNames) {
+        await expect(belts.filter({ hasText: name })).toHaveCount(1);
+      }
+
       const rects = await floorRects(page);
       assertNoOverlap(rects);
       await assertWithinScene(page, rects);

@@ -1,8 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { cameraForViewpoint, getViewpoint } from "@/canvas/viewpoints";
 import { PRODUCTS_PER_PAGE, ShopRoomScene } from "@/features/shop/ShopRoomScene";
 import type { ProductNode } from "@/features/shop/lib/queries";
+
+function useWindowSize() {
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return size;
+}
 
 function syntheticNode(index: number): ProductNode {
   return {
@@ -72,6 +83,33 @@ function syntheticNode(index: number): ProductNode {
  * not a real production behaviour (`Board.tsx`'s real top-level container
  * already clips the same way, so `window.innerWidth` there always reflects
  * the device's true width regardless of how wide any region's content is).
+ *
+ * A third fidelity gap, investigated for the same reason as the first two
+ * but this time *ruled out*, not confirmed: `e2e/product-overlay.spec.ts`'s
+ * "opening the seeded product from its board node" test (which clicks
+ * "The Shop" region tab — a guided-path camera flight to `shop-wall`'s
+ * viewpoint — then the product button) failed on CI right after this PR's
+ * grid retuning, and unlike every other test in that file (which reach the
+ * overlay via a direct `/gallery/shop/:slug` URL, never through the room's
+ * own camera-framed click), that one actually exercises geometry this PR
+ * changed. Worth checking properly rather than assuming: in production
+ * `ShopRoomScene` sits inside `Region.tsx` (positioned at
+ * `getViewpoint("shop-wall").x/y` minus half the scene size) inside
+ * `Board.tsx`'s own world div, panned/zoomed by the real guided-path
+ * camera (`cameraForViewpoint`, `Board.tsx`'s own
+ * `translate3d(-x*zoom,-y*zoom,0) scale(zoom)`) — this route didn't apply
+ * that transform at all before, so "inside the room's own box" (the
+ * previous fix above) was never the same question as "inside the camera's
+ * actual framed window," a strictly smaller area. Reproducing the exact
+ * same `getViewpoint`/`cameraForViewpoint`/transform chain here (not
+ * duplicating the formula by hand) and measuring the real 1-2 product
+ * count that test's own seeded fixture uses showed both products land
+ * comfortably inside the camera's frame on every configured browser/device
+ * project — this geometry is not the cause of that CI failure. Kept
+ * anyway: it's a strictly more faithful reproduction of production than
+ * the un-transformed version, and `e2e/shop-geometry.spec.ts`'s own
+ * "page 1 stays on screen from the real guided-path viewpoint" test now
+ * uses it to guard the regression surface that failure's test depends on.
  */
 const SCENE_WIDTH = 1600;
 const SCENE_HEIGHT = 900;
@@ -80,22 +118,41 @@ export default function E2EShopRoom() {
   const [params] = useSearchParams();
   const total = Math.max(0, Number(params.get("total") ?? PRODUCTS_PER_PAGE));
   const [page, setPage] = useState(0);
+  const windowSize = useWindowSize();
 
   const allNodes = useMemo(() => Array.from({ length: total }, (_, index) => syntheticNode(index)), [total]);
   const totalPages = Math.max(1, Math.ceil(allNodes.length / PRODUCTS_PER_PAGE));
   const currentPage = Math.min(page, totalPages - 1);
   const shownNodes = allNodes.slice(currentPage * PRODUCTS_PER_PAGE, (currentPage + 1) * PRODUCTS_PER_PAGE);
 
+  const viewpoint = getViewpoint("shop-wall");
+  const camera = cameraForViewpoint(viewpoint, windowSize);
+  const regionX = viewpoint.x - SCENE_WIDTH / 2;
+  const regionY = viewpoint.y - SCENE_HEIGHT / 2;
+
   return (
     <div style={{ position: "fixed", inset: 0, overflow: "hidden" }}>
-      <div data-testid="e2e-shop-room-scene-box" style={{ position: "relative", width: SCENE_WIDTH, height: SCENE_HEIGHT }}>
-        <ShopRoomScene
-          nodes={shownNodes}
-          page={currentPage}
-          totalPages={totalPages}
-          onPrevPage={() => setPage((p) => Math.max(0, p - 1))}
-          onNextPage={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-        />
+      <div
+        data-testid="e2e-shop-room-world"
+        style={{
+          position: "absolute",
+          inset: 0,
+          transformOrigin: "0 0",
+          transform: `translate3d(${-camera.x * camera.zoom}px, ${-camera.y * camera.zoom}px, 0) scale(${camera.zoom})`,
+        }}
+      >
+        <div
+          data-testid="e2e-shop-room-scene-box"
+          style={{ position: "absolute", left: regionX, top: regionY, width: SCENE_WIDTH, height: SCENE_HEIGHT }}
+        >
+          <ShopRoomScene
+            nodes={shownNodes}
+            page={currentPage}
+            totalPages={totalPages}
+            onPrevPage={() => setPage((p) => Math.max(0, p - 1))}
+            onNextPage={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+          />
+        </div>
       </div>
     </div>
   );
