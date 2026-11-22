@@ -53,36 +53,13 @@ describe("ShopRoomScene pagination (docs/decisions.md D-82)", () => {
     expect(screen.getByRole("button", { name: "Next products" })).toBeDisabled();
   });
 
-  // The permanent accessibility/SEO affordance (ShopRoomScene.tsx's own
-  // comment) only exists when ShopRegion.tsx actually has a list route to
-  // link to for that zone — docs/decisions.md D-82 dropped the old
-  // overflow-count gate, not the "only render a link that goes somewhere"
-  // rule.
-  it("renders neither 'view all' link when no handler is given", () => {
+  // D-82 had this room link "View all (wall)"/"View all (floor)" to the
+  // plain-text /list/shop-wall and /list/shop-floor pages; removed per
+  // D-84, the owner's own direct instruction — visitors shouldn't be sent
+  // there from here. Regression guard: no such links exist any more.
+  it("never renders a 'view all' link", () => {
     render(<ShopRoomScene nodes={[]} page={0} totalPages={1} />);
 
-    expect(screen.queryByRole("button", { name: "View all (wall)" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View all (floor)" })).not.toBeInTheDocument();
-  });
-
-  it("renders each 'view all' link once its handler is given, and calls it on click", async () => {
-    const onViewAllWall = vi.fn();
-    const onViewAllFloor = vi.fn();
-    const user = userEvent.setup();
-    render(
-      <ShopRoomScene
-        nodes={[]}
-        page={0}
-        totalPages={1}
-        onViewAllWall={onViewAllWall}
-        onViewAllFloor={onViewAllFloor}
-      />
-    );
-
-    await user.click(screen.getByRole("button", { name: "View all (wall)" }));
-    expect(onViewAllWall).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole("button", { name: "View all (floor)" }));
-    expect(onViewAllFloor).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: /View all/ })).not.toBeInTheDocument();
   });
 });

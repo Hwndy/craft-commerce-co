@@ -143,22 +143,4 @@ describe("ShopRegion pagination (docs/decisions.md D-82)", () => {
     expect(props.totalPages).toBe(1);
   });
 
-  it("forwards onViewAllWall/onViewAllFloor through to the scene untouched", () => {
-    mockRegions(nodes(1, "wall-"), nodes(1, "floor-", 1));
-    const onViewAllWall = vi.fn();
-    const onViewAllFloor = vi.fn();
-    render(
-      <ShopRegion
-        title="Shop"
-        centerX={0}
-        centerY={0}
-        onViewAllWall={onViewAllWall}
-        onViewAllFloor={onViewAllFloor}
-      />
-    );
-
-    const props = latestProps();
-    expect(props.onViewAllWall).toBe(onViewAllWall);
-    expect(props.onViewAllFloor).toBe(onViewAllFloor);
-  });
 });
