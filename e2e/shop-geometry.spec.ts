@@ -119,7 +119,14 @@ async function assertWithinRealCameraFrame(page: Page) {
     // actionability wait (visible, stable, receives pointer events,
     // genuinely in view) is a stronger signal than geometry alone that
     // a real visitor could reach this product from this exact viewpoint.
-    await el.click({ timeout: 3000 });
+    // Found in review (this PR's own CI run): webkit/mobile-safari's first
+    // paint of this nested 3D `perspective` scene can take a little longer
+    // to settle than chromium's, so a short 3000ms click timeout flaked
+    // there — explicitly wait for visible+stable first, matching the same
+    // generous timeout e2e/product-overlay.spec.ts's own click-through-the-
+    // room test already uses for exactly this reason, before clicking.
+    await expect(el).toBeVisible({ timeout: 10000 });
+    await el.click({ timeout: 10000 });
   }
 }
 
