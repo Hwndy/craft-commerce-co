@@ -116,16 +116,6 @@ export interface ShopRoomSceneProps {
   totalPages: number;
   onPrevPage?: () => void;
   onNextPage?: () => void;
-  /** Small, always-visible links to the full, uncapped list for each
-   * admin-side zone (still two separate pages — /list/shop-wall,
-   * /list/shop-floor — D-78 only merged the room's own *visual*
-   * presentation, not the admin's wall/floor categorisation or those list
-   * routes) — kept for keyboard/screen-reader/non-JS visitors the room's
-   * own 3D transforms don't serve well, not gated behind an overflow
-   * count any more (nothing below is ever capped past the point of being
-   * unreachable now that pagination covers the whole catalogue). */
-  onViewAllWall?: () => void;
-  onViewAllFloor?: () => void;
 }
 
 const FLOOR_COLUMNS = PRODUCTS_PER_PAGE;
@@ -155,8 +145,6 @@ export function ShopRoomScene({
   totalPages,
   onPrevPage,
   onNextPage,
-  onViewAllWall,
-  onViewAllFloor,
 }: ShopRoomSceneProps) {
   const isMobile = useIsMobile();
   const anchorTransform = `translateZ(-760px) rotateX(-16deg) rotateY(38deg)${isMobile ? " scale(0.55)" : ""}`;
@@ -291,64 +279,41 @@ export function ShopRoomScene({
           1/2 -translate-x-1/2`) and placed at y=700 keeps every control
           well inside that intersection on all four configured projects,
           confirmed by e2e/shop-geometry.spec.ts's own real-camera-frame
-          and click-through assertions. docs/decisions.md D-82: Prev/Next
-          + a page indicator replace the old overflow count; the "view
-          all" links are a permanent accessibility/SEO affordance, not
-          gated behind any count — both rows stay centred as one group
-          rather than pinned to this box's own left/right corners, which
-          the mobile-width frame is too narrow to reach at the same time. */}
-      <div
-        className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center gap-2"
-        style={{ top: 700 }}
-      >
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink shadow">
-            <button
-              type="button"
-              onClick={onPrevPage}
-              disabled={page <= 0}
-              aria-label="Previous products"
-              className="disabled:opacity-40"
-            >
-              ←
-            </button>
-            <span>
-              Page {page + 1} of {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={onNextPage}
-              disabled={page >= totalPages - 1}
-              aria-label="Next products"
-              className="disabled:opacity-40"
-            >
-              →
-            </button>
-          </div>
-        )}
-        {(onViewAllWall || onViewAllFloor) && (
-          <div className="flex items-center gap-2">
-            {onViewAllWall && (
-              <button
-                type="button"
-                onClick={onViewAllWall}
-                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
-              >
-                View all (wall)
-              </button>
-            )}
-            {onViewAllFloor && (
-              <button
-                type="button"
-                onClick={onViewAllFloor}
-                className="whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink underline-offset-2 shadow hover:underline"
-              >
-                View all (floor)
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+          and click-through assertions. docs/decisions.md D-84: the room's
+          own "View all (wall)"/"View all (floor)" links (D-82) were
+          removed on the owner's own direct instruction — they routed to
+          `/list/shop-wall`/`/list/shop-floor`, a plain-text list page the
+          owner doesn't want visitors sent to from here, regardless of the
+          accessibility/SEO rationale D-82 gave for keeping it. Only the
+          Prev/Next pagination pill remains. */}
+      {totalPages > 1 && (
+        <div
+          className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-shop-ink/40 bg-white/90 px-3 py-1 font-body text-xs font-semibold text-shop-ink shadow"
+          style={{ top: 700 }}
+        >
+          <button
+            type="button"
+            onClick={onPrevPage}
+            disabled={page <= 0}
+            aria-label="Previous products"
+            className="disabled:opacity-40"
+          >
+            ←
+          </button>
+          <span>
+            Page {page + 1} of {totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={onNextPage}
+            disabled={page >= totalPages - 1}
+            aria-label="Next products"
+            className="disabled:opacity-40"
+          >
+            →
+          </button>
+        </div>
+      )}
     </div>
   );
 }

@@ -11,12 +11,6 @@ export interface ShopRegionProps {
   centerX: number;
   centerY: number;
   onOpenProduct?: (slug: string) => void;
-  /** The small, always-visible "view full list" links (accessibility/
-   * keyboard/non-JS/SEO — the room's own 3D transforms aren't a great
-   * screen-reader experience, so the uncapped list pages stay a real,
-   * linked alternative regardless of pagination). */
-  onViewAllWall?: () => void;
-  onViewAllFloor?: () => void;
 }
 
 // A fixed footprint for the whole room corner (docs/decisions.md D-71,
@@ -49,21 +43,17 @@ function byDisplayOrder(a: ProductNode, b: ProductNode): number {
  * Client feedback, 18 Nov 2026 (docs/decisions.md D-78): "no belts on the
  * wall... merge wall+floor into one shop space." The two admin-side
  * product queries below (by `canvas_nodes.region`) stay exactly as they
- * were — that's still how an admin categorises a product, and still what
- * each zone's own "view all" list page filters by — only the *room's own
- * rendering* now pools both into one combined, ordered list, paginated
- * rather than hard-capped (docs/decisions.md D-82: the room now scales to
- * however many products are published, instead of silently routing
- * everything past a fixed count to an external page).
+ * were — that's still how an admin categorises a product — only the
+ * *room's own rendering* now pools both into one combined, ordered list,
+ * paginated rather than hard-capped (docs/decisions.md D-82: the room now
+ * scales to however many products are published, instead of silently
+ * routing everything past a fixed count to an external page). D-82 also
+ * linked each zone's "view all" to its own uncapped `/list/shop-wall`/
+ * `/list/shop-floor` page; removed per D-84, the owner's own direct
+ * instruction — that list page is not where a visitor from this room
+ * should land.
  */
-export function ShopRegion({
-  title,
-  centerX,
-  centerY,
-  onOpenProduct,
-  onViewAllWall,
-  onViewAllFloor,
-}: ShopRegionProps) {
+export function ShopRegion({ title, centerX, centerY, onOpenProduct }: ShopRegionProps) {
   const { data: wallNodes, isLoading: isWallLoading } = useProductNodes("shop-wall");
   const { data: floorNodes, isLoading: isFloorLoading } = useProductNodes("shop-floor");
   const [page, setPage] = useState(0);
@@ -104,8 +94,6 @@ export function ShopRegion({
         // value needed two Prev clicks to move the display back by one.
         onPrevPage={() => setPage(Math.max(0, currentPage - 1))}
         onNextPage={() => setPage(Math.min(totalPages - 1, currentPage + 1))}
-        onViewAllWall={onViewAllWall}
-        onViewAllFloor={onViewAllFloor}
       />
     </Region>
   );
