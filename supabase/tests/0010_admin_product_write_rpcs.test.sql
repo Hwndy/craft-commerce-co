@@ -91,13 +91,13 @@ select lives_ok(
   'non-admin authenticated: delete_product_with_node call does not raise'
 );
 
--- The fixture row has published = false, so the public "select where
--- published" policy can't see it either — checking "did the delete
--- actually happen" needs a role that can see an unpublished row
--- regardless (the table owner, who bypasses RLS entirely), not the same
--- non-admin role the delete attempt itself just ran as. Checking this
--- under role authenticated would silently return nothing whether or not
--- the delete succeeded, making the assertion meaningless either way.
+-- Verified as postgres (bypasses RLS), not as the same non-admin role:
+-- the fixture row is unpublished, so "public reads published products"
+-- wouldn't show it to this role either way — checking as the restricted
+-- role can't tell "blocked" apart from "deleted but also unreadable",
+-- and gave a false failure here until caught running this against a
+-- real local stack (no CI engine reproduces this; only `supabase test
+-- db` does).
 reset role;
 select results_eq(
   $$ select id from public.products where id = '00000000-0000-0000-0000-000000000200' $$,
