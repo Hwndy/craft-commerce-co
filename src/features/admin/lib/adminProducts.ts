@@ -8,6 +8,20 @@ import { useOptimisticMutation } from "./useOptimisticMutation";
 
 export const ADMIN_PRODUCTS_QUERY_KEY = ["admin", "products"] as const;
 
+/** Thrown only when useCreateProduct's own compensating delete (after a
+ * node-insert failure) itself fails — the one case where this task's own
+ * mitigation (docs/decisions.md D-85) needs its exact message shown to
+ * the admin, not a generic retry toast, since it names the stranded
+ * product's id and warns against retrying before manual cleanup. Found
+ * in review (CodeRabbit, PR #38): the detailed message was being thrown
+ * correctly but then masked by onError's own generic toast text. */
+export class ProductRollbackError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProductRollbackError";
+  }
+}
+
 export type ProductStatus = Database["public"]["Enums"]["product_status"];
 export type ProductZone = Database["public"]["Enums"]["product_zone"];
 
@@ -213,10 +227,10 @@ export function useCreateProduct() {
         // proportionate mitigation instead.
         const { error: rollbackError } = await supabase.from("products").delete().eq("id", product.id);
         if (rollbackError) {
-          throw new Error(
+          throw new ProductRollbackError(
             `Failed to create the board node for "${input.name}" (${nodeError.message}), and cleaning up the ` +
               `half-created product also failed (${rollbackError.message}). Product ${product.id} needs manual ` +
-              `deletion.`
+              `deletion — do not retry until it's removed, or a second product with a suffixed slug may be created.`
           );
         }
         throw nodeError;
@@ -230,7 +244,16 @@ export function useCreateProduct() {
         created,
       ]);
     },
-    onError: () => {
+    onError: (error) => {
+      // The one case with its own specific, actionable message (the
+      // product's id + "don't retry yet") — shown as-is, not replaced by
+      // the generic retry toast every other failure here gets. sonner's
+      // default toast duration (4s) isn't enough to read and act on this
+      // one, so it gets a longer duration explicitly.
+      if (error instanceof ProductRollbackError) {
+        toast(error.message, { duration: 15000 });
+        return;
+      }
       toast("Couldn't create the product — please try again.");
     },
   });

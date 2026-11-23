@@ -766,6 +766,10 @@ Accepted, not fixed (same underlying cause, each flagged on its own PR thread ra
 
 Consequences (this update): `npm run typecheck`/`lint`/`test` (549/549)/`build` all pass, no change to initial JS budget.
 
+**Update 2, same PR (found in review, CodeRabbit, PR #38): the rollback-failure mitigation above had its own gap.** `useCreateProduct`'s compensating-delete failure threw a detailed error naming the stranded product's id and warning against retrying — but its generic `onError` toast ("Couldn't create the product — please try again.") replaced that message entirely, so the admin never actually saw it. Fixed with a new `ProductRollbackError` class (same `extends Error` pattern as `image-pipeline.ts`'s `ImageUploadError`/`video-upload.ts`'s `VideoUploadError`) that `onError` checks for specifically, showing its exact message at a 15s duration (sonner's default 4s isn't enough to read and act on an id + "don't retry yet" warning) instead of the generic text. Also fixed in passing: `phases/PHASE-4-admin-cms.md`'s T4 checklist item still said product videos go up to 100 MB — corrected to 50 MB with a pointer to D-70/this entry, so it can't mislead an admin into preparing an oversized video today.
+
+Consequences (update 2): `npm run typecheck`/`lint`/`test` (549/549)/`build` all pass.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
