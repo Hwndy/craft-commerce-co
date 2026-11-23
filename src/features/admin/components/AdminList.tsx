@@ -11,7 +11,15 @@ export interface AdminListProps<T> {
   getKey: (item: T) => string;
   renderItem: (item: T) => ReactNode;
   onItemClick?: (item: T) => void;
-  emptyState: ReactNode;
+  /** A plain ReactNode always renders the same thing on empty — fine for
+   * a page where "no results" always means "nothing published yet." A
+   * function also receives the current search term, for a caller that
+   * wants to distinguish "no products yet" from "no products match this
+   * search" (found in review, CodeRabbit, PR #38: a search with no
+   * matches isn't the same thing as a genuinely empty catalogue, even
+   * though AdminList's own search state was never exposed before this
+   * for a caller to tell the two apart). */
+  emptyState: ReactNode | ((search: string) => ReactNode);
 }
 
 /**
@@ -56,7 +64,7 @@ export function AdminList<T>({
           <Skeleton className="h-12 w-full" />
         </div>
       ) : filtered.length === 0 ? (
-        emptyState
+        typeof emptyState === "function" ? emptyState(search) : emptyState
       ) : (
         <ul className="space-y-2">
           {filtered.map((item) => (

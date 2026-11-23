@@ -770,6 +770,12 @@ Consequences (this update): `npm run typecheck`/`lint`/`test` (549/549)/`build` 
 
 Consequences (update 2): `npm run typecheck`/`lint`/`test` (549/549)/`build` all pass.
 
+**Update 3, same PR (found in review, CodeRabbit, PR #38): two further findings, direct follow-ups to earlier fixes in this same PR.**
+1. **`reorderSwap()` still did nothing for a pair that already shares a `sortOrder`** — a direct follow-up to the `sortOrder = 0` fix above: that fix stops *new* ties for sequentially created products, but doesn't repair a tie that already exists (legacy data from before the fix, or a partially-failed reorder write, both already-documented gaps). Fixed: `reorderSwap()` now detects an equal pair and, only then, renumbers the *whole* list 0..n-1 by its new array position after the move — self-healing the tie and guaranteeing the move is actually visible, rather than just the normal two-row swap. `useReorderProduct`'s write loop generalised from exactly two `update()` calls to one per row in whatever `reorderSwap()` returns.
+2. **`AdminList`'s `emptyState` showed "No products yet." even when products exist but a search matched none of them** — true for any future T6–T9 caller reusing this shared primitive, not just Products: `AdminList` always managed its own `search` state internally, so a caller's static `emptyState` prop had no way to tell "genuinely empty" from "search found nothing." Fixed by letting `emptyState` optionally be a function `(search: string) => ReactNode` (backward compatible — a plain `ReactNode` still works exactly as before for every other future caller); `AdminProducts.tsx` now shows "No products match your search." when a search term is active.
+
+Consequences (update 3): `npm run typecheck`/`lint`/`test` (553/553)/`build` all pass.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.

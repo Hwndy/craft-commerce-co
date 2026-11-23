@@ -172,6 +172,16 @@ describe("AdminProducts", () => {
     expect(screen.getByTestId("product-form")).toBeInTheDocument();
   });
 
+  it("shows a search-specific empty message, not 'No products yet', when a search has no matches", async () => {
+    mockProducts([product({ id: "p1", name: "Belt One" })]);
+    const user = userEvent.setup();
+    render(<AdminProducts />);
+
+    await user.type(screen.getByPlaceholderText("Search products…"), "nothing matches this");
+    expect(screen.getByText("No products match your search.")).toBeInTheDocument();
+    expect(screen.queryByText("No products yet.")).not.toBeInTheDocument();
+  });
+
   it("closes the drawer when the form confirms it's safe to close", async () => {
     confirmCloseMock.mockReturnValue(true);
     mockProducts([]);

@@ -105,4 +105,27 @@ describe("reorderSwap", () => {
   it("returns null for an id that isn't in the list", () => {
     expect(reorderSwap(products, "missing", "up")).toBeNull();
   });
+
+  // Found in review (CodeRabbit, PR #38), as a direct follow-up to the
+  // sortOrder=0 bug the other tests above guard: a plain value-swap
+  // between two already-equal sortOrders is a no-op an admin would see
+  // as "the button did nothing."
+  it("renumbers the whole list by new position when the swapped pair already shares a sortOrder", () => {
+    const tied = [product("a", 0), product("b", 0), product("c", 2)];
+    expect(reorderSwap(tied, "b", "up")).toEqual([
+      { id: "b", sortOrder: 0 },
+      { id: "a", sortOrder: 1 },
+      { id: "c", sortOrder: 2 },
+    ]);
+  });
+
+  it("still renumbers the whole list (not just the pair) when a tie is broken at the end of a longer list", () => {
+    const tied = [product("a", 0), product("b", 1), product("c", 5), product("d", 5)];
+    expect(reorderSwap(tied, "d", "up")).toEqual([
+      { id: "a", sortOrder: 0 },
+      { id: "b", sortOrder: 1 },
+      { id: "d", sortOrder: 2 },
+      { id: "c", sortOrder: 3 },
+    ]);
+  });
 });

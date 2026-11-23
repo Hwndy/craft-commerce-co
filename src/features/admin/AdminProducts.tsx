@@ -80,7 +80,13 @@ export default function AdminProducts() {
           searchPlaceholder="Search products…"
           getSearchText={(product) => `${product.name} ${product.slug}`}
           getKey={(product) => product.id}
-          emptyState={<p className="text-sm text-muted-foreground">No products yet.</p>}
+          // A search with no matches isn't the same thing as a genuinely
+          // empty catalogue — found in review (CodeRabbit, PR #38).
+          emptyState={(search) => (
+            <p className="text-sm text-muted-foreground">
+              {search ? "No products match your search." : "No products yet."}
+            </p>
+          )}
           renderItem={(product) => {
             const index = (products ?? []).findIndex((p) => p.id === product.id);
             const isFirst = index === 0;
