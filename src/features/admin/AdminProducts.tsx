@@ -162,7 +162,19 @@ export default function AdminProducts() {
         {editing !== null && (
           <ProductForm
             ref={formRef}
-            key={editing.token}
+            // The token alone would stay constant across the create→edit
+            // transition (onCreated below keeps it, deliberately, for the
+            // stale-callback check) — found in review (CodeRabbit, PR
+            // #38): that meant ProductForm never remounted on creation,
+            // so react-hook-form kept its stale create-mode defaultValues
+            // (an empty slug) under the now-active edit-mode schema,
+            // which requires one, blocking Save until the admin typed a
+            // slug by hand. Keying on the token only while still a draft,
+            // and on the real product's id once one exists, restores the
+            // remount-with-fresh-defaults behaviour the original
+            // `"new"`/`editing.id` key had, without reintroducing the
+            // shared `"new"` identity that caused the stale-callback bug.
+            key={editing.product === "new" ? editing.token : editing.product.id}
             product={editing.product === "new" ? undefined : editing.product}
             // mutateAsync() inside ProductForm isn't cancelled when this
             // component unmounts (its own key changes under it, e.g. the

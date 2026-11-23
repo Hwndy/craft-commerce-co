@@ -826,6 +826,14 @@ New tests: `AdminProducts.test.tsx` adds the two-concurrent-"new"-drafts case (a
 
 Consequences (update 8): `npm run typecheck`/`lint`/`test` (561/561)/`build` all pass. No change to `supabase/`.
 
+**Update 9, same PR (found in review, CodeRabbit, PR #38): update 8's own session-token fix (finding 1) introduced a real regression.** `onCreated` deliberately keeps the same `token` across the create→edit transition (so the stale-callback comparison still recognises it as the same session) — but `ProductForm`'s own `key` was *also* set to that same, now-unchanging `token`, so React never remounted the component on creation. React Hook Form doesn't pick up changed `defaultValues` without a remount (or an explicit `reset()`), so the form kept its create-mode defaults — including an empty `slug` — under the now-active edit-mode schema, which requires one. The admin couldn't save until typing a slug by hand, every single time, for every newly created product.
+
+Fixed by decoupling the two concerns `token` was accidentally serving at once: `key` is now `editing.token` only while still a draft, and `editing.product.id` once a real product exists — restoring the original pre-token remount-on-creation behaviour — while the stale-callback comparisons inside `onCreated`/`onClose` still compare by `token` exactly as before, unaffected by the `key` change.
+
+CodeRabbit's own review pointed out why the existing stale-session tests didn't catch this: `AdminProducts.test.tsx` mocks `ProductForm` entirely, so no real `useForm()`/remount ever happens there. New test `AdminProducts.createToEdit.test.tsx` renders the *real* `AdminProducts` + `ProductForm` together (mocking only the data-layer hooks and `MediaUploadField`, same shape `ProductForm.test.tsx` already mocks) and asserts the Slug field shows the real created product's slug after creation, then that a follow-up edit save still carries it — confirmed this test actually fails without the fix (reverted the `key` change locally, watched it fail with an empty slug, restored the fix) before trusting it as a regression guard.
+
+Consequences (update 9): `npm run typecheck`/`lint`/`test` (562/562)/`build` all pass. No change to `supabase/`.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
