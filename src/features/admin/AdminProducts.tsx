@@ -16,24 +16,46 @@ const STATUS_LABEL: Record<AdminProductRow["status"], string> = {
   sold: "Sold",
 };
 
+/** One drawer "session" per open/new — a fresh random token each time,
+ * not the literal `"new"` string. Found in review (CodeRabbit, PR #38):
+ * an earlier fix scoped ProductForm's onClose/onCreated callbacks by
+ * comparing `current === "new"`/`current === editing`, which still let
+ * two *concurrent* "new product" drafts collide — both used the same
+ * `"new"` identity, so the first draft's late-resolving create could
+ * replace the second draft's own drawer. A real per-session token (not
+ * tied to any one product's id, which doesn't exist yet for a draft)
+ * closes that gap regardless of how many sessions share the same mode. */
+interface EditSession {
+  token: string;
+  product: AdminProductRow | "new";
+}
+
 /**
  * T5's real Products admin (FR-7.2) — replaces AdminSectionPlaceholder.
- * `editing` carries the drawer's whole state: `null` (closed), `"new"`
- * (ProductForm's no-media create step), or a real AdminProductRow (edit
- * step, media sections included). ProductForm's own `key` below changes
- * across these, so it remounts fresh with the right defaultValues/schema
- * each time rather than trying to manage a create→edit transition inside
- * one long-lived form instance.
+ * `editing` carries the drawer's whole state: `null` (closed), or an
+ * `EditSession` wrapping either `"new"` (ProductForm's no-media create
+ * step) or a real AdminProductRow (edit step, media sections included).
+ * ProductForm's own `key` below is the session's token, so it remounts
+ * fresh with the right defaultValues/schema each time rather than trying
+ * to manage a create→edit transition inside one long-lived form instance.
  */
 export default function AdminProducts() {
   const { data: products, isLoading, isError, refetch } = useAdminProducts();
   const reorder = useReorderProduct();
-  const [editing, setEditing] = useState<AdminProductRow | "new" | null>(null);
+  const [editing, setEditing] = useState<EditSession | null>(null);
   const formRef = useRef<ProductFormHandle>(null);
 
   function moveProduct(id: string, direction: "up" | "down") {
     if (!products) return;
     reorder.mutate({ products, id, direction });
+  }
+
+  function openNew() {
+    setEditing({ token: crypto.randomUUID(), product: "new" });
+  }
+
+  function openEdit(product: AdminProductRow) {
+    setEditing({ token: crypto.randomUUID(), product });
   }
 
   // Dismissing the Sheet by its own X button, Escape or an overlay click
@@ -50,7 +72,7 @@ export default function AdminProducts() {
     <main className="p-6">
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-heading">Products</h1>
-        <Button variant="pill" onClick={() => setEditing("new")}>
+        <Button variant="pill" onClick={openNew}>
           New product
         </Button>
       </div>
@@ -93,7 +115,7 @@ export default function AdminProducts() {
             const isLast = index === (products?.length ?? 0) - 1;
             return (
               <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setEditing(product)}>
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openEdit(product)}>
                   <p className="truncate font-medium">{product.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatGbp(product.priceAmount)} · {product.zone} · {STATUS_LABEL[product.status]}
@@ -134,14 +156,14 @@ export default function AdminProducts() {
         onOpenChange={(open) => {
           if (!open) requestClose();
         }}
-        title={editing === "new" ? "New product" : editing ? editing.name : ""}
-        description={editing === "new" ? "Add the basic details first — pictures and video come after saving." : undefined}
+        title={editing?.product === "new" ? "New product" : editing?.product.name ?? ""}
+        description={editing?.product === "new" ? "Add the basic details first — pictures and video come after saving." : undefined}
       >
         {editing !== null && (
           <ProductForm
             ref={formRef}
-            key={editing === "new" ? "new" : editing.id}
-            product={editing === "new" ? undefined : editing}
+            key={editing.token}
+            product={editing.product === "new" ? undefined : editing.product}
             // mutateAsync() inside ProductForm isn't cancelled when this
             // component unmounts (its own key changes under it, e.g. the
             // admin opened a different product while a save/delete was
@@ -149,11 +171,16 @@ export default function AdminProducts() {
             // callback this instance was given still fires once that
             // request settles, so an unconditional setEditing(...) here
             // would close or replace whatever drawer is open *now*, which
-            // may belong to a different product with its own unsaved
-            // edits. Each updater only acts if `editing` is still the same
-            // session this particular closure was created for.
-            onCreated={(created) => setEditing((current) => (current === "new" ? created : current))}
-            onClose={() => setEditing((current) => (current === editing ? null : current))}
+            // may belong to a different session with its own unsaved
+            // edits. Comparing by this session's own `token` (not the
+            // literal `"new"`, which two concurrent create drafts would
+            // share — found in review, CodeRabbit, PR #38, as a direct
+            // follow-up) is what lets each updater act only if `editing`
+            // is still the exact session this closure was created for.
+            onCreated={(created) =>
+              setEditing((current) => (current?.token === editing.token ? { token: editing.token, product: created } : current))
+            }
+            onClose={() => setEditing((current) => (current?.token === editing.token ? null : current))}
           />
         )}
       </AdminEditDrawer>

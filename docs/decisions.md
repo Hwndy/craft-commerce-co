@@ -817,6 +817,15 @@ New tests: `AdminProducts.test.tsx` reproduces both stale-closure races directly
 
 Consequences (update 7): `npm run typecheck`/`lint`/`test` (559/559)/`build` all pass. No change to `supabase/`, so the pgTAP suite is unaffected.
 
+**Update 8, same PR (found in review, CodeRabbit, PR #38): update 7's own fixes each had one gap left.**
+
+1. **The session-scoping fix (update 7, finding 1) still collided when *both* sessions were "new" drafts.** It compared the captured closure's session against `current === "new"` / `current === editing` — correct for "an edit session vs. a new-draft session," but two *concurrent* new-draft sessions both have the identity `"new"`, so an abandoned first draft's late-resolving `onCreated` could still replace a second, later draft the admin was actually filling in. Fixed by giving every drawer open/new its own random `crypto.randomUUID()` token (`EditSession { token, product }`) instead of relying on `"new"` or the product's own id as the session's identity — a draft has no id yet to distinguish it by anyway. Each updater now compares by `token`. Same shape independently arrived at for `AdminPhotos.tsx` (Phase 4 T6, a different branch, built after this finding was already on PR #38's thread).
+2. **The poster/video file-input disabling (update 7, finding 4) didn't cover "Capture this frame as the poster."** That button sets `posterMediaId` from a locally-decoded video frame, not a file input — disabling the *inputs* during a submit left this one path still clickable, so a capture started just before Save can still resolve and update state after `onSubmit` already read the old `posterMediaId` for that save. Fixed by disabling the capture button on `form.formState.isSubmitting` too, alongside its existing `capturingPoster` check.
+
+New tests: `AdminProducts.test.tsx` adds the two-concurrent-"new"-drafts case (abandon one draft, open a second, resolve the first's stale `onCreated`, assert the second draft is untouched); `ProductForm.test.tsx` adds the capture-button-disabled-while-submitting case, same controlled-promise pattern as the existing poster/video-fields test.
+
+Consequences (update 8): `npm run typecheck`/`lint`/`test` (561/561)/`build` all pass. No change to `supabase/`.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.

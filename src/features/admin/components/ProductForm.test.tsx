@@ -294,4 +294,25 @@ describe("ProductForm — edit mode", () => {
 
     resolveUpdate(product());
   });
+
+  // Follow-up to the test above (found in review, CodeRabbit, PR #38):
+  // the file inputs disabling during submit left one related path open —
+  // a capture started just before Save is clicked can still resolve and
+  // call setPosterMediaId() after onSubmit already read posterMediaId for
+  // that save, so the captured poster would never actually get attached.
+  it("disables 'Capture this frame as the poster' while a save is submitting", async () => {
+    let resolveUpdate!: (value: AdminProductRow) => void;
+    updateMutateAsync.mockImplementation(() => new Promise((resolve) => (resolveUpdate = resolve)));
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() });
+
+    await user.click(screen.getByRole("button", { name: "Simulate video upload" }));
+    const captureButton = screen.getByRole("button", { name: /Capture this frame/ });
+    expect(captureButton).not.toBeDisabled();
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(captureButton).toBeDisabled());
+
+    resolveUpdate(product());
+  });
 });

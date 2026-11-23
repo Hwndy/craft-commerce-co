@@ -262,4 +262,32 @@ describe("AdminProducts", () => {
     });
     expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: belt }));
   });
+
+  // Found in review (CodeRabbit, PR #38), as a direct follow-up to the
+  // fix the test above guards: that fix scoped onClose/onCreated by
+  // comparing against the literal `"new"` string, which still collides
+  // when *both* the abandoned draft and the one now open are "new"
+  // drafts — they'd share the same `"new"` identity, so this case slips
+  // past a check that only distinguishes "new" from a real product.
+  it("doesn't let a stale onCreated from one abandoned 'New product' draft replace a second, later 'New product' draft", async () => {
+    mockProducts([]);
+    const user = userEvent.setup();
+    render(<AdminProducts />);
+
+    await user.click(screen.getByRole("button", { name: "New product" }));
+    const staleOnCreated = formSpy.mock.calls.at(-1)![0].onCreated as (p: AdminProductRow) => void;
+
+    // Abandon the first draft and start a second, unrelated one — both
+    // are "new product" drafts.
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: "New product" }));
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: undefined }));
+
+    // The first (abandoned) draft's create() finally resolves — this
+    // must not replace the second draft's own, still-unsaved session.
+    act(() => {
+      staleOnCreated(product({ id: "first-draft-id", name: "First Draft" }));
+    });
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: undefined }));
+  });
 });

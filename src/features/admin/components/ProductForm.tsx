@@ -423,7 +423,20 @@ export const ProductForm = forwardRef<ProductFormHandle, ProductFormProps>(funct
                   {/* A locally-scrubbed upload preview, never shown to a real site visitor — no captions track needed. */}
                   <video ref={videoRef} src={videoPreviewUrl} controls muted className="w-full rounded-md" />
                   {!posterMediaId && (
-                    <Button type="button" variant="pill-outline" size="sm" disabled={capturingPoster} onClick={captureFrameAsPoster}>
+                    <Button
+                      type="button"
+                      variant="pill-outline"
+                      size="sm"
+                      // Same race as the poster/video file inputs above
+                      // (found in review, CodeRabbit, PR #38, as a direct
+                      // follow-up to that fix): a capture started just
+                      // before Save is clicked can still resolve and call
+                      // setPosterMediaId() after onSubmit has already read
+                      // posterMediaId for this save, so the captured
+                      // poster would never actually get attached.
+                      disabled={capturingPoster || form.formState.isSubmitting}
+                      onClick={captureFrameAsPoster}
+                    >
                       {capturingPoster ? "Capturing…" : "Capture this frame as the poster"}
                     </Button>
                   )}
