@@ -132,6 +132,22 @@ export function useAdminProducts() {
   });
 }
 
+/** `products.sort_order` defaults to 0 — without this, every newly created
+ * product shared that default, so reorderSwap() (both ends already at 0)
+ * wrote the same value back to both rows and the up/down buttons silently
+ * did nothing for any product created after the first (found in review,
+ * CodeRabbit, PR #38). New products go to the end of the real order
+ * instead, one past whatever the current highest sort_order is. */
+async function nextSortOrder(): Promise<number> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0]?.sort_order ?? -1) + 1;
+}
+
 export interface CreateProductInput {
   name: string;
   priceAmount: number;
@@ -154,6 +170,7 @@ export function useCreateProduct() {
   return useMutation({
     mutationFn: async (input: CreateProductInput): Promise<AdminProductRow> => {
       const baseSlug = slugify(input.name) || "product";
+      const sortOrder = await nextSortOrder();
       const product = await insertProductWithUniqueSlug(baseSlug, {
         name: input.name,
         price_amount: input.priceAmount,
@@ -164,6 +181,7 @@ export function useCreateProduct() {
         zone: input.zone,
         on_sale: input.onSale,
         published: false,
+        sort_order: sortOrder,
       });
 
       // canvas_nodes.x/y/width/height/rotation/layer aren't read for real
@@ -184,7 +202,23 @@ export function useCreateProduct() {
         published: false,
       });
       if (nodeError) {
-        await supabase.from("products").delete().eq("id", product.id);
+        // Found in review (CodeRabbit, PR #38): this delete can itself fail
+        // (same outage that broke the insert above could still be live) —
+        // silently ignoring that left a genuinely half-created, nodeless
+        // product with no trace of why. Supabase-js/PostgREST calls can't
+        // be wrapped in one real database transaction without a dedicated
+        // Postgres RPC function, which no part of this codebase uses yet
+        // (a real follow-up, not invented here); surfacing the compound
+        // failure plainly, with the product's own id, is this task's
+        // proportionate mitigation instead.
+        const { error: rollbackError } = await supabase.from("products").delete().eq("id", product.id);
+        if (rollbackError) {
+          throw new Error(
+            `Failed to create the board node for "${input.name}" (${nodeError.message}), and cleaning up the ` +
+              `half-created product also failed (${rollbackError.message}). Product ${product.id} needs manual ` +
+              `deletion.`
+          );
+        }
         throw nodeError;
       }
 
@@ -242,6 +276,13 @@ export function useUpdateProduct() {
         video_media_id: input.videoMediaId,
       });
 
+      // Not atomic with the product update above — found in review
+      // (CodeRabbit, PR #38): if this fails after that one succeeds, the
+      // product keeps its new zone/published state while its node keeps
+      // the old one. Same limitation as useCreateProduct's own comment:
+      // real atomicity needs a Postgres RPC function wrapping both writes
+      // in a transaction, which this codebase has no precedent for yet —
+      // a genuine follow-up, not something to invent unreviewed here.
       const { error: nodeError } = await supabase
         .from("canvas_nodes")
         .update({ region: regionForZone(input.zone), published: input.published })
@@ -267,6 +308,14 @@ export function useDeleteProduct() {
   return useOptimisticMutation<string, string, AdminProductRow[]>({
     queryKey: ADMIN_PRODUCTS_QUERY_KEY,
     mutationFn: async (id) => {
+      // Not atomic (same limitation as useUpdateProduct's own comment): if
+      // the node delete succeeds but this product delete then fails, the
+      // product survives with no node and so drops out of the room, while
+      // the admin list (rolled back on this error) still shows it as
+      // present — found in review (CodeRabbit, PR #38). A retry from the
+      // list repeats the same two calls and finishes the job cleanly in
+      // that case, which is why this is a proportionate gap rather than
+      // one left entirely unhandled.
       const { error: nodeError } = await supabase
         .from("canvas_nodes")
         .delete()
@@ -336,6 +385,11 @@ export function useReorderProduct() {
       const swap = reorderSwap(variables.products, variables.id, variables.direction);
       if (!swap) return null;
 
+      // Not atomic (same limitation noted on useUpdateProduct/
+      // useDeleteProduct above) — if the second update fails, the first
+      // has already committed, leaving both rows sharing one sortOrder
+      // until the next reorder click (reorderSwap()'s own sort() tiebreaks
+      // ties by id, so this is a stuck-looking order, not data loss).
       const [a, b] = swap;
       const { error: errorA } = await supabase.from("products").update({ sort_order: a.sortOrder }).eq("id", a.id);
       if (errorA) throw errorA;

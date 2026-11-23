@@ -156,6 +156,34 @@ describe("MediaUploadField", () => {
     await waitFor(() => expect(uploadImageMediaMock).toHaveBeenCalledTimes(5));
   });
 
+  it("reports pending while an upload is in flight, then not pending once it's done", async () => {
+    let resolveUpload: (value: { mediaId: string }) => void = () => {};
+    uploadImageMediaMock.mockImplementation(
+      () => new Promise((resolve) => { resolveUpload = () => resolve({ mediaId: "media-1" }); })
+    );
+    const onPendingChange = vi.fn();
+
+    render(<MediaUploadField kind="image" storagePrefix="photos/set-1" onPendingChange={onPendingChange} />);
+    expect(onPendingChange).toHaveBeenLastCalledWith(false);
+
+    selectFile();
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(true));
+
+    resolveUpload({ mediaId: "media-1" });
+    await waitFor(() => expect(onPendingChange).toHaveBeenLastCalledWith(false));
+  });
+
+  it("reports not pending (not stuck pending) once an upload fails", async () => {
+    uploadImageMediaMock.mockRejectedValueOnce(new ImageUploadError("network error", []));
+    const onPendingChange = vi.fn();
+
+    render(<MediaUploadField kind="image" storagePrefix="photos/set-1" onPendingChange={onPendingChange} />);
+    selectFile();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Retry" })).toBeInTheDocument());
+    expect(onPendingChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("uses the video pipeline and accept type when kind is video", async () => {
     uploadVideoMediaMock.mockResolvedValue({ mediaId: "video-1" });
 

@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Minus, Plus } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -93,6 +93,15 @@ export interface ProductFormProps {
   onClose: () => void;
 }
 
+export interface ProductFormHandle {
+  /** True = the caller may close/unmount this form now (either clean, or
+   * the admin confirmed discarding changes). False = keep it open —
+   * found in review (CodeRabbit, PR #38): AdminProducts.tsx's drawer can
+   * also be dismissed by the Sheet's own X/Escape/overlay click, none of
+   * which went through this form's own confirmIfDirty() before this. */
+  confirmClose: () => boolean;
+}
+
 /**
  * T5's product create/edit form (FR-7.2). A brand-new product only gets
  * the bare metadata fields and a Save button — no MediaUploadField section
@@ -106,7 +115,10 @@ export interface ProductFormProps {
  * orphaned Storage uploads for a "new product" draft the admin abandons
  * without saving, since nothing can be uploaded before the product exists.
  */
-export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
+export const ProductForm = forwardRef<ProductFormHandle, ProductFormProps>(function ProductForm(
+  { product, onCreated, onClose },
+  ref
+) {
   const isEditing = !!product;
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -119,6 +131,15 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
   const [videoMediaId, setVideoMediaId] = useState<string | null>(product?.videoMediaId ?? null);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [capturingPoster, setCapturingPoster] = useState(false);
+  // One flag per MediaUploadField instance — true while that field's own
+  // queue still has something decoding/uploading/inserting. Found in
+  // review (CodeRabbit, PR #38): without this, clicking Save right after
+  // starting an upload could submit before the real mediaId existed,
+  // closing the form with the upload's own result then landing nowhere.
+  const [posterUploadPending, setPosterUploadPending] = useState(false);
+  const [pictureUploadPending, setPictureUploadPending] = useState(false);
+  const [videoUploadPending, setVideoUploadPending] = useState(false);
+  const mediaWorkPending = capturingPoster || posterUploadPending || pictureUploadPending || videoUploadPending;
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // The uploaded video's own File, kept only so the admin can scrub a
@@ -140,7 +161,16 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
     },
   });
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "bullets" });
-  const { confirmIfDirty } = useUnsavedChangesWarning(form.formState.isDirty);
+  // form.formState.isDirty only tracks the react-hook-form fields —
+  // posterMediaId/videoMediaId are plain component state (driven by async
+  // upload callbacks, not typed fields), so a poster/video attached but
+  // not yet Saved wouldn't otherwise count as a real unsaved change
+  // (found in review, CodeRabbit, PR #38).
+  const mediaIsDirty =
+    posterMediaId !== (product?.posterMediaId ?? null) || videoMediaId !== (product?.videoMediaId ?? null);
+  const { confirmIfDirty } = useUnsavedChangesWarning(form.formState.isDirty || mediaIsDirty);
+
+  useImperativeHandle(ref, () => ({ confirmClose: confirmIfDirty }));
 
   async function onSubmit(values: EditValues) {
     const bullets = values.bullets.map((b) => b.value);
@@ -315,9 +345,16 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
               <span className="text-sm font-medium">Published</span>
               <Switch
                 checked={form.watch("published")}
+                // D-85's own stated intent ("a product with no poster
+                // shouldn't be publishable") was never actually enforced
+                // in the UI — found in review (CodeRabbit, PR #38).
+                disabled={!posterMediaId}
                 onCheckedChange={(checked) => form.setValue("published", checked, { shouldDirty: true })}
               />
             </label>
+            {!posterMediaId && (
+              <p className="text-xs text-muted-foreground">Add a poster picture below before publishing.</p>
+            )}
 
             <div className="space-y-2 border-t border-border pt-4">
               <span className="text-sm font-medium">Poster picture</span>
@@ -327,6 +364,7 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
                 storagePrefix={`products/${product.id}/poster`}
                 altText={form.watch("name")}
                 onMediaReady={({ mediaId }) => setPosterMediaId(mediaId)}
+                onPendingChange={setPosterUploadPending}
               />
             </div>
 
@@ -356,6 +394,7 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
                 onMediaReady={({ mediaId }) =>
                   addPicture.mutate({ productId: product.id, mediaId, sortOrder: pictures?.length ?? 0 })
                 }
+                onPendingChange={setPictureUploadPending}
               />
             </div>
 
@@ -369,6 +408,7 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
                   if (videoPreviewUrl) URL.revokeObjectURL(videoPreviewUrl);
                   setVideoPreviewUrl(URL.createObjectURL(file));
                 }}
+                onPendingChange={setVideoUploadPending}
               />
               {videoPreviewUrl && (
                 <div className="space-y-2">
@@ -414,10 +454,10 @@ export function ProductForm({ product, onCreated, onClose }: ProductFormProps) {
             Cancel
           </Button>
         )}
-        <Button type="submit" variant="pill" disabled={form.formState.isSubmitting}>
-          {form.formState.isSubmitting ? "Saving…" : "Save"}
+        <Button type="submit" variant="pill" disabled={form.formState.isSubmitting || mediaWorkPending}>
+          {mediaWorkPending ? "Waiting for uploads…" : form.formState.isSubmitting ? "Saving…" : "Save"}
         </Button>
       </div>
     </form>
   );
-}
+});

@@ -1,3 +1,4 @@
+import type { Ref } from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -42,30 +43,39 @@ vi.mock("../lib/video-upload", () => ({ captureVideoFrame }));
 
 const mediaUploadSpy = vi.hoisted(() => vi.fn());
 vi.mock("./MediaUploadField", () => ({
-  MediaUploadField: (props: { kind: string; onMediaReady: (result: { mediaId: string; file: File }) => void }) => {
+  MediaUploadField: (props: {
+    kind: string;
+    onMediaReady: (result: { mediaId: string; file: File }) => void;
+    onPendingChange?: (pending: boolean) => void;
+  }) => {
     mediaUploadSpy(props);
     return (
-      <button
-        type="button"
-        onClick={() =>
-          props.onMediaReady({
-            mediaId: `media-${props.kind}`,
-            file: new File(["x"], `${props.kind}.bin`, { type: props.kind === "video" ? "video/mp4" : "image/webp" }),
-          })
-        }
-      >
-        Simulate {props.kind} upload
-      </button>
+      <>
+        <button
+          type="button"
+          onClick={() =>
+            props.onMediaReady({
+              mediaId: `media-${props.kind}`,
+              file: new File(["x"], `${props.kind}.bin`, { type: props.kind === "video" ? "video/mp4" : "image/webp" }),
+            })
+          }
+        >
+          Simulate {props.kind} upload
+        </button>
+        <button type="button" onClick={() => props.onPendingChange?.(true)}>
+          Simulate {props.kind} pending
+        </button>
+      </>
     );
   },
 }));
 
-import { ProductForm, type ProductFormProps } from "./ProductForm";
+import { ProductForm, type ProductFormHandle, type ProductFormProps } from "./ProductForm";
 
-function renderForm(props: ProductFormProps) {
+function renderForm(props: ProductFormProps, ref?: Ref<ProductFormHandle>) {
   return render(
     <MemoryRouter>
-      <ProductForm {...props} />
+      <ProductForm {...props} ref={ref} />
     </MemoryRouter>
   );
 }
@@ -195,5 +205,45 @@ describe("ProductForm — edit mode", () => {
     useProductPictures.mockReturnValue({ data: [{ id: "pm1", mediaId: "media-1", sortOrder: 0 }] });
     renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() });
     expect(screen.getByText(/media-1/)).toBeInTheDocument();
+  });
+
+  it("disables Published until a poster exists, and enables it once one is uploaded", async () => {
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() });
+
+    expect(screen.getByRole("switch", { name: "Published" })).toBeDisabled();
+    await user.click(screen.getAllByRole("button", { name: "Simulate image upload" })[0]);
+    expect(screen.getByRole("switch", { name: "Published" })).not.toBeDisabled();
+  });
+
+  it("leaves Published enabled when the product already has a poster", () => {
+    renderForm({ product: product({ posterMediaId: "existing-poster" }), onCreated: vi.fn(), onClose: vi.fn() });
+    expect(screen.getByRole("switch", { name: "Published" })).not.toBeDisabled();
+  });
+
+  it("disables Save while a MediaUploadField reports a pending upload", async () => {
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() });
+
+    expect(screen.getByRole("button", { name: "Save" })).not.toBeDisabled();
+    await user.click(screen.getAllByRole("button", { name: "Simulate image pending" })[0]);
+    expect(screen.getByRole("button", { name: "Waiting for uploads…" })).toBeDisabled();
+  });
+
+  it("counts an uploaded-but-unsaved poster as a real unsaved change", async () => {
+    const formRef = { current: null as ProductFormHandle | null };
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() }, formRef);
+
+    // Nothing changed yet — safe to close without asking.
+    expect(formRef.current!.confirmClose()).toBe(true);
+
+    await user.click(screen.getAllByRole("button", { name: "Simulate image upload" })[0]);
+    // The poster id changed locally but hasn't been Saved — confirmClose
+    // must now go through window.confirm rather than reporting "clean".
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(formRef.current!.confirmClose()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalled();
+    confirmSpy.mockRestore();
   });
 });

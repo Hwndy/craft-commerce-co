@@ -752,6 +752,20 @@ Deferred, not silently dropped: a real browser-driven Playwright flow (sign in a
 
 Consequences: `npm run typecheck`/`lint`/`test` (539/539)/`build` all pass (initial JS 195.87 KB gzip, `AdminProducts`'s own chunk lazy-loaded same as every other route, so it doesn't count against that budget per D-29's own convention). No service-role key in the built bundle (confirmed by grepping `dist/assets/*.js`). Not independently verified against a real Supabase instance in this sandbox (no Docker/network access) — same honesty as every prior Phase 4 entry that flagged this gap.
 
+**Update, same PR (found in review, CodeRabbit, PR #38): six real bugs fixed, four accepted as a known architectural gap.**
+
+Fixed:
+1. **Every newly created product got `sort_order = 0`** (the column's own DB default; `useCreateProduct` never set it), so the up/down reorder buttons silently did nothing for any product created after the first — `reorderSwap()` swapped two already-equal values, no visible change. Fixed with a new `nextSortOrder()` (queries the current max, inserts at `max + 1`).
+2. **The products-list query's own error state was indistinguishable from "No products yet"** — `AdminProducts.tsx` now reads `isError`/`refetch` and shows a real error + Try again action; the empty state is reserved for a genuinely empty, successful response. The "New product" button stays available even while the list itself failed to load.
+3. **Dismissing the drawer by the Sheet's own X/Escape/overlay click bypassed the unsaved-changes check entirely** — only the create-mode Cancel button ever called `confirmIfDirty()`. Fixed via `ProductForm`'s own `forwardRef`/`useImperativeHandle` exposing `confirmClose()`, which `AdminEditDrawer`'s `onOpenChange` now calls before actually closing.
+4. **A product with no poster could still be published** — D-85's own stated intent ("shouldn't be publishable") was never actually wired into the UI. The Published switch is now `disabled` while `!posterMediaId`.
+5. **`form.formState.isDirty` never saw `posterMediaId`/`videoMediaId` changes** (plain component state, not react-hook-form fields) — an uploaded-but-unsaved poster/video wouldn't trigger the unsaved-changes warning on navigating away. Fixed by also comparing the current ids against the product's original ones.
+6. **Clicking Save during an in-flight upload or a frame capture could submit before the real mediaId existed** — `MediaUploadField.tsx` gained an additive, optional `onPendingChange` prop (reports whether anything in its own queue is still decoding/uploading/inserting); `ProductForm` now disables Save while any of its three `MediaUploadField` instances, or the capture-a-frame action, report pending.
+
+Accepted, not fixed (same underlying cause, each flagged on its own PR thread rather than fixed silently): **`useCreateProduct`'s node-insert rollback, `useUpdateProduct`'s product+node update, `useDeleteProduct`'s node+product delete, and `useReorderProduct`'s two sequential `sort_order` writes are none of them atomic** — a partial failure in any of the four can leave the product row and its `canvas_nodes` row (or, for reorder, two product rows) briefly inconsistent. Real atomicity needs a Postgres RPC function wrapping the writes in a server-side transaction; no part of this codebase uses that pattern yet (every other write path is a direct `supabase-js` call under RLS), so introducing one here, unreviewed, for a first-of-its-kind admin CRUD screen was judged disproportionate to this task's own scope. `useCreateProduct`'s own rollback-of-the-rollback case (the compensating delete failing too) now at least surfaces a combined, specific error naming the stranded product's id, instead of swallowing the second failure silently. A dedicated RPC-based transaction is recorded here as a genuine follow-up, not invented in this PR.
+
+Consequences (this update): `npm run typecheck`/`lint`/`test` (549/549)/`build` all pass, no change to initial JS budget.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
