@@ -91,24 +91,34 @@ select lives_ok(
   'non-admin authenticated: delete_product_with_node call does not raise'
 );
 
+-- Verified as postgres (bypasses RLS), not as the same non-admin role:
+-- the fixture row is unpublished, so "public reads published products"
+-- wouldn't show it to this role either way — checking as the restricted
+-- role can't tell "blocked" apart from "deleted but also unreadable",
+-- and gave a false failure here until caught running this against a
+-- real local stack (no CI engine reproduces this; only `supabase test
+-- db` does).
+reset role;
 select results_eq(
   $$ select id from public.products where id = '00000000-0000-0000-0000-000000000200' $$,
   $$ values ('00000000-0000-0000-0000-000000000200'::uuid) $$,
   'non-admin authenticated: delete_product_with_node left the row in place (RLS silently matched nothing)'
 );
 
+set local role authenticated;
+set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
+
 select lives_ok(
   $$ select public.reorder_products(array['00000000-0000-0000-0000-000000000200']::uuid[], array[9]::int[]) $$,
   'non-admin authenticated: reorder_products call does not raise'
 );
 
+reset role;
 select results_eq(
   $$ select sort_order from public.products where id = '00000000-0000-0000-0000-000000000200' $$,
   $$ values (0) $$,
   'non-admin authenticated: reorder_products left sort_order unchanged (RLS silently matched nothing)'
 );
-
-reset role;
 
 -- ===== admin =====
 set local role authenticated;
