@@ -1,0 +1,66 @@
+-- Migration 0011_admin_photo_write_rpcs (Phase 4 T6)
+--
+-- Phase 4 T5's own review (PR #38, CodeRabbit) found that sequential
+-- supabase-js writes used to persist an up/down reorder (one .update()
+-- call per moved row) aren't atomic: a failure after the first call
+-- commits leaves two rows sharing one sort_order until the next reorder
+-- click self-heals it. That task's own follow-up, migration
+-- 0010_admin_product_write_rpcs.sql (PR #38, merged to main first —
+-- this migration was numbered 0010 too while both PRs were still open,
+-- and renumbered to 0011 on rebase, per docs/decisions.md D-64's own
+-- 0004 renumbering precedent), added a `reorder_products` RPC wrapping
+-- the whole list's rewrite in one statement. T6 applies that same
+-- pattern from the start, for both admin reorder operations it needs:
+-- the photo sets list, and the photos within one set.
+--
+-- `security invoker` (the implicit default, named explicitly): each
+-- function runs as whichever role calls it, so the existing admin RLS on
+-- `photo_sets`/`photos` (migration 0002, `for all to authenticated using
+-- (is_admin()) with check (is_admin())`) applies to the statement inside
+-- exactly as if the client had called `.from(...).update(...)` directly —
+-- this adds atomicity across rows, not a new privilege. `set search_path
+-- = public` pins the schema search path (same defence every function in
+-- this codebase already applies). `revoke ... from anon` is explicit:
+-- migration 0004's own precedent — a fresh Supabase project's bootstrap
+-- grants EXECUTE on every new function to anon/authenticated/service_role
+-- directly (ALTER DEFAULT PRIVILEGES), not just PUBLIC.
+
+create or replace function public.reorder_photo_sets(p_ids uuid[], p_sort_orders int[]) returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if array_length(p_ids, 1) is distinct from array_length(p_sort_orders, 1) then
+    raise exception 'p_ids and p_sort_orders must be the same length';
+  end if;
+
+  update public.photo_sets p
+  set sort_order = u.sort_order
+  from unnest(p_ids, p_sort_orders) as u(id, sort_order)
+  where p.id = u.id;
+end;
+$$;
+
+create or replace function public.reorder_photos(p_ids uuid[], p_sort_orders int[]) returns void
+language plpgsql
+security invoker
+set search_path = public
+as $$
+begin
+  if array_length(p_ids, 1) is distinct from array_length(p_sort_orders, 1) then
+    raise exception 'p_ids and p_sort_orders must be the same length';
+  end if;
+
+  update public.photos p
+  set sort_order = u.sort_order
+  from unnest(p_ids, p_sort_orders) as u(id, sort_order)
+  where p.id = u.id;
+end;
+$$;
+
+revoke all on function public.reorder_photo_sets(uuid[], int[]) from public, anon;
+grant execute on function public.reorder_photo_sets(uuid[], int[]) to authenticated;
+
+revoke all on function public.reorder_photos(uuid[], int[]) from public, anon;
+grant execute on function public.reorder_photos(uuid[], int[]) to authenticated;
