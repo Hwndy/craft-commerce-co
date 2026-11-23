@@ -45,14 +45,17 @@ const mediaUploadSpy = vi.hoisted(() => vi.fn());
 vi.mock("./MediaUploadField", () => ({
   MediaUploadField: (props: {
     kind: string;
+    storagePrefix: string;
     onMediaReady: (result: { mediaId: string; file: File }) => void;
     onPendingChange?: (pending: boolean) => void;
+    disabled?: boolean;
   }) => {
     mediaUploadSpy(props);
     return (
       <>
         <button
           type="button"
+          disabled={props.disabled}
           onClick={() =>
             props.onMediaReady({
               mediaId: `media-${props.kind}`,
@@ -245,5 +248,50 @@ describe("ProductForm — edit mode", () => {
     expect(formRef.current!.confirmClose()).toBe(false);
     expect(confirmSpy).toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  // Found in review (CodeRabbit, PR #38): mediaIsDirty only flips once an
+  // upload's own onMediaReady fires — closing in the gap between
+  // "upload started" and "upload finished" skipped the warning entirely,
+  // and the eventual result had nowhere left to land.
+  it("treats a still-in-flight upload as requiring confirmation to close, even before it resolves", async () => {
+    const formRef = { current: null as ProductFormHandle | null };
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() }, formRef);
+
+    expect(formRef.current!.confirmClose()).toBe(true);
+
+    await user.click(screen.getAllByRole("button", { name: "Simulate image pending" })[0]);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    expect(formRef.current!.confirmClose()).toBe(false);
+    expect(confirmSpy).toHaveBeenCalled();
+    confirmSpy.mockRestore();
+  });
+
+  // Found in review (CodeRabbit, PR #38): the poster/video fields read
+  // their mediaId out of plain component state only when Save is
+  // clicked — a file picked mid-submit can finish *after* that read
+  // already happened, landing nowhere once the form closes.
+  it("disables the poster and video upload fields (not the gallery one) while a save is submitting", async () => {
+    let resolveUpdate!: (value: AdminProductRow) => void;
+    updateMutateAsync.mockImplementation(() => new Promise((resolve) => (resolveUpdate = resolve)));
+    const user = userEvent.setup();
+    renderForm({ product: product(), onCreated: vi.fn(), onClose: vi.fn() });
+
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const latestProps = (prefix: string) =>
+      mediaUploadSpy.mock.calls
+        .map(([props]) => props)
+        .filter((p) => p.storagePrefix === prefix)
+        .at(-1);
+
+    await waitFor(() => {
+      expect(latestProps("products/p1/poster")?.disabled).toBe(true);
+    });
+    expect(latestProps("products/p1/video")?.disabled).toBe(true);
+    expect(latestProps("products/p1/pictures")?.disabled).toBeFalsy();
+
+    resolveUpdate(product());
   });
 });

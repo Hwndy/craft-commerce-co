@@ -5,16 +5,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AdminProductRow } from "./lib/adminProducts";
 
-const { useAdminProducts, reorderMutate } = vi.hoisted(() => ({
+const { useAdminProducts, reorderMutate, reorderIsPending } = vi.hoisted(() => ({
   useAdminProducts: vi.fn(),
   reorderMutate: vi.fn(),
+  // A plain mutable box, not a vi.fn() — read fresh on every render via
+  // useReorderProduct() below, same as TanStack Query's own isPending.
+  reorderIsPending: { value: false },
 }));
 vi.mock("./lib/adminProducts", async () => {
   const actual = await vi.importActual<typeof import("./lib/adminProducts")>("./lib/adminProducts");
   return {
     ...actual,
     useAdminProducts,
-    useReorderProduct: () => ({ mutate: reorderMutate }),
+    useReorderProduct: () => ({ mutate: reorderMutate, isPending: reorderIsPending.value }),
   };
 });
 
@@ -40,6 +43,7 @@ import AdminProducts from "./AdminProducts";
 
 afterEach(() => {
   vi.clearAllMocks();
+  reorderIsPending.value = false;
   confirmCloseMock.mockReturnValue(true);
 });
 
@@ -191,5 +195,71 @@ describe("AdminProducts", () => {
     await user.click(screen.getByRole("button", { name: "New product" }));
     await user.click(screen.getByRole("button", { name: "Close" }));
     expect(screen.queryByTestId("product-form")).not.toBeInTheDocument();
+  });
+
+  it("disables both reorder buttons on every row while a reorder is in flight", () => {
+    reorderIsPending.value = true;
+    mockProducts([product({ id: "p1", name: "First" }), product({ id: "p2", name: "Second" })]);
+    render(<AdminProducts />);
+
+    expect(screen.getByRole("button", { name: 'Move "First" down' })).toBeDisabled();
+    expect(screen.getByRole("button", { name: 'Move "Second" up' })).toBeDisabled();
+  });
+
+  // Found in review (CodeRabbit, PR #38): ProductForm's onClose/onCreated
+  // props are plain closures, and mutateAsync() inside it isn't cancelled
+  // when this component's own `key` changes under it (the admin opened a
+  // different product while a save/delete was still in flight) — the
+  // callback that instance was given still fires once its own request
+  // settles, well after a different product's drawer is already open.
+  it("doesn't let a stale onClose from a since-abandoned product close whatever drawer is open now", async () => {
+    const belt1 = product({ id: "p1", name: "Belt One" });
+    const belt2 = product({ id: "p2", name: "Belt Two" });
+    mockProducts([belt1, belt2]);
+    const user = userEvent.setup();
+    render(<AdminProducts />);
+
+    await user.click(screen.getByRole("button", { name: /^Belt One/ }));
+    const staleOnClose = formSpy.mock.calls.at(-1)![0].onClose as () => void;
+
+    // The admin dismisses Belt One's drawer (its own save/delete request
+    // may still be in flight in the background — closing the drawer
+    // doesn't wait for it) and opens a different product instead. Radix's
+    // Sheet hides the background list from the accessibility tree while
+    // open, so the next row has to be clicked after this one closes.
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: /^Belt Two/ }));
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: belt2 }));
+
+    // Belt One's request finally settles and calls the onClose it was
+    // given — this must not touch Belt Two's still-open drawer.
+    act(() => {
+      staleOnClose();
+    });
+    expect(screen.getByTestId("product-form")).toBeInTheDocument();
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: belt2 }));
+  });
+
+  it("doesn't let a stale onCreated from an abandoned 'New product' draft replace whatever drawer is open now", async () => {
+    const belt = product({ id: "p1", name: "Belt One" });
+    mockProducts([belt]);
+    const user = userEvent.setup();
+    render(<AdminProducts />);
+
+    await user.click(screen.getByRole("button", { name: "New product" }));
+    const staleOnCreated = formSpy.mock.calls.at(-1)![0].onCreated as (p: AdminProductRow) => void;
+
+    // The admin abandons the draft (its own create request may still be
+    // in flight in the background) and opens a real product instead.
+    await user.click(screen.getByRole("button", { name: "Close" }));
+    await user.click(screen.getByRole("button", { name: /^Belt One/ }));
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: belt }));
+
+    // The abandoned draft's create() finally resolves and calls onCreated —
+    // this must not replace Belt One's own drawer with the new product.
+    act(() => {
+      staleOnCreated(product({ id: "new-id", name: "Brand New" }));
+    });
+    expect(formSpy).toHaveBeenLastCalledWith(expect.objectContaining({ product: belt }));
   });
 });

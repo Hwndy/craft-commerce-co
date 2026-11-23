@@ -168,7 +168,13 @@ export const ProductForm = forwardRef<ProductFormHandle, ProductFormProps>(funct
   // (found in review, CodeRabbit, PR #38).
   const mediaIsDirty =
     posterMediaId !== (product?.posterMediaId ?? null) || videoMediaId !== (product?.videoMediaId ?? null);
-  const { confirmIfDirty } = useUnsavedChangesWarning(form.formState.isDirty || mediaIsDirty);
+  // mediaWorkPending (an upload still decoding/uploading, or a frame
+  // capture in progress) is included too — found in review (CodeRabbit,
+  // PR #38): mediaIsDirty only flips once an upload's own onMediaReady
+  // fires, so closing the drawer in the gap between "upload started" and
+  // "upload finished" skipped the warning entirely, and the eventual
+  // result had nowhere left to land.
+  const { confirmIfDirty } = useUnsavedChangesWarning(form.formState.isDirty || mediaIsDirty || mediaWorkPending);
 
   useImperativeHandle(ref, () => ({ confirmClose: confirmIfDirty }));
 
@@ -365,6 +371,7 @@ export const ProductForm = forwardRef<ProductFormHandle, ProductFormProps>(funct
                 altText={form.watch("name")}
                 onMediaReady={({ mediaId }) => setPosterMediaId(mediaId)}
                 onPendingChange={setPosterUploadPending}
+                disabled={form.formState.isSubmitting}
               />
             </div>
 
@@ -409,6 +416,7 @@ export const ProductForm = forwardRef<ProductFormHandle, ProductFormProps>(funct
                   setVideoPreviewUrl(URL.createObjectURL(file));
                 }}
                 onPendingChange={setVideoUploadPending}
+                disabled={form.formState.isSubmitting}
               />
               {videoPreviewUrl && (
                 <div className="space-y-2">

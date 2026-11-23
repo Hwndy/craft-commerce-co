@@ -107,7 +107,7 @@ export default function AdminProducts() {
                     variant="pill-outline"
                     size="icon"
                     aria-label={`Move "${product.name}" up`}
-                    disabled={isFirst}
+                    disabled={isFirst || reorder.isPending}
                     onClick={() => moveProduct(product.id, "up")}
                   >
                     <ArrowUp className="h-4 w-4" />
@@ -117,7 +117,7 @@ export default function AdminProducts() {
                     variant="pill-outline"
                     size="icon"
                     aria-label={`Move "${product.name}" down`}
-                    disabled={isLast}
+                    disabled={isLast || reorder.isPending}
                     onClick={() => moveProduct(product.id, "down")}
                   >
                     <ArrowDown className="h-4 w-4" />
@@ -142,8 +142,18 @@ export default function AdminProducts() {
             ref={formRef}
             key={editing === "new" ? "new" : editing.id}
             product={editing === "new" ? undefined : editing}
-            onCreated={(created) => setEditing(created)}
-            onClose={() => setEditing(null)}
+            // mutateAsync() inside ProductForm isn't cancelled when this
+            // component unmounts (its own key changes under it, e.g. the
+            // admin opened a different product while a save/delete was
+            // still in flight) — found in review (CodeRabbit, PR #38): the
+            // callback this instance was given still fires once that
+            // request settles, so an unconditional setEditing(...) here
+            // would close or replace whatever drawer is open *now*, which
+            // may belong to a different product with its own unsaved
+            // edits. Each updater only acts if `editing` is still the same
+            // session this particular closure was created for.
+            onCreated={(created) => setEditing((current) => (current === "new" ? created : current))}
+            onClose={() => setEditing((current) => (current === editing ? null : current))}
           />
         )}
       </AdminEditDrawer>

@@ -36,6 +36,15 @@ export interface MediaUploadFieldProps {
    * media id that hasn't actually landed yet. Optional and additive —
    * every existing caller that doesn't pass it is unaffected. */
   onPendingChange?: (pending: boolean) => void;
+  /** Disables choosing a new file (but not the retry button on an
+   * already-queued one). Added for T5's ProductForm.tsx (found in review,
+   * CodeRabbit, PR #38): the poster/video fields set a mediaId straight
+   * into component state on completion, read only when Save is clicked —
+   * a file picked mid-submit can finish *after* the in-flight save has
+   * already captured the old id, so the admin needs to be stopped from
+   * starting a new one during that window, not just from submitting
+   * early. Optional and additive, like onPendingChange above. */
+  disabled?: boolean;
 }
 
 const STATUS_LABEL: Record<QueuedFileStatus, string> = {
@@ -56,7 +65,14 @@ const STATUS_LABEL: Record<QueuedFileStatus, string> = {
  * the project-wide convention, e.g. useOptimisticMutation.ts) in addition
  * to the inline retry, not instead of it.
  */
-export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady, onPendingChange }: MediaUploadFieldProps) {
+export function MediaUploadField({
+  kind,
+  storagePrefix,
+  altText,
+  onMediaReady,
+  onPendingChange,
+  disabled,
+}: MediaUploadFieldProps) {
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -154,10 +170,11 @@ export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady, o
         ref={inputRef}
         type="file"
         multiple
+        disabled={disabled}
         accept={kind === "image" ? "image/*" : "video/mp4,video/webm"}
         aria-label={kind === "image" ? "Choose images to upload" : "Choose a video to upload"}
         onChange={(event) => onFilesSelected(event.target.files)}
-        className="block text-sm"
+        className="block text-sm disabled:opacity-50"
       />
       {queue.length > 0 && (
         <ul className="space-y-2">
