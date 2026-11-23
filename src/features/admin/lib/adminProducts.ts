@@ -285,20 +285,26 @@ export function useDeleteProduct() {
 }
 
 /** Where a product sitting at `index` in the given, already-sorted list
- * would land after a move, and the {id, sortOrder} pairs to write to move
- * it there — null at either end (nothing to swap with). Pure and
+ * would land after a move, and the {id, sortOrder} pair to write for
+ * every row — null at either end (nothing to swap with). Pure and
  * unit-tested on its own: the hook below only has to call supabase with
  * whatever this returns.
  *
- * Normally just the two swapped rows. But if they already share a
- * sortOrder — legacy data predating `nextSortOrder()`, or a partially-
- * failed previous reorder write — swapping two equal values would be a
- * no-op the admin would see as "the button did nothing" (found in
- * review, CodeRabbit, PR #38, as a direct follow-up to the sortOrder=0
- * bug fixed earlier in this same PR). In that case, self-heal by
- * renumbering the *whole* list 0..n-1 by its new array position after
- * the move — this both breaks the tie and guarantees the move is
- * visible, not just for the two rows directly involved. */
+ * Always renumbers the *whole* list 0..n-1 by its new array position
+ * after the move, rather than just swapping the two moved rows' own
+ * values. A first version of this function only swapped the two values
+ * when they already differed, and only renumbered the whole list when
+ * they were equal (found in review, CodeRabbit, PR #38, as a direct
+ * follow-up to the sortOrder=0 bug fixed earlier in this same PR) — but
+ * a plain two-value swap can still collide with a *third* row's existing
+ * sortOrder even when the swapped pair's own values differ (e.g. ranks
+ * `(b,0) (c,0) (a,1)`: moving "c" down swaps c→1/a→0, which gives a the
+ * same rank 0 as b — a tie the swap itself just created, between a row
+ * it never touched and one it did), so checking only the swapped pair
+ * isn't enough. Always renumbering by array position is unconditionally
+ * correct for any input, tied or not, and for a realistic admin
+ * catalogue size the extra writes (one per product, not two) cost
+ * nothing worth optimising away. */
 export function reorderSwap(
   products: AdminProductRow[],
   id: string,
@@ -308,16 +314,6 @@ export function reorderSwap(
   if (index === -1) return null;
   const neighbourIndex = direction === "up" ? index - 1 : index + 1;
   if (neighbourIndex < 0 || neighbourIndex >= products.length) return null;
-
-  const current = products[index];
-  const neighbour = products[neighbourIndex];
-
-  if (current.sortOrder !== neighbour.sortOrder) {
-    return [
-      { id: current.id, sortOrder: neighbour.sortOrder },
-      { id: neighbour.id, sortOrder: current.sortOrder },
-    ];
-  }
 
   const reordered = [...products];
   [reordered[index], reordered[neighbourIndex]] = [reordered[neighbourIndex], reordered[index]];
@@ -353,14 +349,14 @@ export function useReorderProduct() {
       const swap = reorderSwap(variables.products, variables.id, variables.direction);
       if (!swap) return null;
 
-      // One call to the migration 0010 `reorder_products` RPC, whatever the
-      // size of `swap` (normally 2 rows; every row whose rank changed when
-      // reorderSwap() had to renumber the whole list to break a tie — see
-      // its own doc comment) — a single `update ... from unnest(...)`
-      // statement server-side, so a partial write (some rows renumbered,
-      // others not) is no longer possible. Fixes the gap flagged in review
-      // (CodeRabbit, PR #38): two sequential writes where a failure after
-      // the first left both rows sharing one sort_order.
+      // One call to the migration 0010 `reorder_products` RPC — reorderSwap()
+      // now unconditionally renumbers the whole list by new array position
+      // (see its own doc comment), so `swap` is always every row, not just
+      // the two moved ones. A single `update ... from unnest(...)` statement
+      // server-side means a partial write (some rows renumbered, others
+      // not) is no longer possible. Fixes the gap flagged in review
+      // (CodeRabbit, PR #38): sequential writes where a failure after the
+      // first left rows with inconsistent sort_order.
       const { error } = await supabase.rpc("reorder_products", {
         p_ids: swap.map((s) => s.id),
         p_sort_orders: swap.map((s) => s.sortOrder),

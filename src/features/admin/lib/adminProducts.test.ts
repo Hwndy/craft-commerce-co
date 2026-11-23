@@ -80,17 +80,23 @@ function product(id: string, sortOrder: number): AdminProductRow {
 describe("reorderSwap", () => {
   const products = [product("a", 0), product("b", 1), product("c", 2)];
 
-  it("swaps sortOrder with the previous item on 'up'", () => {
+  // Always renumbers the whole list by its new array position, not just
+  // the two swapped rows' own values — see the function's own doc
+  // comment for why a plain two-value swap isn't safe in general (found
+  // in review, CodeRabbit, PR #38, across two rounds of follow-up).
+  it("renumbers the whole list by new position, moving up", () => {
     expect(reorderSwap(products, "b", "up")).toEqual([
       { id: "b", sortOrder: 0 },
       { id: "a", sortOrder: 1 },
+      { id: "c", sortOrder: 2 },
     ]);
   });
 
-  it("swaps sortOrder with the next item on 'down'", () => {
+  it("renumbers the whole list by new position, moving down", () => {
     expect(reorderSwap(products, "b", "down")).toEqual([
-      { id: "b", sortOrder: 2 },
+      { id: "a", sortOrder: 0 },
       { id: "c", sortOrder: 1 },
+      { id: "b", sortOrder: 2 },
     ]);
   });
 
@@ -106,11 +112,7 @@ describe("reorderSwap", () => {
     expect(reorderSwap(products, "missing", "up")).toBeNull();
   });
 
-  // Found in review (CodeRabbit, PR #38), as a direct follow-up to the
-  // sortOrder=0 bug the other tests above guard: a plain value-swap
-  // between two already-equal sortOrders is a no-op an admin would see
-  // as "the button did nothing."
-  it("renumbers the whole list by new position when the swapped pair already shares a sortOrder", () => {
+  it("breaks a tie between the swapped pair", () => {
     const tied = [product("a", 0), product("b", 0), product("c", 2)];
     expect(reorderSwap(tied, "b", "up")).toEqual([
       { id: "b", sortOrder: 0 },
@@ -119,13 +121,29 @@ describe("reorderSwap", () => {
     ]);
   });
 
-  it("still renumbers the whole list (not just the pair) when a tie is broken at the end of a longer list", () => {
+  it("breaks a tie further down a longer list", () => {
     const tied = [product("a", 0), product("b", 1), product("c", 5), product("d", 5)];
     expect(reorderSwap(tied, "d", "up")).toEqual([
       { id: "a", sortOrder: 0 },
       { id: "b", sortOrder: 1 },
       { id: "d", sortOrder: 2 },
       { id: "c", sortOrder: 3 },
+    ]);
+  });
+
+  // CodeRabbit's own follow-up example: a plain swap of just the two
+  // moved rows' values can land on a THIRD row's existing rank even when
+  // the swapped pair's own values already differ — (b,0) (c,0) (a,1),
+  // moving "c" down would swap c→1/a→0, giving "a" the same rank 0 "b"
+  // already has, a tie the swap itself creates between a row it never
+  // touched and one it did. Always renumbering by position avoids this
+  // whole class of case rather than special-casing it.
+  it("doesn't create a new tie with a third row when the swapped pair's own values already differ", () => {
+    const ranked = [product("b", 0), product("c", 0), product("a", 1)];
+    expect(reorderSwap(ranked, "c", "down")).toEqual([
+      { id: "b", sortOrder: 0 },
+      { id: "a", sortOrder: 1 },
+      { id: "c", sortOrder: 2 },
     ]);
   });
 });
