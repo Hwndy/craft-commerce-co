@@ -33,7 +33,7 @@
 - [x] Unit tests for rendition sizing and naming (`image-pipeline.test.ts`, `video-upload.test.ts`, `MediaUploadField.test.tsx`). **The e2e test is deferred to T5/T6** — see docs/decisions.md D-69: a dev-route-based harness (the original plan) turned out unreachable by the real Playwright run (`import.meta.env.DEV` is `false` in the production build CI's `npm run preview` serves, confirmed directly), and no admin-auth e2e fixture exists yet (T11's own job) to drive a real admin-guarded page instead — one will exist as soon as T5 or T6 gives `MediaUploadField` a real home.
 
 ### T5. Products (FR-7.2)
-- [ ] Create, edit, reorder (drag or up/down buttons), set status, zone, price, description and bullets, attach pictures and the turntable video, publish and unpublish, delete with confirmation. Slug generation with uniqueness check.
+- [x] Create, edit, reorder (drag or up/down buttons), set status, zone, price, description and bullets, attach pictures and the turntable video, publish and unpublish, delete with confirmation. Slug generation with uniqueness check.
 
 ### T6. Photos and gallery (FR-7.3)
 - [ ] Create photo sets, upload multiple photos, edit titles and dates, reorder, publish and unpublish. Show the current film (read-only) with its version and a note that replacing the film is developer-assisted (D-09).

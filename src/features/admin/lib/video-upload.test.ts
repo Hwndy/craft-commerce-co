@@ -68,11 +68,11 @@ describe("uploadVideoMedia", () => {
     );
   });
 
-  it("rejects a file over 100 MB before attempting to upload it", async () => {
-    const bigFile = makeVideoFile(100 * 1024 * 1024 + 1);
+  it("rejects a file over 50 MB before attempting to upload it", async () => {
+    const bigFile = makeVideoFile(50 * 1024 * 1024 + 1);
 
     await expect(uploadVideoMedia({ file: bigFile, storagePrefix: "products/p1" })).rejects.toThrow(
-      /larger than 100 MB/
+      /larger than 50 MB/
     );
     expect(fromStorageMock).not.toHaveBeenCalled();
   });
