@@ -91,24 +91,35 @@ select lives_ok(
   'non-admin authenticated: delete_product_with_node call does not raise'
 );
 
+-- The fixture row has published = false, so the public "select where
+-- published" policy can't see it either — checking "did the delete
+-- actually happen" needs a role that can see an unpublished row
+-- regardless (the table owner, who bypasses RLS entirely), not the same
+-- non-admin role the delete attempt itself just ran as. Checking this
+-- under role authenticated would silently return nothing whether or not
+-- the delete succeeded, making the assertion meaningless either way.
+reset role;
 select results_eq(
   $$ select id from public.products where id = '00000000-0000-0000-0000-000000000200' $$,
   $$ values ('00000000-0000-0000-0000-000000000200'::uuid) $$,
   'non-admin authenticated: delete_product_with_node left the row in place (RLS silently matched nothing)'
 );
 
+set local role authenticated;
+set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
+
 select lives_ok(
   $$ select public.reorder_products(array['00000000-0000-0000-0000-000000000200']::uuid[], array[9]::int[]) $$,
   'non-admin authenticated: reorder_products call does not raise'
 );
 
+-- Same reasoning as the delete check above.
+reset role;
 select results_eq(
   $$ select sort_order from public.products where id = '00000000-0000-0000-0000-000000000200' $$,
   $$ values (0) $$,
   'non-admin authenticated: reorder_products left sort_order unchanged (RLS silently matched nothing)'
 );
-
-reset role;
 
 -- ===== admin =====
 set local role authenticated;
