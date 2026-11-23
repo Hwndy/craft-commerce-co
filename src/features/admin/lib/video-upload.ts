@@ -1,6 +1,14 @@
 import { supabase } from "@/lib/supabase";
 
-export const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
+// docs/decisions.md D-70 found (by bisection, against the real production
+// bucket) that site-media's actual effective upload cap is 50 MB, not the
+// 100 MB this Phase 4 T4 brief originally assumed — a 50 MB test upload
+// succeeds, 60 MB fails with "The object exceeded the maximum allowed
+// size", and the bucket's own `file_size_limit` is null (no override), so
+// a platform-wide default applies that `storage.updateBucket()` can't
+// raise. D-70 flagged this as needing a fix "if a real admin upload form
+// (T5/T6) is ever built against this bucket" — this is that form.
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 export type VideoUploadStatus = "pending" | "uploading" | "inserting" | "done" | "failed";
 
@@ -50,7 +58,7 @@ export async function uploadVideoMedia({
   const report = (status: VideoUploadStatus, error?: string) => onProgress?.({ status, error });
 
   if (file.size > MAX_VIDEO_BYTES) {
-    const message = `"${file.name}" is larger than 100 MB.`;
+    const message = `"${file.name}" is larger than 50 MB.`;
     report("failed", message);
     throw new VideoUploadError(message);
   }

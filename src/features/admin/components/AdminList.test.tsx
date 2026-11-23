@@ -49,6 +49,19 @@ describe("AdminList", () => {
     expect(screen.getByText("No products yet.")).toBeInTheDocument();
   });
 
+  // Found in review (CodeRabbit, PR #38): a search with no matches isn't
+  // the same thing as a genuinely empty list — a caller that wants to
+  // tell the two apart needs the current search term, which a plain
+  // ReactNode emptyState never had access to.
+  it("passes the current search term to a function emptyState", () => {
+    const emptyState = vi.fn((search: string) => <p>No match for "{search}".</p>);
+    renderList({ emptyState });
+    fireEvent.change(screen.getByPlaceholderText("Search products…"), { target: { value: "nothing matches this" } });
+
+    expect(emptyState).toHaveBeenLastCalledWith("nothing matches this");
+    expect(screen.getByText('No match for "nothing matches this".')).toBeInTheDocument();
+  });
+
   it("calls onItemClick with the clicked item", () => {
     const onItemClick = vi.fn();
     renderList({ onItemClick });

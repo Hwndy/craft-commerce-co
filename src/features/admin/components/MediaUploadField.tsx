@@ -1,5 +1,5 @@
 import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 // Found in review (CodeRabbit, PR #11, Major): with no cap, selecting many
@@ -29,6 +29,22 @@ export interface MediaUploadFieldProps {
   storagePrefix: string;
   altText?: string;
   onMediaReady?: (result: { mediaId: string; file: File }) => void;
+  /** True whenever any queued file is still decoding/uploading/inserting
+   * (not yet "done" or "failed"). Added for T5's ProductForm.tsx (found
+   * in review, CodeRabbit, PR #38): without a way to ask "is anything
+   * still in flight," a caller's own Save button could submit with a
+   * media id that hasn't actually landed yet. Optional and additive —
+   * every existing caller that doesn't pass it is unaffected. */
+  onPendingChange?: (pending: boolean) => void;
+  /** Disables choosing a new file (but not the retry button on an
+   * already-queued one). Added for T5's ProductForm.tsx (found in review,
+   * CodeRabbit, PR #38): the poster/video fields set a mediaId straight
+   * into component state on completion, read only when Save is clicked —
+   * a file picked mid-submit can finish *after* the in-flight save has
+   * already captured the old id, so the admin needs to be stopped from
+   * starting a new one during that window, not just from submitting
+   * early. Optional and additive, like onPendingChange above. */
+  disabled?: boolean;
 }
 
 const STATUS_LABEL: Record<QueuedFileStatus, string> = {
@@ -49,9 +65,24 @@ const STATUS_LABEL: Record<QueuedFileStatus, string> = {
  * the project-wide convention, e.g. useOptimisticMutation.ts) in addition
  * to the inline retry, not instead of it.
  */
-export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }: MediaUploadFieldProps) {
+export function MediaUploadField({
+  kind,
+  storagePrefix,
+  altText,
+  onMediaReady,
+  onPendingChange,
+  disabled,
+}: MediaUploadFieldProps) {
   const [queue, setQueue] = useState<QueuedFile[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    onPendingChange?.(queue.some((item) => item.status !== "done" && item.status !== "failed"));
+    // onPendingChange is a caller-supplied callback, not state this effect
+    // reads — including it would re-fire on every render the caller
+    // itself causes, not just on a real queue change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue]);
   const pendingRef = useRef<Array<{ file: File; mediaId: string; skipWidths: number[] }>>([]);
   const activeCountRef = useRef(0);
   // Found in review (CodeRabbit, PR #11): without this, clicking Retry
@@ -139,10 +170,11 @@ export function MediaUploadField({ kind, storagePrefix, altText, onMediaReady }:
         ref={inputRef}
         type="file"
         multiple
+        disabled={disabled}
         accept={kind === "image" ? "image/*" : "video/mp4,video/webm"}
         aria-label={kind === "image" ? "Choose images to upload" : "Choose a video to upload"}
         onChange={(event) => onFilesSelected(event.target.files)}
-        className="block text-sm"
+        className="block text-sm disabled:opacity-50"
       />
       {queue.length > 0 && (
         <ul className="space-y-2">
