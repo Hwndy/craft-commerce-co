@@ -3,9 +3,12 @@
 // `product_zone` enums (migration 0003_shop_and_enquiries) were added by
 // hand instead — this sandbox has no local Supabase to regenerate against
 // (docs/decisions.md D-47) — by matching the existing entries' exact shape
-// against that migration's SQL. Re-run the real generator once a Supabase
-// connection is available, to replace this manual edit with the genuine
-// output.
+// against that migration's SQL. The `create_product_with_node` /
+// `update_product_with_node` / `delete_product_with_node` /
+// `reorder_products` functions (migration 0010_admin_product_write_rpcs)
+// were added by hand the same way. Re-run the real generator once a
+// Supabase connection is available, to replace this manual edit with the
+// genuine output.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
@@ -443,6 +446,51 @@ export type Database = {
     };
     Functions: {
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean };
+      create_product_with_node: {
+        Args: {
+          p_slug: string;
+          p_name: string;
+          p_price_amount: number;
+          p_description: string | null;
+          p_bullets: Json;
+          p_status: Database["public"]["Enums"]["product_status"];
+          p_zone: Database["public"]["Enums"]["product_zone"];
+          p_on_sale: boolean;
+          p_sort_order: number;
+          p_region: string;
+          p_node_x: number;
+          p_node_y: number;
+          p_node_width: number;
+          p_node_height: number;
+        };
+        Returns: Database["public"]["Tables"]["products"]["Row"];
+      };
+      update_product_with_node: {
+        Args: {
+          p_id: string;
+          p_slug: string;
+          p_name: string;
+          p_price_amount: number;
+          p_description: string | null;
+          p_bullets: Json;
+          p_status: Database["public"]["Enums"]["product_status"];
+          p_zone: Database["public"]["Enums"]["product_zone"];
+          p_on_sale: boolean;
+          p_published: boolean;
+          p_poster_media_id: string | null;
+          p_video_media_id: string | null;
+          p_region: string;
+        };
+        Returns: Database["public"]["Tables"]["products"]["Row"];
+      };
+      delete_product_with_node: {
+        Args: { p_id: string };
+        Returns: undefined;
+      };
+      reorder_products: {
+        Args: { p_ids: string[]; p_sort_orders: number[] };
+        Returns: undefined;
+      };
     };
     Enums: {
       media_kind: "image" | "video" | "hls";

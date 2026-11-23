@@ -8,20 +8,6 @@ import { useOptimisticMutation } from "./useOptimisticMutation";
 
 export const ADMIN_PRODUCTS_QUERY_KEY = ["admin", "products"] as const;
 
-/** Thrown only when useCreateProduct's own compensating delete (after a
- * node-insert failure) itself fails — the one case where this task's own
- * mitigation (docs/decisions.md D-85) needs its exact message shown to
- * the admin, not a generic retry toast, since it names the stranded
- * product's id and warns against retrying before manual cleanup. Found
- * in review (CodeRabbit, PR #38): the detailed message was being thrown
- * correctly but then masked by onError's own generic toast text. */
-export class ProductRollbackError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "ProductRollbackError";
-  }
-}
-
 export type ProductStatus = Database["public"]["Enums"]["product_status"];
 export type ProductZone = Database["public"]["Enums"]["product_zone"];
 
@@ -98,34 +84,65 @@ export function regionForZone(zone: ProductZone): "shop-wall" | "shop-floor" {
 
 const MAX_SLUG_ATTEMPTS = 20;
 
+/** Placeholder canvas_nodes geometry for every new product — D-85's "fourth
+ * correction": these columns aren't read for real layout any more
+ * (ShopRoomScene.tsx uses its own fixed CSS grid, keyed only by region), so
+ * this is the same safe, arbitrary value scripts/seed-products.ts's own
+ * SHARED.node already uses, not a number anyone will ever read. Kept here,
+ * not in the migration (0010_admin_product_write_rpcs.sql), so this stays
+ * the one place it lives. */
+const PLACEHOLDER_NODE_GEOMETRY = { x: 1880, y: 2220, width: 240, height: 360 } as const;
+
+/** Each attempt is one call to the migration 0010 RPC — already atomic on
+ * its own (product + canvas_nodes insert in one server-side transaction) —
+ * retried client-side only on a real Postgres unique-violation (`23505`)
+ * against products.slug's own unique constraint, same retry shape as
+ * before this task's RPC migration. */
 async function insertProductWithUniqueSlug(
   baseSlug: string,
-  rest: Omit<Database["public"]["Tables"]["products"]["Insert"], "slug">
+  input: CreateProductInput,
+  sortOrder: number
 ): Promise<ProductRow> {
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
-    const { data, error } = await supabase
-      .from("products")
-      .insert({ ...rest, slug: slugCandidate(baseSlug, attempt) })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("create_product_with_node", {
+      p_slug: slugCandidate(baseSlug, attempt),
+      p_name: input.name,
+      p_price_amount: input.priceAmount,
+      p_description: input.description,
+      p_bullets: input.bullets,
+      p_status: input.status,
+      p_zone: input.zone,
+      p_on_sale: input.onSale,
+      p_sort_order: sortOrder,
+      p_region: regionForZone(input.zone),
+      p_node_x: PLACEHOLDER_NODE_GEOMETRY.x,
+      p_node_y: PLACEHOLDER_NODE_GEOMETRY.y,
+      p_node_width: PLACEHOLDER_NODE_GEOMETRY.width,
+      p_node_height: PLACEHOLDER_NODE_GEOMETRY.height,
+    });
     if (!error) return data;
     if (!isUniqueViolation(error)) throw error;
   }
   throw new Error(`Couldn't find a free slug for "${baseSlug}" after ${MAX_SLUG_ATTEMPTS} attempts.`);
 }
 
-async function updateProductWithUniqueSlug(
-  id: string,
-  baseSlug: string,
-  rest: Omit<Database["public"]["Tables"]["products"]["Update"], "slug">
-): Promise<ProductRow> {
+async function updateProductWithUniqueSlug(input: UpdateProductInput, baseSlug: string): Promise<ProductRow> {
   for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
-    const { data, error } = await supabase
-      .from("products")
-      .update({ ...rest, slug: slugCandidate(baseSlug, attempt) })
-      .eq("id", id)
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc("update_product_with_node", {
+      p_id: input.id,
+      p_slug: slugCandidate(baseSlug, attempt),
+      p_name: input.name,
+      p_price_amount: input.priceAmount,
+      p_description: input.description,
+      p_bullets: input.bullets,
+      p_status: input.status,
+      p_zone: input.zone,
+      p_on_sale: input.onSale,
+      p_published: input.published,
+      p_poster_media_id: input.posterMediaId,
+      p_video_media_id: input.videoMediaId,
+      p_region: regionForZone(input.zone),
+    });
     if (!error) return data;
     if (!isUniqueViolation(error)) throw error;
   }
@@ -176,8 +193,12 @@ export interface CreateProductInput {
  * two-step create flow fills those in once the product, and so its real
  * id/storage prefix, exists) plus the canvas_nodes row that makes it
  * actually show up in the room (fetchProductNodes() joins on this — see
- * docs/decisions.md on this task). If the node insert fails, the product
- * row is rolled back rather than left as a half-created, nodeless product. */
+ * docs/decisions.md D-85). Both inserts happen inside the migration 0010
+ * `create_product_with_node` RPC, in one server-side transaction: a failed
+ * node insert now rolls back the product insert automatically (real
+ * atomicity, not a client-side compensating delete that could itself fail
+ * — the gap this RPC was built to close, docs/decisions.md D-85's "Update"
+ * section and the follow-up migration). */
 export function useCreateProduct() {
   const queryClient = useQueryClient();
 
@@ -185,57 +206,7 @@ export function useCreateProduct() {
     mutationFn: async (input: CreateProductInput): Promise<AdminProductRow> => {
       const baseSlug = slugify(input.name) || "product";
       const sortOrder = await nextSortOrder();
-      const product = await insertProductWithUniqueSlug(baseSlug, {
-        name: input.name,
-        price_amount: input.priceAmount,
-        price_currency: "GBP",
-        description: input.description,
-        bullets: input.bullets,
-        status: input.status,
-        zone: input.zone,
-        on_sale: input.onSale,
-        published: false,
-        sort_order: sortOrder,
-      });
-
-      // canvas_nodes.x/y/width/height/rotation/layer aren't read for real
-      // layout any more (docs/decisions.md D-71's "fourth correction" —
-      // ShopRoomScene.tsx lays products out with its own fixed CSS grid,
-      // keyed only by region) — these are the same safe placeholder values
-      // scripts/seed-products.ts's own SHARED.node already uses for exactly
-      // that reason, not real numbers anyone will ever read.
-      const { error: nodeError } = await supabase.from("canvas_nodes").insert({
-        region: regionForZone(input.zone),
-        node_type: "product",
-        ref_table: "products",
-        ref_id: product.id,
-        x: 1880,
-        y: 2220,
-        width: 240,
-        height: 360,
-        published: false,
-      });
-      if (nodeError) {
-        // Found in review (CodeRabbit, PR #38): this delete can itself fail
-        // (same outage that broke the insert above could still be live) —
-        // silently ignoring that left a genuinely half-created, nodeless
-        // product with no trace of why. Supabase-js/PostgREST calls can't
-        // be wrapped in one real database transaction without a dedicated
-        // Postgres RPC function, which no part of this codebase uses yet
-        // (a real follow-up, not invented here); surfacing the compound
-        // failure plainly, with the product's own id, is this task's
-        // proportionate mitigation instead.
-        const { error: rollbackError } = await supabase.from("products").delete().eq("id", product.id);
-        if (rollbackError) {
-          throw new ProductRollbackError(
-            `Failed to create the board node for "${input.name}" (${nodeError.message}), and cleaning up the ` +
-              `half-created product also failed (${rollbackError.message}). Product ${product.id} needs manual ` +
-              `deletion — do not retry until it's removed, or a second product with a suffixed slug may be created.`
-          );
-        }
-        throw nodeError;
-      }
-
+      const product = await insertProductWithUniqueSlug(baseSlug, input, sortOrder);
       return mapRow(product);
     },
     onSuccess: (created) => {
@@ -244,16 +215,7 @@ export function useCreateProduct() {
         created,
       ]);
     },
-    onError: (error) => {
-      // The one case with its own specific, actionable message (the
-      // product's id + "don't retry yet") — shown as-is, not replaced by
-      // the generic retry toast every other failure here gets. sonner's
-      // default toast duration (4s) isn't enough to read and act on this
-      // one, so it gets a longer duration explicitly.
-      if (error instanceof ProductRollbackError) {
-        toast(error.message, { duration: 15000 });
-        return;
-      }
+    onError: () => {
       toast("Couldn't create the product — please try again.");
     },
   });
@@ -277,42 +239,20 @@ export interface UpdateProductInput {
 /** Updates the product row; when `zone` changes, also moves the linked
  * canvas_nodes row to the matching region and keeps its own `published`
  * mirroring the product's (fetchProductNodes() filters on both
- * independently — found in review while building this task). Every
- * UpdateProductInput key the optimistic update below spreads in shares its
- * name and type with the matching AdminProductRow field, so `{ ...item,
- * ...variables }` is a safe, direct merge — not a coincidence, `queries.ts`
- * and this file both camelCase the same underlying columns. */
+ * independently — docs/decisions.md D-85). Both updates happen inside the
+ * migration 0010 `update_product_with_node` RPC, in one server-side
+ * transaction — the gap flagged in review (CodeRabbit, PR #38): a product
+ * left with its new zone/published state while its node kept the old one
+ * if the second write failed. Every UpdateProductInput key the optimistic
+ * update below spreads in shares its name and type with the matching
+ * AdminProductRow field, so `{ ...item, ...variables }` is a safe, direct
+ * merge — not a coincidence, `queries.ts` and this file both camelCase the
+ * same underlying columns. */
 export function useUpdateProduct() {
   return useOptimisticMutation<AdminProductRow, UpdateProductInput, AdminProductRow[]>({
     queryKey: ADMIN_PRODUCTS_QUERY_KEY,
     mutationFn: async (input) => {
-      const product = await updateProductWithUniqueSlug(input.id, input.slug, {
-        name: input.name,
-        price_amount: input.priceAmount,
-        description: input.description,
-        bullets: input.bullets,
-        status: input.status,
-        zone: input.zone,
-        on_sale: input.onSale,
-        published: input.published,
-        poster_media_id: input.posterMediaId,
-        video_media_id: input.videoMediaId,
-      });
-
-      // Not atomic with the product update above — found in review
-      // (CodeRabbit, PR #38): if this fails after that one succeeds, the
-      // product keeps its new zone/published state while its node keeps
-      // the old one. Same limitation as useCreateProduct's own comment:
-      // real atomicity needs a Postgres RPC function wrapping both writes
-      // in a transaction, which this codebase has no precedent for yet —
-      // a genuine follow-up, not something to invent unreviewed here.
-      const { error: nodeError } = await supabase
-        .from("canvas_nodes")
-        .update({ region: regionForZone(input.zone), published: input.published })
-        .eq("ref_table", "products")
-        .eq("ref_id", input.id);
-      if (nodeError) throw nodeError;
-
+      const product = await updateProductWithUniqueSlug(input, input.slug);
       return mapRow(product);
     },
     updateCache: (previous, variables) =>
@@ -321,34 +261,22 @@ export function useUpdateProduct() {
   });
 }
 
-/** Deletes the canvas_nodes row first, then the product (which cascades
- * product_media — migration 0003's own `on delete cascade`). The
- * underlying media rows and their uploaded Storage files are left behind
- * — a documented, accepted gap (docs/decisions.md on this task), matching
- * scripts/seed-products.ts's own existing stance that Storage cleanup is
- * a manual, owner-invoked concern, not something built out here. */
+/** Deletes the canvas_nodes row and the product (which cascades
+ * product_media — migration 0003's own `on delete cascade`) inside the
+ * migration 0010 `delete_product_with_node` RPC, in one server-side
+ * transaction — the gap flagged in review (CodeRabbit, PR #38): a product
+ * left orphaned from the board if the product delete failed after the node
+ * delete had already committed. The underlying media rows and their
+ * uploaded Storage files are still left behind — a documented, accepted
+ * gap (docs/decisions.md D-85), matching scripts/seed-products.ts's own
+ * existing stance that Storage cleanup is a manual, owner-invoked concern,
+ * not something built out here. */
 export function useDeleteProduct() {
   return useOptimisticMutation<string, string, AdminProductRow[]>({
     queryKey: ADMIN_PRODUCTS_QUERY_KEY,
     mutationFn: async (id) => {
-      // Not atomic (same limitation as useUpdateProduct's own comment): if
-      // the node delete succeeds but this product delete then fails, the
-      // product survives with no node and so drops out of the room, while
-      // the admin list (rolled back on this error) still shows it as
-      // present — found in review (CodeRabbit, PR #38). A retry from the
-      // list repeats the same two calls and finishes the job cleanly in
-      // that case, which is why this is a proportionate gap rather than
-      // one left entirely unhandled.
-      const { error: nodeError } = await supabase
-        .from("canvas_nodes")
-        .delete()
-        .eq("ref_table", "products")
-        .eq("ref_id", id);
-      if (nodeError) throw nodeError;
-
-      const { error: productError } = await supabase.from("products").delete().eq("id", id);
-      if (productError) throw productError;
-
+      const { error } = await supabase.rpc("delete_product_with_node", { p_id: id });
+      if (error) throw error;
       return id;
     },
     updateCache: (previous, id) => (previous ?? []).filter((item) => item.id !== id),
@@ -425,18 +353,19 @@ export function useReorderProduct() {
       const swap = reorderSwap(variables.products, variables.id, variables.direction);
       if (!swap) return null;
 
-      // Not atomic (same limitation noted on useUpdateProduct/
-      // useDeleteProduct above) — if a later write in this loop fails, the
-      // earlier ones have already committed. Normally just 2 rows; when
-      // reorderSwap() had to renumber the whole list to break a tie
-      // (see its own doc comment), this writes every row whose rank
-      // changed — a partial failure there leaves some rows renumbered and
-      // others not, which the next reorder click's own tie-breaking
-      // self-heals, same as a 2-row partial failure already does.
-      for (const { id: productId, sortOrder } of swap) {
-        const { error } = await supabase.from("products").update({ sort_order: sortOrder }).eq("id", productId);
-        if (error) throw error;
-      }
+      // One call to the migration 0010 `reorder_products` RPC, whatever the
+      // size of `swap` (normally 2 rows; every row whose rank changed when
+      // reorderSwap() had to renumber the whole list to break a tie — see
+      // its own doc comment) — a single `update ... from unnest(...)`
+      // statement server-side, so a partial write (some rows renumbered,
+      // others not) is no longer possible. Fixes the gap flagged in review
+      // (CodeRabbit, PR #38): two sequential writes where a failure after
+      // the first left both rows sharing one sort_order.
+      const { error } = await supabase.rpc("reorder_products", {
+        p_ids: swap.map((s) => s.id),
+        p_sort_orders: swap.map((s) => s.sortOrder),
+      });
+      if (error) throw error;
 
       return swap;
     },
