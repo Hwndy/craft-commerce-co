@@ -776,6 +776,14 @@ Consequences (update 2): `npm run typecheck`/`lint`/`test` (549/549)/`build` all
 
 Consequences (update 3): `npm run typecheck`/`lint`/`test` (553/553)/`build` all pass.
 
+**Update 4, same PR (found in review, CodeRabbit, PR #38): update 3's own tie-break fix was still incomplete.** CodeRabbit gave a concrete counter-example the conditional branch didn't cover: for the ordered list `(b, 0), (c, 0), (a, 1)`, moving "c" down swaps its and "a"'s *values* (c→1, a→0) — correct by the update-3 rule, since the swapped pair's own sortOrders (0 and 1) already differ, so the "renumber the whole list" branch never triggers. But the result gives "a" the same rank 0 that "b" still has, a brand-new tie between a row the move touched and one it never did. The update-3 fix only checked whether *the swapped pair itself* was tied; it had no way to notice a collision with a *third*, untouched row.
+
+Fixed by removing the conditional entirely: `reorderSwap()` now unconditionally swaps the two array *positions* (not their `sortOrder` values) and renumbers the *entire* list 0..n-1 by new position, for every move, tied or not. This is simpler than both prior attempts (no equality check of any kind) and, unlike either, provably correct for any input — a fresh tie can't survive a full renumber by definition. `useReorderProduct`'s write-loop comment was updated to drop the now-inaccurate "normally just 2 rows" framing, since every reorder now writes the full list length.
+
+A new regression test reproduces CodeRabbit's own counter-example directly (`adminProducts.test.ts`): `[b(0), c(0), a(1)]`, moving "c" down, asserting `b:0, a:1, c:2`. The two pre-existing tests for a plain, no-tie move ("...moving up"/"...moving down") were updated to expect the full renumbered array rather than a 2-item result, since that's now the function's only return shape.
+
+Consequences (update 4): `npm run typecheck`/`lint`/`test` (554/554)/`build` all pass.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.

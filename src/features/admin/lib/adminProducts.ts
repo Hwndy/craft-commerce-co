@@ -357,20 +357,26 @@ export function useDeleteProduct() {
 }
 
 /** Where a product sitting at `index` in the given, already-sorted list
- * would land after a move, and the {id, sortOrder} pairs to write to move
- * it there — null at either end (nothing to swap with). Pure and
+ * would land after a move, and the {id, sortOrder} pair to write for
+ * every row — null at either end (nothing to swap with). Pure and
  * unit-tested on its own: the hook below only has to call supabase with
  * whatever this returns.
  *
- * Normally just the two swapped rows. But if they already share a
- * sortOrder — legacy data predating `nextSortOrder()`, or a partially-
- * failed previous reorder write — swapping two equal values would be a
- * no-op the admin would see as "the button did nothing" (found in
- * review, CodeRabbit, PR #38, as a direct follow-up to the sortOrder=0
- * bug fixed earlier in this same PR). In that case, self-heal by
- * renumbering the *whole* list 0..n-1 by its new array position after
- * the move — this both breaks the tie and guarantees the move is
- * visible, not just for the two rows directly involved. */
+ * Always renumbers the *whole* list 0..n-1 by its new array position
+ * after the move, rather than just swapping the two moved rows' own
+ * values. A first version of this function only swapped the two values
+ * when they already differed, and only renumbered the whole list when
+ * they were equal (found in review, CodeRabbit, PR #38, as a direct
+ * follow-up to the sortOrder=0 bug fixed earlier in this same PR) — but
+ * a plain two-value swap can still collide with a *third* row's existing
+ * sortOrder even when the swapped pair's own values differ (e.g. ranks
+ * `(b,0) (c,0) (a,1)`: moving "c" down swaps c→1/a→0, which gives a the
+ * same rank 0 as b — a tie the swap itself just created, between a row
+ * it never touched and one it did), so checking only the swapped pair
+ * isn't enough. Always renumbering by array position is unconditionally
+ * correct for any input, tied or not, and for a realistic admin
+ * catalogue size the extra writes (one per product, not two) cost
+ * nothing worth optimising away. */
 export function reorderSwap(
   products: AdminProductRow[],
   id: string,
@@ -380,16 +386,6 @@ export function reorderSwap(
   if (index === -1) return null;
   const neighbourIndex = direction === "up" ? index - 1 : index + 1;
   if (neighbourIndex < 0 || neighbourIndex >= products.length) return null;
-
-  const current = products[index];
-  const neighbour = products[neighbourIndex];
-
-  if (current.sortOrder !== neighbour.sortOrder) {
-    return [
-      { id: current.id, sortOrder: neighbour.sortOrder },
-      { id: neighbour.id, sortOrder: current.sortOrder },
-    ];
-  }
 
   const reordered = [...products];
   [reordered[index], reordered[neighbourIndex]] = [reordered[neighbourIndex], reordered[index]];
@@ -426,13 +422,12 @@ export function useReorderProduct() {
       if (!swap) return null;
 
       // Not atomic (same limitation noted on useUpdateProduct/
-      // useDeleteProduct above) — if a later write in this loop fails, the
-      // earlier ones have already committed. Normally just 2 rows; when
-      // reorderSwap() had to renumber the whole list to break a tie
-      // (see its own doc comment), this writes every row whose rank
-      // changed — a partial failure there leaves some rows renumbered and
-      // others not, which the next reorder click's own tie-breaking
-      // self-heals, same as a 2-row partial failure already does.
+      // useDeleteProduct above) — if a later write in this loop fails,
+      // the earlier ones have already committed, leaving some rows
+      // renumbered by their new position and others not. The next
+      // reorder click re-renumbers the whole list again from its own
+      // (now partially-stale) order, which self-heals this the same way
+      // it already self-heals any other pre-existing tie.
       for (const { id: productId, sortOrder } of swap) {
         const { error } = await supabase.from("products").update({ sort_order: sortOrder }).eq("id", productId);
         if (error) throw error;
