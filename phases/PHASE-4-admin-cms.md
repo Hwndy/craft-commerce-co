@@ -36,7 +36,7 @@
 - [x] Create, edit, reorder (drag or up/down buttons), set status, zone, price, description and bullets, attach pictures and the turntable video, publish and unpublish, delete with confirmation. Slug generation with uniqueness check.
 
 ### T6. Photos and gallery (FR-7.3)
-- [ ] Create photo sets, upload multiple photos, edit titles and dates, reorder, publish and unpublish. Show the current film (read-only) with its version and a note that replacing the film is developer-assisted (D-09).
+- [x] Create photo sets, upload multiple photos, edit titles and dates, reorder, publish and unpublish. Show the current film (read-only) with its version and a note that replacing the film is developer-assisted (D-09).
 
 ### T7. Pages and SEO (FR-7.4)
 - [ ] Edit About, Contact and home meta (markdown body, SEO title, SEO description) with a live preview. Replace the static About content from Phase 3 with `pages`.

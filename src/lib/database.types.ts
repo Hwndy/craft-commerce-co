@@ -6,9 +6,10 @@
 // against that migration's SQL. The `create_product_with_node` /
 // `update_product_with_node` / `delete_product_with_node` /
 // `reorder_products` functions (migration 0010_admin_product_write_rpcs)
-// were added by hand the same way. Re-run the real generator once a
-// Supabase connection is available, to replace this manual edit with the
-// genuine output.
+// and the `reorder_photo_sets`/`reorder_photos` functions (migration
+// 0011_admin_photo_write_rpcs) were added by hand the same way. Re-run
+// the real generator once a Supabase connection is available, to
+// replace this manual edit with the genuine output.
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
 export type Database = {
@@ -488,6 +489,14 @@ export type Database = {
         Returns: undefined;
       };
       reorder_products: {
+        Args: { p_ids: string[]; p_sort_orders: number[] };
+        Returns: undefined;
+      };
+      reorder_photo_sets: {
+        Args: { p_ids: string[]; p_sort_orders: number[] };
+        Returns: undefined;
+      };
+      reorder_photos: {
         Args: { p_ids: string[]; p_sort_orders: number[] };
         Returns: undefined;
       };
