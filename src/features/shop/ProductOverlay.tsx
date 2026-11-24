@@ -14,6 +14,7 @@ import { env } from "@/lib/env";
 import { siteMediaUrl } from "@/lib/storage";
 import { cn } from "@/lib/utils";
 
+import { ProductSpinViewer } from "./components/ProductSpinViewer";
 import type { ProductDetail } from "./lib/queries";
 
 export interface ProductOverlayProps {
@@ -49,7 +50,11 @@ function prefersReducedData(): boolean {
  * interaction logic between the two, only layout.
  */
 export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) {
-  const [view, setView] = useState<"pictures" | "video">("pictures");
+  // "spin" is a prototype third view (see docs/decisions.md) — drags the
+  // same turntable video that "video" already autoplays, instead of just
+  // watching it loop. Additive, alongside the existing two, not a
+  // replacement for either.
+  const [view, setView] = useState<"pictures" | "video" | "spin">("pictures");
   const [pictureIndex, setPictureIndex] = useState(0);
   const [showForm, setShowForm] = useState(false);
   // Muted by default, matching the autoplay policy every browser requires
@@ -245,6 +250,8 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                       poster={posterUrl}
                       className="h-full w-full object-cover"
                     />
+                  ) : view === "spin" && hasVideo && product.video ? (
+                    <ProductSpinViewer video={product.video} posterUrl={posterUrl} />
                   ) : activePicture ? (
                     // The owner's own walkthrough (docs/decisions.md D-62):
                     // "what we show is the still image and then when they
@@ -318,6 +325,15 @@ export function ProductOverlay({ slug, product, onClose }: ProductOverlayProps) 
                         onClick={() => setView("video")}
                       >
                         Video
+                      </Button>
+                      {/* Prototype third view — see docs/decisions.md. */}
+                      <Button
+                        type="button"
+                        variant={view === "spin" ? "pill" : "pill-outline"}
+                        size="sm"
+                        onClick={() => setView("spin")}
+                      >
+                        Spin
                       </Button>
                     </div>
                   )}
