@@ -2,6 +2,8 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { env } from "@/lib/env";
+
 const { useProductMock } = vi.hoisted(() => ({ useProductMock: vi.fn() }));
 vi.mock("@/features/shop/lib/useProducts", () => ({ useProduct: useProductMock }));
 
@@ -109,7 +111,7 @@ describe("ConceptProductPanel", () => {
     renderPanel();
 
     fireEvent.click(screen.getByText("Copy email address"));
-    expect(writeText).toHaveBeenCalledWith("owner@example.com");
+    expect(writeText).toHaveBeenCalledWith(env.VITE_OWNER_EMAIL);
   });
 
   it("shows a sold message instead of a buy link for a sold piece", () => {
