@@ -19,7 +19,7 @@
 begin;
 create extension if not exists pgtap;
 
-select plan(12);
+select plan(14);
 
 -- Fixture data, inserted as postgres (bypasses RLS: table owner).
 insert into public.photo_sets (id, title, sort_order, published)
@@ -58,18 +58,29 @@ reset role;
 
 -- ===== authenticated, non-admin: has EXECUTE, but the RLS each function
 -- relies on (security invoker, not definer) still gates every statement
--- inside to is_admin() — a 0-row UPDATE doesn't raise, so the call itself
--- succeeds; the fixture rows surviving unchanged is the actual assertion,
--- checked as postgres (see the file's own header comment above). =====
+-- inside to is_admin() — so for a non-admin, the UPDATE always matches 0
+-- of the 2 requested rows. The row-count guard added in review
+-- (CodeRabbit, to reject a genuinely stale id) can't tell that apart
+-- from an authorization-driven 0-match — both are "matched fewer rows
+-- than asked for" — so a non-admin's call now raises too, instead of
+-- the silent, documented no-op this block originally asserted. That's
+-- an accepted, intentional side effect: the admin UI never lets a
+-- non-admin reach this RPC in the first place, so this block exists
+-- purely as defence-in-depth, and failing loudly here is no worse than
+-- failing silently. The raise itself rolls back the UPDATE regardless
+-- (Postgres statements are atomic), so the results_eq below — checked
+-- as postgres, bypassing RLS — is now belt-and-braces, not load-bearing.
+-- =====
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
 
-select lives_ok(
+select throws_ok(
   $$ select public.reorder_photo_sets(
        array['00000000-0000-0000-0000-000000000400', '00000000-0000-0000-0000-000000000401']::uuid[],
        array[1, 0]::int[]
      ) $$,
-  'non-admin authenticated: reorder_photo_sets call does not raise'
+  null, 'reorder_photo_sets matched 0 of 2 rows',
+  'non-admin authenticated: reorder_photo_sets is rejected (RLS matches nothing)'
 );
 
 reset role;
@@ -86,12 +97,13 @@ select results_eq(
 set local role authenticated;
 set local request.jwt.claims = '{"role":"authenticated","app_metadata":{}}';
 
-select lives_ok(
+select throws_ok(
   $$ select public.reorder_photos(
        array['00000000-0000-0000-0000-000000000410', '00000000-0000-0000-0000-000000000411']::uuid[],
        array[1, 0]::int[]
      ) $$,
-  'non-admin authenticated: reorder_photos call does not raise'
+  null, 'reorder_photos matched 0 of 2 rows',
+  'non-admin authenticated: reorder_photos is rejected (RLS matches nothing)'
 );
 
 reset role;
@@ -155,6 +167,27 @@ select throws_ok(
   $$ select public.reorder_photos(array['00000000-0000-0000-0000-000000000410']::uuid[], array[1, 2]::int[]) $$,
   null, 'p_ids and p_sort_orders must be the same length',
   'admin: reorder_photos rejects mismatched array lengths'
+);
+
+-- Found in review (CodeRabbit): a p_ids entry that matches no row (here,
+-- one real id plus one that was never inserted) must not be reported as
+-- a successful reorder.
+select throws_ok(
+  $$ select public.reorder_photo_sets(
+       array['00000000-0000-0000-0000-000000000400', '00000000-0000-0000-0000-000000000499']::uuid[],
+       array[0, 1]::int[]
+     ) $$,
+  null, 'reorder_photo_sets matched 1 of 2 rows',
+  'admin: reorder_photo_sets rejects a partial match'
+);
+
+select throws_ok(
+  $$ select public.reorder_photos(
+       array['00000000-0000-0000-0000-000000000410', '00000000-0000-0000-0000-000000000499']::uuid[],
+       array[0, 1]::int[]
+     ) $$,
+  null, 'reorder_photos matched 1 of 2 rows',
+  'admin: reorder_photos rejects a partial match'
 );
 
 reset role;

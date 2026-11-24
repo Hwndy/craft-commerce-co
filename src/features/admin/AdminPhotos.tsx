@@ -93,7 +93,13 @@ export default function AdminPhotos() {
           searchPlaceholder="Search photo sets…"
           getSearchText={(photoSet) => `${photoSet.title} ${photoSet.location ?? ""}`}
           getKey={(photoSet) => photoSet.id}
-          emptyState={<p className="text-sm text-muted-foreground">No photo sets yet.</p>}
+          // A search with no matches isn't the same thing as a genuinely
+          // empty catalogue — found in review (CodeRabbit).
+          emptyState={(search) => (
+            <p className="text-sm text-muted-foreground">
+              {search ? "No photo sets match your search." : "No photo sets yet."}
+            </p>
+          )}
           renderItem={(photoSet) => {
             const index = (photoSets ?? []).findIndex((p) => p.id === photoSet.id);
             const isFirst = index === 0;

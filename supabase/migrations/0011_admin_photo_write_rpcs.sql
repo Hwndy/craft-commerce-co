@@ -25,11 +25,22 @@
 -- grants EXECUTE on every new function to anon/authenticated/service_role
 -- directly (ALTER DEFAULT PRIVILEGES), not just PUBLIC.
 
+-- Both functions also reject a partial match (found in review,
+-- CodeRabbit): if one of p_ids was deleted, or no longer visible under
+-- RLS, since the list the client sent the call from was built, the
+-- UPDATE just matches fewer rows and still returns success — the admin
+-- would see "reordered" for a swap that wasn't actually fully applied.
+-- Comparing the matched row count against cardinality(p_ids) and raising
+-- turns that into a normal failure the client already retries from a
+-- fresh fetch, same as any other RPC error.
+
 create or replace function public.reorder_photo_sets(p_ids uuid[], p_sort_orders int[]) returns void
 language plpgsql
 security invoker
 set search_path = public
 as $$
+declare
+  v_matched int;
 begin
   if array_length(p_ids, 1) is distinct from array_length(p_sort_orders, 1) then
     raise exception 'p_ids and p_sort_orders must be the same length';
@@ -39,6 +50,11 @@ begin
   set sort_order = u.sort_order
   from unnest(p_ids, p_sort_orders) as u(id, sort_order)
   where p.id = u.id;
+
+  get diagnostics v_matched = row_count;
+  if v_matched != cardinality(p_ids) then
+    raise exception 'reorder_photo_sets matched % of % rows', v_matched, cardinality(p_ids);
+  end if;
 end;
 $$;
 
@@ -47,6 +63,8 @@ language plpgsql
 security invoker
 set search_path = public
 as $$
+declare
+  v_matched int;
 begin
   if array_length(p_ids, 1) is distinct from array_length(p_sort_orders, 1) then
     raise exception 'p_ids and p_sort_orders must be the same length';
@@ -56,6 +74,11 @@ begin
   set sort_order = u.sort_order
   from unnest(p_ids, p_sort_orders) as u(id, sort_order)
   where p.id = u.id;
+
+  get diagnostics v_matched = row_count;
+  if v_matched != cardinality(p_ids) then
+    raise exception 'reorder_photos matched % of % rows', v_matched, cardinality(p_ids);
+  end if;
 end;
 $$;
 

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { Ref } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -185,8 +185,8 @@ describe("AdminPhotos", () => {
     fireEvent.click(screen.getByText("Set B"));
     expect(screen.getByText("Form for: Set B")).toBeInTheDocument();
 
-    staleProps.onClose();
+    act(() => staleProps.onClose());
     // B's drawer must still be open, not closed by A's late callback.
-    expect(screen.getByTestId("photo-set-form")).toBeInTheDocument();
+    expect(screen.getByText("Form for: Set B")).toBeInTheDocument();
   });
 });

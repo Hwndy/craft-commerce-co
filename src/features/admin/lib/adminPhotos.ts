@@ -94,7 +94,12 @@ export function useCreatePhotoSet() {
       if (error) throw error;
       return mapPhotoSetRow(data);
     },
-    onSuccess: (created) => {
+    onSuccess: async (created) => {
+      // Found in review (CodeRabbit): without this, a list refetch that
+      // was already in flight when the insert resolved could land after
+      // this append and overwrite it with pre-insert data, hiding the new
+      // set until the next refetch.
+      await queryClient.cancelQueries({ queryKey: ADMIN_PHOTO_SETS_QUERY_KEY });
       queryClient.setQueryData<AdminPhotoSetRow[]>(ADMIN_PHOTO_SETS_QUERY_KEY, (previous) => [
         ...(previous ?? []),
         created,
@@ -248,12 +253,28 @@ export function usePhotosForSet(setId: string | undefined) {
   });
 }
 
+/** Same reasoning as nextPhotoSetSortOrder() above: reading the current
+ * max from the database, rather than taking the caller's own in-memory
+ * `photos.length`, survives both a gap in the stored order (removing a
+ * photo then adding one must still append after the real last photo, not
+ * collide with it) and two uploads finishing from the same stale render
+ * (found in review, CodeRabbit). */
+async function nextPhotoSortOrder(setId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("photos")
+    .select("sort_order")
+    .eq("set_id", setId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  return (data?.[0]?.sort_order ?? -1) + 1;
+}
+
 export interface AddPhotoInput {
   setId: string;
   mediaId: string;
   title: string;
   takenOn: string | null;
-  sortOrder: number;
 }
 
 /** Adds one photo. Not run through useOptimisticMutation: the real
@@ -265,12 +286,13 @@ export function useAddPhoto() {
 
   return useMutation({
     mutationFn: async (input: AddPhotoInput) => {
+      const sortOrder = await nextPhotoSortOrder(input.setId);
       const { error } = await supabase.from("photos").insert({
         set_id: input.setId,
         media_id: input.mediaId,
         title: input.title,
         taken_on: input.takenOn,
-        sort_order: input.sortOrder,
+        sort_order: sortOrder,
       });
       if (error) throw error;
     },
@@ -290,7 +312,12 @@ export interface UpdatePhotoInput {
   takenOn: string | null;
 }
 
-/** Edits a photo's own title/date — a single update, no media change. */
+/** Edits a photo's own title/date — a single update, no media change.
+ * `.select().single()` requires exactly one matched row, same as
+ * useUpdatePhotoSet's own update above: without it, a photo removed by
+ * another admin between fetch and save would match zero rows, raise no
+ * error, and report success for an edit that was silently lost (found in
+ * review, CodeRabbit). */
 export function useUpdatePhoto() {
   const queryClient = useQueryClient();
 
@@ -299,7 +326,9 @@ export function useUpdatePhoto() {
       const { error } = await supabase
         .from("photos")
         .update({ title: input.title, taken_on: input.takenOn })
-        .eq("id", input.id);
+        .eq("id", input.id)
+        .select()
+        .single();
       if (error) throw error;
     },
     onSuccess: (_data, variables) => {

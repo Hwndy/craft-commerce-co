@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowDown, ArrowUp } from "lucide-react";
-import { forwardRef, useImperativeHandle, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -93,7 +93,11 @@ export const PhotoSetForm = forwardRef<PhotoSetFormHandle, PhotoSetFormProps>(fu
   const removePhoto = useRemovePhoto();
   const updatePhoto = useUpdatePhoto();
   const reorderPhoto = useReorderPhoto(photoSet?.id ?? "");
-  const { data: photos } = usePhotosForSet(photoSet?.id);
+  const {
+    data: photos,
+    isError: photosError,
+    refetch: refetchPhotos,
+  } = usePhotosForSet(photoSet?.id);
 
   const form = useForm<EditValues>({
     resolver: zodResolver(isEditing ? editSchema : metaSchema.extend({ published: z.boolean() })),
@@ -107,26 +111,42 @@ export const PhotoSetForm = forwardRef<PhotoSetFormHandle, PhotoSetFormProps>(fu
     const location = values.location.trim() || null;
     const shootDate = values.shootDate.trim() || null;
 
-    if (!isEditing) {
-      const created = await createPhotoSet.mutateAsync({ title: values.title, location, shootDate });
-      onCreated(created);
-      return;
-    }
+    try {
+      if (!isEditing) {
+        const created = await createPhotoSet.mutateAsync({ title: values.title, location, shootDate });
+        // Resets the dirty baseline to the saved row — without this, the
+        // typed-in values stay the form's own "dirty" baseline forever
+        // (RHF's defaultValues were fixed at mount, before there was a
+        // real row to default to), so closing right after a create would
+        // wrongly prompt "unsaved changes?" (found in review, CodeRabbit).
+        form.reset(toDefaults(created));
+        onCreated(created);
+        return;
+      }
 
-    await updatePhotoSet.mutateAsync({
-      id: photoSet.id,
-      title: values.title,
-      location,
-      shootDate,
-      published: values.published,
-    });
-    onClose();
+      await updatePhotoSet.mutateAsync({
+        id: photoSet.id,
+        title: values.title,
+        location,
+        shootDate,
+        published: values.published,
+      });
+      onClose();
+    } catch {
+      // The mutation's own onError already toasts; this just stops the
+      // rejection from escaping handleSubmit and leaves the drawer open
+      // so the admin can retry (found in review, CodeRabbit).
+    }
   }
 
   async function onDelete() {
     if (!photoSet) return;
-    await deletePhotoSet.mutateAsync(photoSet.id);
-    onClose();
+    try {
+      await deletePhotoSet.mutateAsync(photoSet.id);
+      onClose();
+    } catch {
+      // Same reasoning as onSubmit's own catch above.
+    }
   }
 
   function movePhoto(id: string, direction: "up" | "down") {
@@ -177,21 +197,37 @@ export const PhotoSetForm = forwardRef<PhotoSetFormHandle, PhotoSetFormProps>(fu
 
             <div className="space-y-2 border-t border-border pt-4">
               <span className="text-sm font-medium">Photos</span>
-              {photos && photos.length > 0 && (
-                <ul className="space-y-2">
-                  {photos.map((photo, index) => (
-                    <PhotoListItem
-                      key={photo.id}
-                      photo={photo}
-                      isFirst={index === 0}
-                      isLast={index === photos.length - 1}
-                      isReordering={reorderPhoto.isPending}
-                      onMove={(direction) => movePhoto(photo.id, direction)}
-                      onRemove={() => removePhoto.mutate({ id: photo.id, setId: photoSet.id })}
-                      onSave={(values) => updatePhoto.mutate({ id: photo.id, setId: photoSet.id, ...values })}
-                    />
-                  ))}
-                </ul>
+              {photosError ? (
+                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm">
+                  <p className="text-destructive">Couldn't load photos.</p>
+                  <Button
+                    type="button"
+                    variant="pill-outline"
+                    size="sm"
+                    className="mt-2"
+                    onClick={() => refetchPhotos()}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              ) : (
+                photos &&
+                photos.length > 0 && (
+                  <ul className="space-y-2">
+                    {photos.map((photo, index) => (
+                      <PhotoListItem
+                        key={photo.id}
+                        photo={photo}
+                        isFirst={index === 0}
+                        isLast={index === photos.length - 1}
+                        isReordering={reorderPhoto.isPending}
+                        onMove={(direction) => movePhoto(photo.id, direction)}
+                        onRemove={() => removePhoto.mutate({ id: photo.id, setId: photoSet.id })}
+                        onSave={(values) => updatePhoto.mutate({ id: photo.id, setId: photoSet.id, ...values })}
+                      />
+                    ))}
+                  </ul>
+                )
               )}
               <MediaUploadField
                 kind="image"
@@ -203,7 +239,6 @@ export const PhotoSetForm = forwardRef<PhotoSetFormHandle, PhotoSetFormProps>(fu
                     mediaId,
                     title: file.name.replace(/\.[^.]+$/, ""),
                     takenOn: null,
-                    sortOrder: photos?.length ?? 0,
                   })
                 }
               />
@@ -267,10 +302,19 @@ interface PhotoListItemProps {
 function PhotoListItem({ photo, isFirst, isLast, isReordering, onMove, onRemove, onSave }: PhotoListItemProps) {
   const [title, setTitle] = useState(photo.title);
   const [takenOn, setTakenOn] = useState(photo.takenOn ?? "");
+  // Tracks the last value *sent* to onSave, not the last value the query
+  // cache happened to have fetched. useUpdatePhoto doesn't update the
+  // cache optimistically, so `photo.title` stays unchanged until the
+  // write round-trips; comparing against it meant typing A -> B -> A
+  // again before that refetch landed made the second blur look like a
+  // no-op, silently leaving "B" saved while the input showed "A" (found
+  // in review, CodeRabbit).
+  const lastSentRef = useRef({ title: photo.title, takenOn: photo.takenOn });
 
   function commit() {
     const nextTakenOn = takenOn.trim() || null;
-    if (title !== photo.title || nextTakenOn !== photo.takenOn) {
+    if (title !== lastSentRef.current.title || nextTakenOn !== lastSentRef.current.takenOn) {
+      lastSentRef.current = { title, takenOn: nextTakenOn };
       onSave({ title, takenOn: nextTakenOn });
     }
   }
