@@ -22,7 +22,7 @@ import { useProducts } from "@/features/shop/lib/useProducts";
  * App.tsx routes) once that review is done, whichever way it goes.
  */
 export default function ConceptProductGallery() {
-  const { data: products, isLoading } = useProducts();
+  const { data: products, isLoading, isError, refetch } = useProducts();
 
   return (
     <div className="min-h-screen bg-background p-6 text-foreground">
@@ -36,7 +36,20 @@ export default function ConceptProductGallery() {
 
         {isLoading && <p className="text-sm text-foreground/60">Loading…</p>}
 
-        {!isLoading && (products?.length ?? 0) === 0 && (
+        {isError && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 p-4 text-sm">
+            <p className="text-destructive">Couldn't load the catalogue.</p>
+            <button
+              type="button"
+              className="mt-2 rounded-full border border-foreground/20 px-4 py-1.5 text-xs font-semibold"
+              onClick={() => refetch()}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !isError && (products?.length ?? 0) === 0 && (
           <p className="text-sm text-foreground/60">Nothing published yet.</p>
         )}
 

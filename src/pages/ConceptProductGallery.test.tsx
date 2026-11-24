@@ -33,9 +33,19 @@ describe("ConceptProductGallery", () => {
   });
 
   it("shows an empty state once loaded with nothing published", () => {
-    useProductsMock.mockReturnValue({ data: [], isLoading: false });
+    useProductsMock.mockReturnValue({ data: [], isLoading: false, isError: false, refetch: vi.fn() });
     render(<MemoryRouter><ConceptProductGallery /></MemoryRouter>);
     expect(screen.getByText("Nothing published yet.")).toBeInTheDocument();
+  });
+
+  it("shows an error state with a retry action, not the empty state, when the query fails", () => {
+    const refetch = vi.fn();
+    useProductsMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    render(<MemoryRouter><ConceptProductGallery /></MemoryRouter>);
+    expect(screen.getByText("Couldn't load the catalogue.")).toBeInTheDocument();
+    expect(screen.queryByText("Nothing published yet.")).not.toBeInTheDocument();
+    screen.getByText("Try again").click();
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("links each real product through to its own concept panel", () => {

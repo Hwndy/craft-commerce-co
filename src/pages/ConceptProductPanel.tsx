@@ -36,7 +36,7 @@ function prefersReducedData(): boolean {
  */
 export default function ConceptProductPanel() {
   const { slug } = useParams<{ slug: string }>();
-  const { data: product, isLoading } = useProduct(slug ?? "");
+  const { data: product, isLoading, isError, refetch } = useProduct(slug ?? "");
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
@@ -72,6 +72,21 @@ export default function ConceptProductPanel() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background text-sm text-foreground/60">
         Loading…
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background text-center">
+        <p className="text-sm text-destructive">Couldn&apos;t load this piece.</p>
+        <button
+          type="button"
+          className="rounded-full border border-foreground/20 px-4 py-1.5 text-xs font-semibold"
+          onClick={() => refetch()}
+        >
+          Try again
+        </button>
       </div>
     );
   }

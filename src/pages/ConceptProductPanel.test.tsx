@@ -69,10 +69,20 @@ describe("ConceptProductPanel", () => {
   });
 
   it("shows a not-available state with a way back, for a null product", () => {
-    useProductMock.mockReturnValue({ data: null, isLoading: false });
+    useProductMock.mockReturnValue({ data: null, isLoading: false, isError: false, refetch: vi.fn() });
     renderPanel();
     expect(screen.getByText("This item isn't available")).toBeInTheDocument();
     expect(screen.getByText("Back to all pieces").closest("a")).toHaveAttribute("href", "/concept/products");
+  });
+
+  it("shows an error state with a retry action, not the not-available state, when the query fails", () => {
+    const refetch = vi.fn();
+    useProductMock.mockReturnValue({ data: undefined, isLoading: false, isError: true, refetch });
+    renderPanel();
+    expect(screen.getByText("Couldn't load this piece.")).toBeInTheDocument();
+    expect(screen.queryByText("This item isn't available")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText("Try again"));
+    expect(refetch).toHaveBeenCalled();
   });
 
   it("fetches by the real route slug and renders the real product's details", () => {
