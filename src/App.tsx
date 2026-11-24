@@ -32,6 +32,14 @@ const DevUpload = lazy(() => import("./pages/DevUpload"));
 // real visitors (VITE_E2E_TEST_ROUTES, .env.example).
 const E2EShopRoom = lazy(() => import("./pages/E2EShopRoom"));
 
+// Client-review concept pair (docs/decisions.md), same "reachable in the
+// real build, not DEV-gated" reasoning as E2EShopRoom above — this needs
+// to render on an actual Vercel preview link, which never sets DEV. Not
+// linked from anywhere in the real navigation. Remove both the pages and
+// these two routes once the review is done.
+const ConceptProductGallery = lazy(() => import("./pages/ConceptProductGallery"));
+const ConceptProductPanel = lazy(() => import("./pages/ConceptProductPanel"));
+
 // Admin (Phase 4) is its own, fully lazy route tree — kept out of the
 // public bundle the same way Gallery/FilmStage already are, since it'll
 // pull in its own forms/upload-pipeline code public visitors never need.
@@ -230,6 +238,22 @@ const App = () => (
               }
             />
           )}
+          <Route
+            path="/concept/products"
+            element={
+              <Suspense fallback={null}>
+                <ConceptProductGallery />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/concept/products/:slug"
+            element={
+              <Suspense fallback={null}>
+                <ConceptProductPanel />
+              </Suspense>
+            }
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

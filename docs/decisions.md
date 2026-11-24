@@ -868,6 +868,17 @@ Deferred, not fixed — needs an owner decision (AGENTS.md rule 10), not a guess
 
 Consequences: `npm run typecheck`/`lint`/`test` (590/590)/`build` all pass. `supabase/tests/0011_admin_photo_write_rpcs.test.sql` (pgTAP, now `plan(14)`) re-verified independently in this sandbox against a freshly rebuilt local Postgres+pgtap database with all 11 migrations applied in order — all 14 assertions pass, and migration `0010`'s own 24-assertion test file re-verified alongside it with no regression.
 
+### D-87: Client-review concept route for a redesigned product detail view (2026-11-24)
+Context: the client sent an interactive-globe reference site as inspo and asked whether the Shop's product view could work that way. Two prior rounds narrowed this down: a drag-to-scrub prototype on the existing turntable video (a standalone claude.ai mockup, then a real spike branch) was rejected by the owner as not adding anything over the plain autoplay loop already in place; a follow-up static mockup wasn't close enough to the reference's actual composition and used placeholder content instead of real pieces. This round builds the real thing, wired to live data, so it can be checked on an actual Vercel preview link rather than a claude.ai artifact.
+
+Decision: two new pages, reachable in the real production build (no `import.meta.env.DEV` guard — same reasoning as `E2EShopRoom.tsx`, since a Vercel preview build never sets `DEV`), not linked from anywhere in the real navigation:
+- `src/pages/ConceptProductGallery.tsx` (`/concept/products`) — a grid of every real published product (`useProducts()`, the same query the Shop room itself renders from), each linking into the panel below. Mirrors the reference site's own two-step shape (a grid you click into, then one big focused view).
+- `src/pages/ConceptProductPanel.tsx` (`/concept/products/:slug`) — one real product (`useProduct(slug)`), its actual turntable video autoplaying muted on loop inside a large, rounded (not literally circular — a belt isn't a globe) hero, with floating chrome at its edges echoing the reference: a title chip and a way back at the top, real Autoplay/Sound toggles at the bottom-left (these actually pause and mute the video, not cosmetic), a small "All Life" mark at the bottom-right. Commerce details (price, status, bullets, Buy/Enquire, Copy email) sit in a slim strip below rather than a bright card, so the video stays the first thing the eye lands on.
+
+Both pages deliberately reuse existing real components/helpers (`Button`, `Badge`, `formatGbp`, `STATUS_COPY`/`STATUS_VARIANT`, `buildMailtoLink`, `attachHls`, `siteMediaUrl`) rather than inventing new styling primitives, so this reads as the same site, not a different one bolted on.
+
+Consequences: `npm run typecheck`/`lint`/`test` (599/599)/`build` all pass; both pages are separately code-split (confirmed in the build output — neither adds to the initial bundle real visitors download). Pushed to `spike/product-panel-concept` and opened as a draft PR purely to get a Vercel preview link for the owner to check directly, same as the earlier rejected spin prototype's PR (closed once its job was done — see its own entry above). Remove both pages and their two `App.tsx` routes once this review concludes, whichever way it goes; nothing here is a decided feature.
+
 ## Owner questions that block work
 
 List here with a date when asked and the answer when received.
